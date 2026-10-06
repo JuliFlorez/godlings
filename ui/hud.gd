@@ -2,6 +2,7 @@ extends CanvasLayer
 class_name HUD
 ## Panel superior izquierdo: XP (progreso al próximo punto de expansión),
 ## Devoción, población de la isla y botones de Invocar / Expandir.
+## Menú inferior: armas y poderes (los que todavía no existen dicen "Próximamente").
 ## Toda la interfaz se construye por código.
 
 signal spawn_pressed
@@ -38,6 +39,17 @@ const C_WARN := Color(1.0, 0.55, 0.45)
 const C_SPAWN := Color(0.98, 0.58, 0.24)
 const C_EXPAND := Color(0.98, 0.78, 0.22)
 const C_GUN := Color(0.9, 0.36, 0.32)
+const C_SOON := Color(1.0, 0.8, 0.3)
+
+## Menú inferior de armas y poderes: [ícono, nombre, tecla, disponible, descripción]
+const TOOLS := [
+	["gun", "Pistola", "G", true, "Sacar o guardar la pistola [G]"],
+	["lightning", "Rayo", "", false, "Fulminá aldeanos desde el cielo"],
+	["meteor", "Meteorito", "", false, "Un meteorito que deja un cráter en la isla"],
+	["tornado", "Tornado", "", false, "Un tornado que levanta aldeanos por el aire"],
+	["rain", "Diluvio", "", false, "Una tormenta que inunda la orilla"],
+]
+const SLOT_SIZE := Vector2(76, 62)
 
 var _root: Control
 var _xp_bar: ProgressBar
@@ -51,6 +63,9 @@ var _spawn_btn: Button
 var _expand_btn: Button
 var _gun_btn: Button
 var _gun_armed := false
+var _slot_idle: StyleBoxFlat
+var _slot_hover: StyleBoxFlat
+var _slot_active: StyleBoxFlat
 var _hint: Label
 
 func _ready() -> void:
@@ -193,8 +208,8 @@ func _refresh() -> void:
 	else:
 		_expand_btn.text = "Expandir isla\n%d punto%s" % [expansion_points, "" if expansion_points == 1 else "s"]
 
-	_gun_btn.text = "Guardar pistola  [G]" if _gun_armed else "Sacar pistola  [G]"
-	_gun_btn.modulate = Color(1.25, 1.15, 1.1) if _gun_armed else Color.WHITE
+	_gun_btn.add_theme_stylebox_override("normal", _slot_active if _gun_armed else _slot_idle)
+	_gun_btn.add_theme_stylebox_override("hover", _slot_active if _gun_armed else _slot_hover)
 
 	if _gun_armed:
 		_hint.text = "Click para disparar · click derecho, Esc o G para guardarla."
@@ -259,16 +274,97 @@ func _build_ui() -> void:
 	_expand_btn = _action_button(buttons, C_EXPAND)
 	_expand_btn.pressed.connect(func(): expand_pressed.emit())
 
-	_gun_btn = _action_button(col, C_GUN)
-	_gun_btn.custom_minimum_size = Vector2(0, 34)
-	_gun_btn.pressed.connect(func(): gun_toggled.emit(not _gun_armed))
-
 	_hint = Label.new()
 	_hint.add_theme_font_size_override("font_size", 12)
 	_hint.add_theme_color_override("font_color", C_MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_hint.custom_minimum_size = Vector2(268, 0)
 	col.add_child(_hint)
+
+	_build_toolbar()
+
+func _build_toolbar() -> void:
+	_slot_idle = _box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1)
+	_slot_hover = _box(Color(1, 1, 1, 0.13), 12, Color(1, 1, 1, 0.28), 1)
+	_slot_active = _box(Color(C_GUN, 0.38), 12, C_GUN.lightened(0.3), 2)
+
+	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
+	var dock := VBoxContainer.new()
+	dock.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dock.alignment = BoxContainer.ALIGNMENT_END
+	dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dock.add_theme_constant_override("separation", 0)
+	_root.add_child(dock)
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dock.add_child(center)
+	var bottom_gap := Control.new()
+	bottom_gap.custom_minimum_size = Vector2(0, 8)
+	bottom_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dock.add_child(bottom_gap)
+
+	var bar := PanelContainer.new()
+	bar.mouse_filter = Control.MOUSE_FILTER_STOP  # Los clicks en la barra no llegan al mundo
+	bar.add_theme_stylebox_override("panel", _box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(8, 8, 8, 8)))
+	center.add_child(bar)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	bar.add_child(row)
+
+	for t in TOOLS:
+		var slot := _tool_slot(row, t[0], t[1], t[2], t[3], t[4])
+		if t[0] == "gun":
+			_gun_btn = slot
+			_gun_btn.pressed.connect(func(): gun_toggled.emit(not _gun_armed))
+
+func _tool_slot(parent: Control, kind: String, title: String, key: String, available: bool, tip: String) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = SLOT_SIZE
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = tip
+	b.add_theme_stylebox_override("normal", _slot_idle)
+	b.add_theme_stylebox_override("hover", _slot_hover)
+	b.add_theme_stylebox_override("pressed", _slot_active)
+	b.add_theme_stylebox_override("disabled", _box(Color(1, 1, 1, 0.03), 12, Color(1, 1, 1, 0.06), 1))
+	parent.add_child(b)
+
+	var col := VBoxContainer.new()
+	col.set_anchors_preset(Control.PRESET_FULL_RECT)
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_theme_constant_override("separation", 2)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(col)
+	var icon := HudIcon.make(kind, 26)
+	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(icon)
+	var name_l := _label(title, 11, C_TEXT)
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(name_l)
+
+	if key != "":
+		var k := _label(key, 10, C_MUTED)
+		k.position = Vector2(8, 4)
+		b.add_child(k)
+
+	if not available:
+		b.disabled = true
+		icon.modulate = Color(1, 1, 1, 0.5)
+		name_l.modulate = Color(1, 1, 1, 0.55)
+		_soon_sign(b)
+	return b
+
+## Cartelito de "Próximamente" pegado sobre el borde superior del slot.
+func _soon_sign(slot: Control) -> void:
+	var badge := PanelContainer.new()
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_theme_stylebox_override("panel", _box(C_SOON, 4, C_SOON.darkened(0.4), 1, Vector4(4, 0, 4, 0)))
+	badge.add_child(_label("PRÓXIMAMENTE", 8, Color(0.18, 0.11, 0.02)))
+	slot.add_child(badge)
+	var sz := badge.get_combined_minimum_size()
+	badge.size = sz
+	badge.pivot_offset = sz * 0.5
+	badge.position = Vector2(SLOT_SIZE.x * 0.5 - sz.x * 0.5, -sz.y * 0.55)
+	badge.rotation = deg_to_rad(-6.0)
 
 func _bar_row(parent: Control, icon: String, title: String, color: Color) -> Array:
 	var box := VBoxContainer.new()
@@ -395,3 +491,37 @@ class HudIcon extends Control:
 				draw_circle(c, s * 0.48, HUD.C_EXPAND, true, -1.0, true)
 				draw_line(c - Vector2(s * 0.26, 0), c + Vector2(s * 0.26, 0), Color.WHITE, 2.0, true)
 				draw_line(c - Vector2(0, s * 0.26), c + Vector2(0, s * 0.26), Color.WHITE, 2.0, true)
+			"gun":
+				var grip := _pts([0.16, 0.48, 0.42, 0.48, 0.36, 0.9, 0.08, 0.86])
+				draw_colored_polygon(grip, HUD.C_GUN)
+				draw_arc(Vector2(0.5, 0.52) * s, s * 0.1, 0.0, PI, 8, Color(0.75, 0.78, 0.85), 2.0, true)
+				draw_rect(Rect2(Vector2(0.06, 0.26) * s, Vector2(0.88, 0.22) * s), Color(0.75, 0.78, 0.85))
+				draw_rect(Rect2(Vector2(0.84, 0.2) * s, Vector2(0.06, 0.06) * s), Color(0.75, 0.78, 0.85))
+			"lightning":
+				draw_colored_polygon(_pts([0.6, 0.0, 0.16, 0.56, 0.46, 0.56, 0.34, 1.0, 0.84, 0.4, 0.54, 0.4, 0.72, 0.0]), Color(1.0, 0.9, 0.3))
+			"meteor":
+				draw_colored_polygon(_pts([0.98, 0.02, 0.22, 0.48, 0.52, 0.78]), Color(1.0, 0.62, 0.2, 0.6))
+				draw_circle(Vector2(0.36, 0.64) * s, s * 0.26, Color(1.0, 0.45, 0.15), true, -1.0, true)
+				draw_circle(Vector2(0.32, 0.68) * s, s * 0.12, Color(1.0, 0.82, 0.45), true, -1.0, true)
+			"tornado":
+				for i in 5:
+					var y := s * (0.1 + i * 0.2)
+					var w := s * (0.46 - i * 0.08)
+					var x := c.x + sin(i * 1.3) * s * 0.06
+					draw_line(Vector2(x - w, y), Vector2(x + w, y), Color(0.8, 0.85, 0.92), 3.0, true)
+			"rain":
+				var cloud := Color(0.82, 0.86, 0.94)
+				draw_circle(Vector2(0.32, 0.4) * s, s * 0.18, cloud, true, -1.0, true)
+				draw_circle(Vector2(0.56, 0.3) * s, s * 0.24, cloud, true, -1.0, true)
+				draw_circle(Vector2(0.76, 0.44) * s, s * 0.16, cloud, true, -1.0, true)
+				draw_rect(Rect2(Vector2(0.32, 0.4) * s, Vector2(0.44, 0.2) * s), cloud)
+				for i in 3:
+					var x := s * (0.3 + i * 0.2)
+					draw_line(Vector2(x, s * 0.72), Vector2(x - s * 0.08, s * 0.96), HUD.C_DEVOTION, 2.5, true)
+
+	## Polígono a partir de coordenadas normalizadas (0..1) del ícono.
+	func _pts(xy: Array) -> PackedVector2Array:
+		var out := PackedVector2Array()
+		for i in range(0, xy.size(), 2):
+			out.append(Vector2(xy[i], xy[i + 1]) * size.x)
+		return out

@@ -28,8 +28,6 @@ func get_global_rect() -> Rect2:
 	return Rect2(global_position, Vector2.ZERO)
 
 func _on_body_entered(b: Node) -> void:
-	if b is CollisionObject2D:
-		print("[WATER] entered: ", b.name, " layer=", (b as CollisionObject2D).collision_layer)
 	if b.has_method("enter_water"):
 		b.enter_water(_surface_y())
 

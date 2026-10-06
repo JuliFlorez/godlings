@@ -287,7 +287,6 @@ func _grant_sacrifice_xp() -> void:
 	_ensure_hud()
 	if hud and hud.has_method("add_xp"):
 		hud.add_xp(1)
-		print("[XP] +1 por sacrificio en agua. XP actual=", hud.xp)
 
 # --- DISPARO / MUERTE ---
 ## Llamado por la pistola. hit_point y shot_dir en coordenadas globales.
