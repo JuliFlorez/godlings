@@ -1,7 +1,7 @@
 extends CanvasLayer
 class_name HUD
 ## Panel superior izquierdo: XP (progreso al próximo punto de expansión),
-## Devoción, población de la isla y botones de Invocar / Expandir.
+## Devoción, población de la isla, botones de Invocar / Expandir, Ofrendas y Tienda.
 ## Menú inferior: armas y poderes (los que todavía no existen dicen "Próximamente").
 ## Toda la interfaz se construye por código.
 
@@ -9,15 +9,20 @@ signal spawn_pressed
 signal expand_pressed
 signal expansion_points_changed(points: int)
 signal gun_toggled(on: bool)
+signal decoration_chosen(kind: String)
 
 @export var energy_max: float = 100.0
 @export var energy_refill_minutes: float = 5.0  # 5 min para llenarse de 0 a 100
 ## XP necesaria para cada punto de expansión (el último valor se repite).
 @export var xp_per_point: Array[int] = [3, 5, 8, 12, 16, 20]
 
+## Ofrendas con las que se arranca (moneda de la tienda).
+@export var start_offerings: int = 20
+
 var xp: int = 0
 var energy: float = 100.0
 var expansion_points: int = 0
+var offerings: int = 0
 var _points_earned: int = 0
 var _refill_rate: float = 0.0  # puntos de energía por segundo
 
@@ -40,6 +45,8 @@ const C_SPAWN := Color(0.98, 0.58, 0.24)
 const C_EXPAND := Color(0.98, 0.78, 0.22)
 const C_GUN := Color(0.9, 0.36, 0.32)
 const C_SOON := Color(1.0, 0.8, 0.3)
+const C_OFFERING := Color(1.0, 0.84, 0.34)
+const C_SHOP := Color(0.46, 0.84, 0.52)
 
 ## Menú inferior de armas y poderes: [ícono, nombre, tecla, disponible, descripción]
 const TOOLS := [
@@ -62,11 +69,18 @@ var _points_value: Label
 var _spawn_btn: Button
 var _expand_btn: Button
 var _gun_btn: Button
+var _gun_icon: Control
+var _gun_lock: Control
 var _gun_armed := false
 var _slot_idle: StyleBoxFlat
 var _slot_hover: StyleBoxFlat
 var _slot_active: StyleBoxFlat
 var _hint: Label
+var _offer_value: Label
+var _offer_chip: Control
+var _shop_btn: Button
+var _shop: Shop
+var _placing := false
 
 func _ready() -> void:
 	add_to_group("hud")
@@ -76,6 +90,7 @@ func _ready() -> void:
 		energy_refill_minutes = 5.0
 	_refill_rate = energy_max / (energy_refill_minutes * 60.0)
 	energy = energy_max
+	offerings = start_offerings
 
 	_build_ui()
 	_xp_bar.value = xp
@@ -156,6 +171,42 @@ func set_gun_armed(on: bool) -> void:
 	_gun_armed = on
 	_refresh()
 
+# ---- Ofrendas y tienda ----
+func add_offerings(amount: int) -> void:
+	offerings += amount
+	_flash(_offer_chip)
+	_refresh()
+
+func can_afford(amount: int) -> bool:
+	return offerings >= amount
+
+func spend_offerings(amount: int) -> bool:
+	if offerings < amount:
+		return false
+	offerings -= amount
+	_refresh()
+	return true
+
+func open_shop() -> void:
+	if _shop == null:
+		_shop = Shop.new()
+		_shop.hud = self
+		_root.add_child(_shop)
+	_shop.open()
+
+func unlock_gun() -> bool:
+	if Gun.unlocked or not spend_offerings(Gun.PRICE):
+		return false
+	Gun.unlocked = true
+	popup_text("¡Pistola desbloqueada! Sacala con G", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_GUN.lightened(0.3))
+	_refresh()
+	return true
+
+## Mientras se colocan decoraciones (para la pista de abajo del panel).
+func set_placing(on: bool) -> void:
+	_placing = on
+	_refresh()
+
 ## Texto flotante que sube y se desvanece (posición en pantalla).
 func popup_text(text: String, screen_pos: Vector2, color: Color = C_TEXT) -> void:
 	var l := Label.new()
@@ -208,10 +259,17 @@ func _refresh() -> void:
 	else:
 		_expand_btn.text = "Expandir isla\n%d punto%s" % [expansion_points, "" if expansion_points == 1 else "s"]
 
+	_offer_value.text = str(offerings)
+
 	_gun_btn.add_theme_stylebox_override("normal", _slot_active if _gun_armed else _slot_idle)
 	_gun_btn.add_theme_stylebox_override("hover", _slot_active if _gun_armed else _slot_hover)
+	_gun_lock.visible = not Gun.unlocked
+	_gun_icon.modulate = Color.WHITE if Gun.unlocked else Color(1, 1, 1, 0.45)
+	_gun_btn.tooltip_text = "Sacar o guardar la pistola [G]" if Gun.unlocked else "Desbloqueala en la tienda (%d ofrendas)" % Gun.PRICE
 
-	if _gun_armed:
+	if _placing:
+		_hint.text = "Click en la isla para colocar · click derecho o Esc para terminar."
+	elif _gun_armed:
 		_hint.text = "Click para disparar · click derecho, Esc o G para guardarla."
 	elif full and not island_maxed:
 		_hint.text = "Isla llena: sacrificá aldeanos para ganar puntos y expandirla."
@@ -238,7 +296,7 @@ func _build_ui() -> void:
 	var panel := PanelContainer.new()
 	panel.position = Vector2(14, 14)
 	panel.custom_minimum_size = Vector2(300, 0)
-	panel.add_theme_stylebox_override("panel", _box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(16, 14, 16, 14)))
+	panel.add_theme_stylebox_override("panel", make_box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(16, 14, 16, 14)))
 	_root.add_child(panel)
 
 	var col := VBoxContainer.new()
@@ -274,6 +332,15 @@ func _build_ui() -> void:
 	_expand_btn = _action_button(buttons, C_EXPAND)
 	_expand_btn.pressed.connect(func(): expand_pressed.emit())
 
+	var shop_row := HBoxContainer.new()
+	shop_row.add_theme_constant_override("separation", 8)
+	col.add_child(shop_row)
+	_offer_value = _stat_chip(shop_row, "coin", "Ofrendas")
+	_offer_chip = _offer_value.get_parent().get_parent()
+	_shop_btn = _action_button(shop_row, C_SHOP)
+	_shop_btn.text = "Tienda"
+	_shop_btn.pressed.connect(open_shop)
+
 	_hint = Label.new()
 	_hint.add_theme_font_size_override("font_size", 12)
 	_hint.add_theme_color_override("font_color", C_MUTED)
@@ -284,9 +351,9 @@ func _build_ui() -> void:
 	_build_toolbar()
 
 func _build_toolbar() -> void:
-	_slot_idle = _box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1)
-	_slot_hover = _box(Color(1, 1, 1, 0.13), 12, Color(1, 1, 1, 0.28), 1)
-	_slot_active = _box(Color(C_GUN, 0.38), 12, C_GUN.lightened(0.3), 2)
+	_slot_idle = make_box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1)
+	_slot_hover = make_box(Color(1, 1, 1, 0.13), 12, Color(1, 1, 1, 0.28), 1)
+	_slot_active = make_box(Color(C_GUN, 0.38), 12, C_GUN.lightened(0.3), 2)
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -305,7 +372,7 @@ func _build_toolbar() -> void:
 
 	var bar := PanelContainer.new()
 	bar.mouse_filter = Control.MOUSE_FILTER_STOP  # Los clicks en la barra no llegan al mundo
-	bar.add_theme_stylebox_override("panel", _box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(8, 8, 8, 8)))
+	bar.add_theme_stylebox_override("panel", make_box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(8, 8, 8, 8)))
 	center.add_child(bar)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -315,7 +382,14 @@ func _build_toolbar() -> void:
 		var slot := _tool_slot(row, t[0], t[1], t[2], t[3], t[4])
 		if t[0] == "gun":
 			_gun_btn = slot
-			_gun_btn.pressed.connect(func(): gun_toggled.emit(not _gun_armed))
+			_gun_icon = slot.get_meta("icon")
+			_gun_lock = _slot_badge(slot, "EN LA TIENDA", C_SHOP)
+			# Bloqueada, el slot lleva a la tienda
+			_gun_btn.pressed.connect(func():
+				if Gun.unlocked:
+					gun_toggled.emit(not _gun_armed)
+				else:
+					open_shop())
 
 func _tool_slot(parent: Control, kind: String, title: String, key: String, available: bool, tip: String) -> Button:
 	var b := Button.new()
@@ -325,7 +399,7 @@ func _tool_slot(parent: Control, kind: String, title: String, key: String, avail
 	b.add_theme_stylebox_override("normal", _slot_idle)
 	b.add_theme_stylebox_override("hover", _slot_hover)
 	b.add_theme_stylebox_override("pressed", _slot_active)
-	b.add_theme_stylebox_override("disabled", _box(Color(1, 1, 1, 0.03), 12, Color(1, 1, 1, 0.06), 1))
+	b.add_theme_stylebox_override("disabled", make_box(Color(1, 1, 1, 0.03), 12, Color(1, 1, 1, 0.06), 1))
 	parent.add_child(b)
 
 	var col := VBoxContainer.new()
@@ -337,34 +411,36 @@ func _tool_slot(parent: Control, kind: String, title: String, key: String, avail
 	var icon := HudIcon.make(kind, 26)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	col.add_child(icon)
-	var name_l := _label(title, 11, C_TEXT)
+	var name_l := make_label(title, 11, C_TEXT)
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(name_l)
 
 	if key != "":
-		var k := _label(key, 10, C_MUTED)
+		var k := make_label(key, 10, C_MUTED)
 		k.position = Vector2(8, 4)
 		b.add_child(k)
 
+	b.set_meta("icon", icon)
 	if not available:
 		b.disabled = true
 		icon.modulate = Color(1, 1, 1, 0.5)
 		name_l.modulate = Color(1, 1, 1, 0.55)
-		_soon_sign(b)
+		_slot_badge(b, "PRÓXIMAMENTE", C_SOON)
 	return b
 
-## Cartelito de "Próximamente" pegado sobre el borde superior del slot.
-func _soon_sign(slot: Control) -> void:
+## Cartelito ("Próximamente", "En la tienda") pegado sobre el borde superior del slot.
+func _slot_badge(slot: Control, text: String, color: Color) -> Control:
 	var badge := PanelContainer.new()
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge.add_theme_stylebox_override("panel", _box(C_SOON, 4, C_SOON.darkened(0.4), 1, Vector4(4, 0, 4, 0)))
-	badge.add_child(_label("PRÓXIMAMENTE", 8, Color(0.18, 0.11, 0.02)))
+	badge.add_theme_stylebox_override("panel", make_box(color, 4, color.darkened(0.4), 1, Vector4(4, 0, 4, 0)))
+	badge.add_child(make_label(text, 8, Color(0.18, 0.11, 0.02)))
 	slot.add_child(badge)
 	var sz := badge.get_combined_minimum_size()
 	badge.size = sz
 	badge.pivot_offset = sz * 0.5
 	badge.position = Vector2(SLOT_SIZE.x * 0.5 - sz.x * 0.5, -sz.y * 0.55)
 	badge.rotation = deg_to_rad(-6.0)
+	return badge
 
 func _bar_row(parent: Control, icon: String, title: String, color: Color) -> Array:
 	var box := VBoxContainer.new()
@@ -375,26 +451,26 @@ func _bar_row(parent: Control, icon: String, title: String, color: Color) -> Arr
 	head.add_theme_constant_override("separation", 6)
 	box.add_child(head)
 	head.add_child(HudIcon.make(icon, 16))
-	var name_l := _label(title, 14, C_TEXT)
+	var name_l := make_label(title, 14, C_TEXT)
 	head.add_child(name_l)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
-	var value_l := _label("", 13, C_MUTED)
+	var value_l := make_label("", 13, C_MUTED)
 	head.add_child(value_l)
 
 	var bar := ProgressBar.new()
 	bar.show_percentage = false
 	bar.custom_minimum_size = Vector2(0, 12)
-	bar.add_theme_stylebox_override("background", _box(C_TRACK, 6))
-	bar.add_theme_stylebox_override("fill", _box(color, 6, color.lightened(0.35), 1))
+	bar.add_theme_stylebox_override("background", make_box(C_TRACK, 6))
+	bar.add_theme_stylebox_override("fill", make_box(color, 6, color.lightened(0.35), 1))
 	box.add_child(bar)
 	return [bar, value_l]
 
 func _stat_chip(parent: Control, icon: String, title: String) -> Label:
 	var chip := PanelContainer.new()
 	chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	chip.add_theme_stylebox_override("panel", _box(Color(1, 1, 1, 0.06), 9, Color(0, 0, 0, 0), 0, Vector4(8, 6, 8, 6)))
+	chip.add_theme_stylebox_override("panel", make_box(Color(1, 1, 1, 0.06), 9, Color(0, 0, 0, 0), 0, Vector4(8, 6, 8, 6)))
 	parent.add_child(chip)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 0)
@@ -403,8 +479,8 @@ func _stat_chip(parent: Control, icon: String, title: String) -> Label:
 	top.add_theme_constant_override("separation", 5)
 	v.add_child(top)
 	top.add_child(HudIcon.make(icon, 14))
-	top.add_child(_label(title, 11, C_MUTED))
-	var value := _label("", 16, C_TEXT)
+	top.add_child(make_label(title, 11, C_MUTED))
+	var value := make_label("", 16, C_TEXT)
 	v.add_child(value)
 	return value
 
@@ -418,14 +494,14 @@ func _action_button(parent: Control, color: Color) -> Button:
 	b.add_theme_color_override("font_hover_color", Color(0.12, 0.08, 0.04))
 	b.add_theme_color_override("font_pressed_color", Color(0.12, 0.08, 0.04))
 	b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.35))
-	b.add_theme_stylebox_override("normal", _box(color, 10, color.lightened(0.3), 1))
-	b.add_theme_stylebox_override("hover", _box(color.lightened(0.15), 10, color.lightened(0.5), 1))
-	b.add_theme_stylebox_override("pressed", _box(color.darkened(0.15), 10, color.darkened(0.3), 1))
-	b.add_theme_stylebox_override("disabled", _box(Color(1, 1, 1, 0.07), 10, Color(1, 1, 1, 0.08), 1))
+	b.add_theme_stylebox_override("normal", make_box(color, 10, color.lightened(0.3), 1))
+	b.add_theme_stylebox_override("hover", make_box(color.lightened(0.15), 10, color.lightened(0.5), 1))
+	b.add_theme_stylebox_override("pressed", make_box(color.darkened(0.15), 10, color.darkened(0.3), 1))
+	b.add_theme_stylebox_override("disabled", make_box(Color(1, 1, 1, 0.07), 10, Color(1, 1, 1, 0.08), 1))
 	parent.add_child(b)
 	return b
 
-func _label(text: String, size: int, color: Color) -> Label:
+static func make_label(text: String, size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
@@ -433,7 +509,7 @@ func _label(text: String, size: int, color: Color) -> Label:
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	return l
 
-func _box(bg: Color, radius: int, border := Color(0, 0, 0, 0), border_w := 0, pad := Vector4.ZERO) -> StyleBoxFlat:
+static func make_box(bg: Color, radius: int, border := Color(0, 0, 0, 0), border_w := 0, pad := Vector4.ZERO) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = bg
 	s.set_corner_radius_all(radius)
@@ -491,6 +567,10 @@ class HudIcon extends Control:
 				draw_circle(c, s * 0.48, HUD.C_EXPAND, true, -1.0, true)
 				draw_line(c - Vector2(s * 0.26, 0), c + Vector2(s * 0.26, 0), Color.WHITE, 2.0, true)
 				draw_line(c - Vector2(0, s * 0.26), c + Vector2(0, s * 0.26), Color.WHITE, 2.0, true)
+			"coin":
+				draw_circle(c, s * 0.48, HUD.C_OFFERING.darkened(0.25), true, -1.0, true)
+				draw_circle(c, s * 0.38, HUD.C_OFFERING, true, -1.0, true)
+				draw_arc(c, s * 0.24, 0.0, TAU, 16, HUD.C_OFFERING.darkened(0.3), maxf(1.0, s * 0.08), true)
 			"gun":
 				var grip := _pts([0.16, 0.48, 0.42, 0.48, 0.36, 0.9, 0.08, 0.86])
 				draw_colored_polygon(grip, HUD.C_GUN)

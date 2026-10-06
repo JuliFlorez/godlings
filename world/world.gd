@@ -23,11 +23,19 @@ const HEIGHT_MAX := 1.05
 @export var spawn_devotion_cost: float = 10.0
 @export var start_level: int = 0
 @export var starting_villagers: int = 4
+## Cada tantos segundos, cada aldeano vivo reza y deja una ofrenda.
+@export var worship_interval: float = 10.0
 
 var island_level := 0
 var island_poly_global: PackedVector2Array
 var hud: HUD
 var gun: Gun
+var placer: DecorPlacer
+## Aldeanos y decoraciones, ordenados por Y para que el de adelante tape al de atrás.
+var props: Node2D
+## Manchas en el piso (charcos de sangre): siempre debajo de aldeanos y decoraciones.
+var ground: Node2D
+var _worship_t := 0.0
 
 var _base_poly_global: PackedVector2Array
 var _base_sprite_scale: Vector2
@@ -36,6 +44,19 @@ var _expanding := false
 var _markers: Array[ExpandMarker] = []
 
 func _ready() -> void:
+	# Capas sobre la isla y el tiburón: primero el piso, después lo que tiene altura
+	ground = Node2D.new()
+	ground.name = "Ground"
+	ground.add_to_group("ground_layer")
+	props = Node2D.new()
+	props.name = "Props"
+	props.y_sort_enabled = true
+	var after := $Shark.get_index() + 1
+	add_child(ground)
+	move_child(ground, after)
+	add_child(props)
+	move_child(props, after + 1)
+
 	for p in isle.polygon:
 		_base_poly_global.append(isle.to_global(p))
 	_base_sprite_scale = isle_sprite.scale
@@ -52,18 +73,35 @@ func _ready() -> void:
 		hud.expand_pressed.connect(expand_island)
 		hud.expansion_points_changed.connect(func(_p): _refresh_markers())
 
-	# Último hijo: recibe los clicks antes que el sol/luna y los aldeanos
+	# Últimos hijos: reciben los clicks antes que el sol/luna y los aldeanos
 	gun = Gun.new()
 	add_child(gun)
+	placer = DecorPlacer.new()
+	placer.hud = hud
+	placer.props = props
+	placer.island_poly = island_poly_global
+	add_child(placer)
 	if hud:
 		hud.gun_toggled.connect(gun.set_armed)
 		gun.armed_changed.connect(hud.set_gun_armed)
+		hud.decoration_chosen.connect(func(k: String):
+			gun.set_armed(false)
+			placer.start(k))
+	gun.armed_changed.connect(func(on: bool):
+		if on:
+			placer.stop())
 
 	_spawn_villagers(mini(starting_villagers, capacity()))
 
-func _process(_dt: float) -> void:
+func _process(dt: float) -> void:
 	if hud:
 		hud.set_population(alive_villagers(), capacity())
+		_worship_t += dt
+		if _worship_t >= worship_interval:
+			_worship_t = 0.0
+			var n := alive_villagers()
+			if n > 0:
+				hud.add_offerings(n)
 
 func _ensure_hud() -> void:
 	if hud == null:
@@ -96,7 +134,7 @@ func _spawn_villagers(n: int) -> void:
 		var v := VILLAGER.instantiate()
 		v.global_position = _rand_point_in_poly(island_poly_global, aabb)
 		v.island_poly = island_poly_global
-		add_child(v)
+		props.add_child(v)
 
 func _rand_point_in_poly(poly: PackedVector2Array, box: Rect2) -> Vector2:
 	for i in 200:
@@ -142,6 +180,8 @@ func _apply_island_width(w: float) -> void:
 	for v in get_tree().get_nodes_in_group("villager"):
 		if v is Villager:
 			v.island_poly = island_poly_global
+	if placer:
+		placer.island_poly = island_poly_global
 	_place_markers()
 
 func expand_island() -> void:

@@ -1,6 +1,7 @@
 extends Node2D
 class_name Gun
-## Pistola: se saca desde el HUD o con la tecla G (Esc o click derecho la guardan).
+## Pistola: se desbloquea en la tienda y después se saca desde el HUD o con la tecla G
+## (Esc o click derecho la guardan).
 ## Apunta desde la esquina inferior derecha hacia el mouse; cada click dispara.
 ## Los aldeanos alcanzados mueren y caen en ragdoll (ver Villager.shoot).
 
@@ -8,6 +9,9 @@ signal armed_changed(on: bool)
 
 ## Mientras está activa, los clicks disparan en vez de agarrar aldeanos.
 static var armed := false
+## Hay que comprarla en la tienda antes de poder sacarla.
+static var unlocked := false
+const PRICE := 60
 
 const FIRE_COOLDOWN := 0.16
 const TRACER_TIME := 0.07
@@ -30,6 +34,7 @@ var _sound: AudioStreamPlayer
 
 func _ready() -> void:
 	armed = false
+	unlocked = false
 	visible = false
 	z_index = 50
 	_sound = AudioStreamPlayer.new()
@@ -39,6 +44,11 @@ func _ready() -> void:
 	add_child(_sound)
 
 func set_armed(on: bool) -> void:
+	if on and not unlocked:
+		var hud := get_tree().get_first_node_in_group("hud") as HUD
+		if hud:
+			hud.popup_text("Desbloqueá la pistola en la tienda", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
+		return
 	if on == armed:
 		return
 	armed = on

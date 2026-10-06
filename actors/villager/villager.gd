@@ -31,6 +31,7 @@ var _mouse_acc := Vector2.ZERO
 @export var hud_path: NodePath
 var hud: HUD
 var xp_granted := false      # Evita sumar dos veces por ahogo
+const SACRIFICE_OFFERING := 5
 
 # --- Caída / Gravedad fuera de la isla ---
 const GRAVITY := 1400.0
@@ -287,6 +288,8 @@ func _grant_sacrifice_xp() -> void:
 	_ensure_hud()
 	if hud and hud.has_method("add_xp"):
 		hud.add_xp(1)
+		hud.add_offerings(SACRIFICE_OFFERING)
+		hud.popup_text("+%d ofrendas" % SACRIFICE_OFFERING, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
 
 # --- DISPARO / MUERTE ---
 ## Llamado por la pistola. hit_point y shot_dir en coordenadas globales.
@@ -386,8 +389,13 @@ func _lie_angle() -> float:
 
 func _spawn_blood_pool() -> void:
 	var pool := BloodPool.new()
-	get_parent().add_child(pool)
-	get_parent().move_child(pool, get_index())  # Debajo del cuerpo
+	# En la capa del piso, así queda debajo de aldeanos y decoraciones
+	var layer := get_tree().get_first_node_in_group("ground_layer")
+	if layer:
+		layer.add_child(pool)
+	else:
+		get_parent().add_child(pool)
+		get_parent().move_child(pool, get_index())  # Debajo del cuerpo
 	pool.global_position = Vector2(global_position.x, floor_y + 7.0)
 
 class BloodPool extends Node2D:
