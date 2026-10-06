@@ -68,6 +68,20 @@ var floor_y := 0.0            # Altura del "piso" donde cae el cadáver
 var corpse_timer := 0.0
 var fall_vx := 0.0            # Deriva horizontal al caer (cadáver empujado fuera de la isla)
 
+# --- Espacio personal y empujones ---
+# Los aldeanos no chocan físicamente entre sí: se esquivan con una separación suave.
+# El que está agarrado sí empuja a los demás, y los puede tirar de la isla.
+const SEPARATION_RADIUS := 18.0  # Distancia (entre pies) a la que empiezan a apartarse
+const SEPARATION_SPEED := 35.0   # Velocidad de apartarse cuando están encimados
+const BODY_HALF_W := 10.0        # Medio ancho del cuerpo (cápsula) para los empujones
+const BODY_TOP := -36.0          # Extremos del cuerpo (local), igual que la colisión
+const BODY_BOTTOM := 31.0
+const SHOVE_TIME := 0.4          # Tras un empujón, salir de la isla = caerse
+const SHOVE_FRICTION := 1500.0   # Frenado del empujón (px/s²)
+const MAX_SHOVE := 600.0
+var shove_vel := Vector2.ZERO
+var shove_timer := 0.0
+
 # IA y animaciones
 var wander_timer := 0.0
 @onready var rig: VillagerRig = get_node_or_null("Rig")
@@ -109,6 +123,9 @@ func _start_floating() -> void:
 
 func exit_water() -> void:
 	touching_water = false
+	# Ahogándose se hunde por debajo del área de agua: sigue hasta desaparecer
+	if drowning and not dragging:
+		return
 	in_water = false
 	drowning = false
 	drown_elapsed = 0.0
@@ -174,13 +191,19 @@ func _physics_process(dt: float) -> void:
 
 	# --- IA normal caminando en la isla ---
 	rotation = lerp_angle(rotation, 0.0, 10.0 * dt)
-	velocity = dir * speed
+	shove_vel = shove_vel.move_toward(Vector2.ZERO, SHOVE_FRICTION * dt)
+	shove_timer = maxf(0.0, shove_timer - dt)
+	velocity = dir * speed + _separation() + shove_vel
 	var prev_pos := global_position
 	move_and_slide()
 
 	# Si cruza el borde del polígono de la isla, retroceder y girar hacia el centro.
-	# Si ya estaba afuera (lo empujó otro aldeano) no se retrocede: así vuelve caminando.
+	# Si ya estaba afuera no se retrocede: así vuelve caminando.
 	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
+		if shove_timer > 0.0:
+			# Lo empujaron fuera de la isla: se cae
+			_fall_from_shove()
+			return
 		if Geometry2D.is_point_in_polygon(prev_pos, island_poly):
 			global_position = prev_pos
 		var to_center := (island_center - global_position).normalized()
@@ -192,6 +215,70 @@ func _physics_process(dt: float) -> void:
 		if wander_timer <= 0.0:
 			_pick_dir()
 			wander_timer = randf_range(2.0, 5.0)
+
+## Empuje suave para no quedar encimado con otros aldeanos en tierra.
+func _separation() -> Vector2:
+	var push := Vector2.ZERO
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten:
+			continue
+		var d := global_position - o.global_position
+		var dist := d.length()
+		if dist >= SEPARATION_RADIUS:
+			continue
+		if dist < 0.01:
+			d = Vector2.RIGHT.rotated(randf() * TAU)
+			dist = 1.0
+		push += d / dist * (1.0 - dist / SEPARATION_RADIUS)
+	return push.limit_length(1.0) * SEPARATION_SPEED
+
+## Eje del cuerpo en coordenadas globales (cápsula de radio BODY_HALF_W).
+func _body_segment() -> PackedVector2Array:
+	return PackedVector2Array([
+		to_global(Vector2(0.0, BODY_TOP + BODY_HALF_W)),
+		to_global(Vector2(0.0, BODY_BOTTOM - BODY_HALF_W)),
+	])
+
+## Llamado mientras está agarrado: aparta a los aldeanos que toca.
+func _shove_others() -> void:
+	var mine := _body_segment()
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten:
+			continue
+		var theirs := o._body_segment()
+		var pts := Geometry2D.get_closest_points_between_segments(mine[0], mine[1], theirs[0], theirs[1])
+		var d := pts[1] - pts[0]
+		var dist := d.length()
+		if dist >= BODY_HALF_W * 2.0:
+			continue
+		var n := d / dist if dist > 0.01 else Vector2(1.0 if o.global_position.x >= global_position.x else -1.0, 0.0)
+		# Lo saca de adentro del cuerpo, y si el golpe viene rápido, sale despedido
+		o.get_shoved(n * (BODY_HALF_W * 2.0 - dist), n * maxf(_mouse_vel.dot(n), 0.0))
+
+func get_shoved(offset: Vector2, vel: Vector2) -> void:
+	global_position += offset
+	vel = vel.limit_length(MAX_SHOVE)
+	if dead:
+		floor_y += offset.y
+		if absf(vel.x) > absf(corpse_vel.x):
+			corpse_vel.x = vel.x
+		corpse_timer = 0.0
+		return
+	if vel.length() > shove_vel.length():
+		shove_vel = vel
+	shove_timer = SHOVE_TIME
+
+func _fall_from_shove() -> void:
+	var push := shove_vel
+	shove_vel = Vector2.ZERO
+	shove_timer = 0.0
+	_start_fall()
+	if falling:
+		fall_vx = push.x
+		v_fall = minf(push.y, 0.0)
+		swing_vel = clampf(push.x * 0.02, -8.0, 8.0)  # Que trastabille al caer
 
 func _grant_sacrifice_xp() -> void:
 	if xp_granted:
@@ -389,6 +476,7 @@ func _update_drag(dt: float) -> void:
 
 	# El punto agarrado queda pegado al cursor
 	global_position = m - grab_local.rotated(rotation)
+	_shove_others()
 
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -467,4 +555,6 @@ func _land_on_island() -> void:
 		return
 	v_fall = 0.0
 	swing_vel = 0.0
+	shove_vel = Vector2.ZERO
+	shove_timer = 0.0
 	_pick_dir()

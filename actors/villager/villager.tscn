@@ -8,6 +8,7 @@
 size = Vector2(20, 67)
 
 [node name="Villager" type="CharacterBody2D" groups=["villager"]]
+collision_mask = 0
 input_pickable = true
 script = ExtResource("1_g8jkn")
 
