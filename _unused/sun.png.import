@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bu7t0dx22q4lw"
-path="res://.godot/imported/solAcosador.png-5e9a96fb5fe9f50e2d8547de509294e7.ctex"
+uid="uid://gekmuqybq8fx"
+path="res://.godot/imported/sun.png-96654e2514e117453f5b519ac98c70c7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/solAcosador.png"
-dest_files=["res://.godot/imported/solAcosador.png-5e9a96fb5fe9f50e2d8547de509294e7.ctex"]
+source_file="res://_unused/sun.png"
+dest_files=["res://.godot/imported/sun.png-96654e2514e117453f5b519ac98c70c7.ctex"]
 
 [params]
 

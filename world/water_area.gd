@@ -19,6 +19,14 @@ func _surface_y() -> float:
 		return col.to_global(top_local).y
 	return global_position.y
 
+func get_global_rect() -> Rect2:
+	if col and col.shape is RectangleShape2D:
+		var half := (col.shape as RectangleShape2D).size * 0.5
+		var a := col.to_global(-half)
+		var b := col.to_global(half)
+		return Rect2(a, Vector2.ZERO).expand(b)
+	return Rect2(global_position, Vector2.ZERO)
+
 func _on_body_entered(b: Node) -> void:
 	if b is CollisionObject2D:
 		print("[WATER] entered: ", b.name, " layer=", (b as CollisionObject2D).collision_layer)

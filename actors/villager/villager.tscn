@@ -1,0 +1,96 @@
+[gd_scene load_steps=5 format=3 uid="uid://cyksonqikgu0y"]
+
+[ext_resource type="Script" uid="uid://d1ssj7d304jis" path="res://actors/villager/villager.gd" id="1_g8jkn"]
+[ext_resource type="Texture2D" uid="uid://bxvdpp4d5tfgh" path="res://actors/villager/villager.png" id="2_g8jkn"]
+[ext_resource type="Script" uid="uid://cjh8o0rh8d823" path="res://actors/villager/villager_rig.gd" id="3_rig"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_g8jkn"]
+size = Vector2(20, 67)
+
+[node name="Villager" type="CharacterBody2D" groups=["villager"]]
+input_pickable = true
+script = ExtResource("1_g8jkn")
+
+[node name="Rig" type="Node2D" parent="."]
+position = Vector2(0, -3)
+scale = Vector2(0.078979485, 0.078979485)
+script = ExtResource("3_rig")
+
+[node name="Skeleton2D" type="Skeleton2D" parent="Rig"]
+position = Vector2(-512, -512)
+
+[node name="Hip" type="Bone2D" parent="Rig/Skeleton2D"]
+position = Vector2(515, 790)
+rest = Transform2D(1, 0, 0, 1, 515, 790)
+auto_calculate_length_and_angle = false
+length = 200.0
+bone_angle = -90.0
+
+[node name="LegL" type="Bone2D" parent="Rig/Skeleton2D/Hip"]
+position = Vector2(-60, 32)
+rest = Transform2D(1, 0, 0, 1, -60, 32)
+auto_calculate_length_and_angle = false
+length = 120.0
+bone_angle = 90.0
+
+[node name="Sprite" type="Polygon2D" parent="Rig/Skeleton2D/Hip/LegL"]
+texture = ExtResource("2_g8jkn")
+polygon = PackedVector2Array(-47, -7, 48, -7, 48, 126, -71, 126, -71, 78, -50, 73)
+uv = PackedVector2Array(408, 815, 503, 815, 503, 948, 384, 948, 384, 900, 405, 895)
+
+[node name="LegR" type="Bone2D" parent="Rig/Skeleton2D/Hip"]
+position = Vector2(63, 32)
+rest = Transform2D(1, 0, 0, 1, 63, 32)
+auto_calculate_length_and_angle = false
+length = 120.0
+bone_angle = 90.0
+
+[node name="Sprite" type="Polygon2D" parent="Rig/Skeleton2D/Hip/LegR"]
+texture = ExtResource("2_g8jkn")
+polygon = PackedVector2Array(-50, -7, 47, -7, 50, 73, 68, 81, 68, 126, -48, 126)
+uv = PackedVector2Array(528, 815, 625, 815, 628, 895, 646, 903, 646, 948, 530, 948)
+
+[node name="Sprite" type="Polygon2D" parent="Rig/Skeleton2D/Hip"]
+texture = ExtResource("2_g8jkn")
+polygon = PackedVector2Array(-103, -214, 103, -214, 103, -128, 109, -85, 125, -45, 149, 10, 149, 46, -149, 46, -149, 10, -123, -45, -107, -85, -101, -128)
+uv = PackedVector2Array(412, 576, 618, 576, 618, 662, 624, 705, 640, 745, 664, 800, 664, 836, 366, 836, 366, 800, 392, 745, 408, 705, 414, 662)
+
+[node name="ArmL" type="Bone2D" parent="Rig/Skeleton2D/Hip"]
+position = Vector2(-75, -170)
+rest = Transform2D(1, 0, 0, 1, -75, -170)
+auto_calculate_length_and_angle = false
+length = 135.0
+bone_angle = 180.0
+
+[node name="Sprite" type="Polygon2D" parent="Rig/Skeleton2D/Hip/ArmL"]
+texture = ExtResource("2_g8jkn")
+polygon = PackedVector2Array(-142, -34, -60, -37, 6, -37, 6, 38, -142, 38)
+uv = PackedVector2Array(298, 586, 380, 583, 446, 583, 446, 658, 298, 658)
+
+[node name="ArmR" type="Bone2D" parent="Rig/Skeleton2D/Hip"]
+position = Vector2(79, -170)
+rest = Transform2D(1, 0, 0, 1, 79, -170)
+auto_calculate_length_and_angle = false
+length = 135.0
+bone_angle = 0.0
+
+[node name="Sprite" type="Polygon2D" parent="Rig/Skeleton2D/Hip/ArmR"]
+texture = ExtResource("2_g8jkn")
+polygon = PackedVector2Array(-4, -37, 66, -37, 150, -34, 150, 38, -4, 38)
+uv = PackedVector2Array(590, 583, 660, 583, 744, 586, 744, 658, 590, 658)
+
+[node name="Head" type="Bone2D" parent="Rig/Skeleton2D/Hip"]
+position = Vector2(0, -205)
+rest = Transform2D(1, 0, 0, 1, 0, -205)
+auto_calculate_length_and_angle = false
+length = 560.0
+bone_angle = -90.0
+
+[node name="Sprite" type="Polygon2D" parent="Rig/Skeleton2D/Hip/Head"]
+texture = ExtResource("2_g8jkn")
+polygon = PackedVector2Array(-245, -570, 233, -570, 233, -2, -245, -2)
+uv = PackedVector2Array(270, 15, 748, 15, 748, 583, 270, 583)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -2.5)
+shape = SubResource("RectangleShape2D_g8jkn")
