@@ -216,13 +216,13 @@ func _apply() -> void:
 ## Ojos en X que tapan los ojos del dibujo cuando el aldeano muere.
 class DeadEyes extends Node2D:
 	# Centros de los ojos relativos al pivote del hueso Head (px de villager.png)
-	const EYES := [Vector2(-114, -165), Vector2(135, -173)]
+	const EYES := [Vector2(-139, -185), Vector2(154, -193)]
 	const WHITE := Color(0.98, 0.98, 1.0)
 	const INK := Color(0.2, 0.09, 0.05)
 
 	func _draw() -> void:
 		for e: Vector2 in EYES:
-			draw_circle(e, 46.0, WHITE, true, -1.0, true)
-			var d := 26.0
+			draw_circle(e, 56.0, WHITE, true, -1.0, true)
+			var d := 30.0
 			draw_line(e + Vector2(-d, -d), e + Vector2(d, d), INK, 18.0, true)
 			draw_line(e + Vector2(-d, d), e + Vector2(d, -d), INK, 18.0, true)
