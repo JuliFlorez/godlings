@@ -4,6 +4,11 @@ extends Node2D
 @onready var isle_sprite: Sprite2D = $SpriteIsle
 
 const VILLAGER := preload("res://actors/villager/villager.tscn")
+const MUSIC := preload("res://audio/golden_hour_at_the_cove.mp3")
+
+## Música de fondo: bien bajita, en loop. Entra con un fundido de unos segundos.
+@export var music_volume_db: float = -26.0
+const MUSIC_FADE_IN := 4.0
 
 ## Tamaños de la isla. "width" escala el ancho respecto al dibujo original
 ## y "capacity" es cuántos aldeanos pueden vivir a la vez en ese tamaño.
@@ -101,6 +106,18 @@ func _ready() -> void:
 			placer.stop())
 
 	_spawn_villagers(mini(starting_villagers, capacity()))
+	_start_music()
+
+func _start_music() -> void:
+	var music := AudioStreamPlayer.new()
+	music.name = "Music"
+	var stream: AudioStreamMP3 = MUSIC
+	stream.loop = true
+	music.stream = stream
+	music.volume_db = -60.0
+	add_child(music)
+	music.play()
+	create_tween().tween_property(music, "volume_db", music_volume_db, MUSIC_FADE_IN)
 
 func _process(dt: float) -> void:
 	if hud:
