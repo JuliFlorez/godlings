@@ -289,7 +289,7 @@ func _grant_sacrifice_xp() -> void:
 	if hud and hud.has_method("add_xp"):
 		hud.add_xp(1)
 		hud.add_offerings(SACRIFICE_OFFERING)
-		hud.popup_text("+%d ofrendas" % SACRIFICE_OFFERING, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
+		hud.popup_text(tr("+%d ofrendas") % SACRIFICE_OFFERING, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
 
 # --- DISPARO / MUERTE ---
 ## Llamado por la pistola. hit_point y shot_dir en coordenadas globales.

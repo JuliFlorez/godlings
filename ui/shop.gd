@@ -121,14 +121,14 @@ func _ready() -> void:
 	var shark_col := VBoxContainer.new()
 	shark_col.add_theme_constant_override("separation", 10)
 	bottom.add_child(shark_col)
-	shark_col.add_child(_section("Tiburones (máx. %d)" % Shark.MAX))
+	shark_col.add_child(_section(tr("Tiburones (máx. %d)") % Shark.MAX))
 	var shark_row := HBoxContainer.new()
 	shark_row.add_theme_constant_override("separation", 10)
 	shark_col.add_child(shark_row)
 	for i in Shark.MAX:
 		var icon := CenterContainer.new()
 		icon.add_child(HUD.HudIcon.make("shark", 40))
-		var b := _card(shark_row, icon, "Tiburón %d" % (i + 1), Shark.PRICE, "Comprar")
+		var b := _card(shark_row, icon, tr("Tiburón %d") % (i + 1), Shark.PRICE, "Comprar")
 		var card := b.get_parent()
 		var price: Control = card.get_node("Price")
 		var status := HUD.make_label("", 12, HUD.C_TEXT)
@@ -196,7 +196,8 @@ func _sync() -> void:
 
 # ---- Construcción ----
 func _section(title: String) -> Label:
-	var l := HUD.make_label(title.to_upper(), 11, HUD.C_MUTED)
+	var l := HUD.make_label(title, 11, HUD.C_MUTED)
+	l.uppercase = true   # Mayúsculas al mostrar, así el texto sigue siendo la clave de traducción
 	return l
 
 ## Tarjeta de un artículo; devuelve el botón de comprar. price < 0: sin precio.

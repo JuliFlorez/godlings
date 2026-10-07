@@ -84,9 +84,11 @@ var _offer_chip: Control
 var _shop_btn: Button
 var _shop: Shop
 var _placing := false
+var _pause: PauseMenu
 
 func _ready() -> void:
 	add_to_group("hud")
+	Settings.init()   # Volumen e idioma guardados, antes de armar los textos
 	if energy_max <= 0.0:
 		energy_max = 100.0
 	if energy_refill_minutes <= 0.0:
@@ -101,9 +103,14 @@ func _ready() -> void:
 	_refresh()
 	process_mode = Node.PROCESS_MODE_ALWAYS  # Sigue cargando aunque pierda foco
 
+	_pause = PauseMenu.new()
+	_pause.hud = self
+	_pause.locale_changed.connect(_on_locale_changed)
+	add_child(_pause)
+
 func _process(delta: float) -> void:
-	# Recarga suave de Devoción
-	if energy < energy_max:
+	# Recarga suave de Devoción (no durante el menú de pausa)
+	if energy < energy_max and not get_tree().paused:
 		energy = min(energy_max, energy + _refill_rate * delta)
 		_refresh()
 
@@ -226,6 +233,18 @@ func set_shark_on(index: int, on: bool) -> void:
 	shark_on[index] = on
 	shark_changed.emit(index, on)
 
+## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
+## de decoraciones ni la pistola, que la usan para cerrar/terminar/guardar).
+func esc_is_free() -> bool:
+	return not (_shop and _shop.visible) and not _placing and not _gun_armed
+
+## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.
+func _on_locale_changed() -> void:
+	_refresh()
+	if _shop:
+		_shop.queue_free()
+		_shop = null
+
 ## Mientras se colocan decoraciones (para la pista de abajo del panel).
 func set_placing(on: bool) -> void:
 	_placing = on
@@ -259,7 +278,7 @@ func _refresh() -> void:
 		return
 	var maxed := not _can_earn_points()
 	_xp_bar.max_value = xp_needed()
-	_xp_value.text = "Máx" if maxed else "%d / %d" % [xp, xp_needed()]
+	_xp_value.text = tr("Máx") if maxed else "%d / %d" % [xp, xp_needed()]
 	if maxed:
 		_xp_bar.value = _xp_bar.max_value
 
@@ -274,14 +293,16 @@ func _refresh() -> void:
 
 	var has_energy := energy >= _spawn_cost
 	_spawn_btn.disabled = full or not has_energy
-	_spawn_btn.text = "Invocar aldeano\n−%d devoción" % int(_spawn_cost)
+	_spawn_btn.text = tr("Invocar aldeano\n−%d devoción") % int(_spawn_cost)
 
 	var island_maxed := _island_level >= _island_max
 	_expand_btn.disabled = expansion_points <= 0 or island_maxed
 	if island_maxed:
-		_expand_btn.text = "Isla al máximo\n—"
+		_expand_btn.text = tr("Isla al máximo\n—")
+	elif expansion_points == 1:
+		_expand_btn.text = tr("Expandir isla\n1 punto")
 	else:
-		_expand_btn.text = "Expandir isla\n%d punto%s" % [expansion_points, "" if expansion_points == 1 else "s"]
+		_expand_btn.text = tr("Expandir isla\n%d puntos") % expansion_points
 
 	_offer_value.text = str(offerings)
 
@@ -289,18 +310,18 @@ func _refresh() -> void:
 	_gun_btn.add_theme_stylebox_override("hover", _slot_active if _gun_armed else _slot_hover)
 	_gun_lock.visible = not Gun.unlocked
 	_gun_icon.modulate = Color.WHITE if Gun.unlocked else Color(1, 1, 1, 0.45)
-	_gun_btn.tooltip_text = "Sacar o guardar la pistola [G]" if Gun.unlocked else "Desbloqueala en la tienda (%d ofrendas)" % Gun.PRICE
+	_gun_btn.tooltip_text = tr("Sacar o guardar la pistola [G]") if Gun.unlocked else tr("Desbloqueala en la tienda (%d ofrendas)") % Gun.PRICE
 
 	if _placing:
-		_hint.text = "Click en la isla para colocar · click derecho o Esc para terminar."
+		_hint.text = tr("Click en la isla para colocar · click derecho o Esc para terminar.")
 	elif _gun_armed:
-		_hint.text = "Click para disparar · click derecho, Esc o G para guardarla."
+		_hint.text = tr("Click para disparar · click derecho, Esc o G para guardarla.")
 	elif full and not island_maxed:
-		_hint.text = "Isla llena: sacrificá aldeanos para ganar puntos y expandirla."
+		_hint.text = tr("Isla llena: sacrificá aldeanos para ganar puntos y expandirla.")
 	elif not has_energy:
-		_hint.text = "Devoción insuficiente: se recarga con el tiempo."
+		_hint.text = tr("Devoción insuficiente: se recarga con el tiempo.")
 	elif expansion_points > 0 and not island_maxed:
-		_hint.text = "¡Tocá un orbe + en la isla para expandirla!"
+		_hint.text = tr("¡Tocá un orbe + en la isla para expandirla!")
 	else:
 		_hint.text = ""
 	_hint.visible = _hint.text != ""

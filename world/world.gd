@@ -126,9 +126,12 @@ func _start_music() -> void:
 
 func _make_music_player(stream: AudioStreamMP3, player_name: String) -> AudioStreamPlayer:
 	stream.loop = true
+	Settings.init()
 	var p := AudioStreamPlayer.new()
 	p.name = player_name
 	p.stream = stream
+	p.bus = Settings.MUSIC_BUS          # Lo controla la barra "Música" del menú de pausa
+	p.process_mode = Node.PROCESS_MODE_ALWAYS   # Sigue sonando con el juego en pausa
 	p.volume_db = SILENT_DB
 	add_child(p)
 	return p
@@ -264,7 +267,7 @@ func expand_island() -> void:
 	_sand_burst(_edge_point(1.0))
 	if hud:
 		hud.set_island(island_level, max_level())
-		hud.popup_text("¡La isla creció! Capacidad: %d aldeanos" % capacity(), _pivot + Vector2(0, -130), HUD.C_EXPAND)
+		hud.popup_text(tr("¡La isla creció! Capacidad: %d aldeanos") % capacity(), _pivot + Vector2(0, -130), HUD.C_EXPAND)
 
 func _on_expand_finished() -> void:
 	_expanding = false
