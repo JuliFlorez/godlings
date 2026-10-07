@@ -1,6 +1,11 @@
 extends Node2D
+class_name Shark
 ## Tiburón: una aleta triangular que patrulla el agua y se come
 ## a los aldeanos que están flotando.
+## Arranca apagado: se compran en la tienda (hasta MAX) y se pueden apagar y prender.
+
+const PRICE := 40
+const MAX := 2
 
 @export var water_path: NodePath
 @export var patrol_speed := 60.0
@@ -19,6 +24,8 @@ var dir := 1.0
 var _t := 0.0
 var _cooldown := 0.0
 var _dive := 0.0   # 0 = aleta afuera, 1 = sumergida (mientras muerde)
+var active := false
+var _tween: Tween
 
 func _ready() -> void:
 	var water := get_node_or_null(water_path)
@@ -26,6 +33,28 @@ func _ready() -> void:
 		water_rect = water.get_global_rect()
 	global_position = Vector2(randf_range(_left(), _right()), water_rect.position.y)
 	dir = 1.0 if randf() < 0.5 else -1.0
+	visible = false
+	set_process(false)
+
+## Prendido: emerge en un lugar al azar del agua. Apagado: se sumerge y deja de cazar.
+func set_active(on: bool) -> void:
+	if on == active:
+		return
+	active = on
+	if _tween:
+		_tween.kill()
+	_tween = create_tween()
+	if on:
+		global_position.x = randf_range(_left(), _right())
+		_dive = 1.0
+		visible = true
+		set_process(true)
+		_tween.tween_property(self, "_dive", 0.0, 0.5)
+	else:
+		_tween.tween_property(self, "_dive", 1.0, 0.3)
+		_tween.tween_callback(func():
+			visible = false
+			set_process(false))
 
 func _left() -> float:
 	return water_rect.position.x + 20.0
@@ -38,7 +67,7 @@ func _process(dt: float) -> void:
 	_cooldown -= dt
 
 	var speed := patrol_speed
-	var prey := _find_prey() if _cooldown <= 0.0 else null
+	var prey := _find_prey() if active and _cooldown <= 0.0 else null
 	if prey:
 		var dx := prey.global_position.x - global_position.x
 		if absf(dx) > 2.0:
@@ -72,10 +101,12 @@ func _find_prey() -> Villager:
 func _bite(prey: Villager) -> void:
 	prey.get_eaten()
 	_cooldown = bite_cooldown
-	var tw := create_tween()
-	tw.tween_property(self, "_dive", 1.0, 0.15)
-	tw.tween_interval(0.6)
-	tw.tween_property(self, "_dive", 0.0, 0.4)
+	if _tween:
+		_tween.kill()
+	_tween = create_tween()
+	_tween.tween_property(self, "_dive", 1.0, 0.15)
+	_tween.tween_interval(0.6)
+	_tween.tween_property(self, "_dive", 0.0, 0.4)
 
 func _draw() -> void:
 	# Al sumergirse, la línea del agua "corta" la aleta: se dibuja solo la punta

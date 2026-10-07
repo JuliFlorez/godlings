@@ -1,12 +1,13 @@
 extends Control
 class_name Shop
-## Tienda: se gastan ofrendas en decoraciones para la isla y en armas/poderes.
+## Tienda: se gastan ofrendas en decoraciones para la isla, armas/poderes y tiburones.
 ## Las decoraciones se cobran recién al colocarlas (ver DecorPlacer).
 
 var hud: HUD
 var _balance: Label
 var _deco_buttons := {}       # kind -> Button
 var _gun_btn: Button
+var _sharks: Array[Dictionary] = []   # Por tarjeta: {btn, icon, price, status}
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -65,10 +66,17 @@ func _ready() -> void:
 			hud.decoration_chosen.emit(kind))
 		_deco_buttons[kind] = b
 
-	col.add_child(_section("Armas y poderes"))
+	# Armas/poderes y tiburones comparten fila para que la tienda no quede muy alta
+	var bottom := HBoxContainer.new()
+	bottom.add_theme_constant_override("separation", 22)
+	col.add_child(bottom)
+	var power_col := VBoxContainer.new()
+	power_col.add_theme_constant_override("separation", 10)
+	bottom.add_child(power_col)
+	power_col.add_child(_section("Armas y poderes"))
 	var power_row := HBoxContainer.new()
 	power_row.add_theme_constant_override("separation", 10)
-	col.add_child(power_row)
+	power_col.add_child(power_row)
 	for t in HUD.TOOLS:
 		var icon := CenterContainer.new()
 		icon.add_child(HUD.HudIcon.make(t[0], 40))
@@ -81,6 +89,31 @@ func _ready() -> void:
 			icon.modulate = Color(1, 1, 1, 0.45)
 			var b := _card(power_row, icon, t[1], -1, "Próximamente")
 			b.disabled = true
+
+	var shark_col := VBoxContainer.new()
+	shark_col.add_theme_constant_override("separation", 10)
+	bottom.add_child(shark_col)
+	shark_col.add_child(_section("Tiburones (máx. %d)" % Shark.MAX))
+	var shark_row := HBoxContainer.new()
+	shark_row.add_theme_constant_override("separation", 10)
+	shark_col.add_child(shark_row)
+	for i in Shark.MAX:
+		var icon := CenterContainer.new()
+		icon.add_child(HUD.HudIcon.make("shark", 40))
+		var b := _card(shark_row, icon, "Tiburón %d" % (i + 1), Shark.PRICE, "Comprar")
+		var card := b.get_parent()
+		var price: Control = card.get_node("Price")
+		var status := HUD.make_label("", 12, HUD.C_TEXT)
+		status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		card.add_child(status)
+		card.move_child(status, price.get_index())
+		b.pressed.connect(func():
+			if i < hud.shark_on.size():
+				hud.set_shark_on(i, not hud.shark_on[i])
+			else:
+				hud.buy_shark()
+			_sync())
+		_sharks.append({"btn": b, "icon": icon, "price": price, "status": status})
 
 func open() -> void:
 	visible = true
@@ -108,6 +141,24 @@ func _sync() -> void:
 	else:
 		_gun_btn.text = "Desbloquear"
 		_gun_btn.disabled = not hud.can_afford(Gun.PRICE)
+	var owned := hud.shark_on.size()
+	for i in _sharks.size():
+		var s: Dictionary = _sharks[i]
+		var b: Button = s.btn
+		var bought := i < owned
+		var on := bought and hud.shark_on[i]
+		s.price.visible = not bought
+		s.status.visible = bought
+		s.status.text = "Activo" if on else "Apagado"
+		s.status.add_theme_color_override("font_color", HUD.C_SHOP if on else HUD.C_MUTED)
+		s.icon.modulate = Color.WHITE if on or not bought else Color(1, 1, 1, 0.45)
+		if bought:
+			b.text = "Desactivar" if on else "Activar"
+			b.disabled = false
+		else:
+			# Se compran en orden: el segundo recién después del primero
+			b.text = "Comprar"
+			b.disabled = i > owned or not hud.can_afford(Shark.PRICE)
 
 # ---- Construcción ----
 func _section(title: String) -> Label:
@@ -132,6 +183,7 @@ func _card(parent: Control, preview: Control, title: String, price: int, action:
 	v.add_child(name_l)
 
 	var price_row := HBoxContainer.new()
+	price_row.name = "Price"
 	price_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	price_row.add_theme_constant_override("separation", 4)
 	v.add_child(price_row)

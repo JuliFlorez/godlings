@@ -31,6 +31,7 @@ var island_poly_global: PackedVector2Array
 var hud: HUD
 var gun: Gun
 var placer: DecorPlacer
+var sharks: Array[Shark] = []
 ## Aldeanos y decoraciones, ordenados por Y para que el de adelante tape al de atrás.
 var props: Node2D
 ## Manchas en el piso (charcos de sangre): siempre debajo de aldeanos y decoraciones.
@@ -51,7 +52,14 @@ func _ready() -> void:
 	props = Node2D.new()
 	props.name = "Props"
 	props.y_sort_enabled = true
-	var after := $Shark.get_index() + 1
+	# Tiburones: todos arrancan apagados hasta que se compran en la tienda
+	sharks.append($Shark)
+	for i in Shark.MAX - 1:
+		var s: Shark = $Shark.duplicate()
+		add_child(s)
+		move_child(s, sharks[-1].get_index() + 1)
+		sharks.append(s)
+	var after := sharks[-1].get_index() + 1
 	add_child(ground)
 	move_child(ground, after)
 	add_child(props)
@@ -72,6 +80,7 @@ func _ready() -> void:
 		hud.spawn_pressed.connect(_on_spawn_btn_pressed)
 		hud.expand_pressed.connect(expand_island)
 		hud.expansion_points_changed.connect(func(_p): _refresh_markers())
+		hud.shark_changed.connect(func(i: int, on: bool): sharks[i].set_active(on))
 
 	# Últimos hijos: reciben los clicks antes que el sol/luna y los aldeanos
 	gun = Gun.new()

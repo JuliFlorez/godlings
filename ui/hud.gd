@@ -10,6 +10,7 @@ signal expand_pressed
 signal expansion_points_changed(points: int)
 signal gun_toggled(on: bool)
 signal decoration_chosen(kind: String)
+signal shark_changed(index: int, on: bool)
 
 @export var energy_max: float = 100.0
 @export var energy_refill_minutes: float = 5.0  # 5 min para llenarse de 0 a 100
@@ -23,6 +24,8 @@ var xp: int = 0
 var energy: float = 100.0
 var expansion_points: int = 0
 var offerings: int = 0
+## Un valor por tiburón comprado (en orden de compra): si está prendido.
+var shark_on: Array[bool] = []
 var _points_earned: int = 0
 var _refill_rate: float = 0.0  # puntos de energía por segundo
 
@@ -201,6 +204,20 @@ func unlock_gun() -> bool:
 	popup_text("¡Pistola desbloqueada! Sacala con G", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_GUN.lightened(0.3))
 	_refresh()
 	return true
+
+func buy_shark() -> bool:
+	if shark_on.size() >= Shark.MAX or not spend_offerings(Shark.PRICE):
+		return false
+	shark_on.append(true)
+	shark_changed.emit(shark_on.size() - 1, true)
+	popup_text("¡Tiburón suelto en el agua!", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_DEVOTION)
+	return true
+
+func set_shark_on(index: int, on: bool) -> void:
+	if index < 0 or index >= shark_on.size() or shark_on[index] == on:
+		return
+	shark_on[index] = on
+	shark_changed.emit(index, on)
 
 ## Mientras se colocan decoraciones (para la pista de abajo del panel).
 func set_placing(on: bool) -> void:
@@ -577,6 +594,9 @@ class HudIcon extends Control:
 				draw_arc(Vector2(0.5, 0.52) * s, s * 0.1, 0.0, PI, 8, Color(0.75, 0.78, 0.85), 2.0, true)
 				draw_rect(Rect2(Vector2(0.06, 0.26) * s, Vector2(0.88, 0.22) * s), Color(0.75, 0.78, 0.85))
 				draw_rect(Rect2(Vector2(0.84, 0.2) * s, Vector2(0.06, 0.06) * s), Color(0.75, 0.78, 0.85))
+			"shark":
+				draw_colored_polygon(_pts([0.18, 0.74, 0.38, 0.1, 0.86, 0.74]), Color(0.58, 0.64, 0.74))
+				draw_line(Vector2(0.04, 0.76) * s, Vector2(0.96, 0.76) * s, HUD.C_DEVOTION, 2.5, true)
 			"lightning":
 				draw_colored_polygon(_pts([0.6, 0.0, 0.16, 0.56, 0.46, 0.56, 0.34, 1.0, 0.84, 0.4, 0.54, 0.4, 0.72, 0.0]), Color(1.0, 0.9, 0.3))
 			"meteor":
