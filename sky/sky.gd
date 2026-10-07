@@ -29,6 +29,7 @@ var _blood := 0.0   # 0 = cielo normal, 1 = teñido del todo
 var _level := 0.0   # Qué tan alimentada está la luna (suavizado)
 
 func _ready() -> void:
+	add_to_group("sky")   # Las antorchas leen `night` para saber cuándo prenderse
 	# Pasa por lila y rosa para que el azul -> naranja no se vuelva gris
 	_sky.offsets = PackedFloat32Array([0.0, 0.3, 0.45, 0.6, 0.8, 1.0])
 	_sky.colors = PackedColorArray([

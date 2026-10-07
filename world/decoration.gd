@@ -1,6 +1,7 @@
 extends Node2D
 class_name Decoration
 ## Decoración de la isla (palmera, arbusto, flores, roca, antorcha), dibujada por código.
+## De noche las antorchas iluminan la isla alrededor (PointLight2D).
 ## El origen del nodo queda LIFT px arriba de la base, igual que el centro de un aldeano,
 ## para que el orden por Y (quién tapa a quién) sea parejo entre ambos.
 
@@ -20,6 +21,13 @@ const FLOWER_COLORS: Array[Color] = [
 	Color(0.7, 0.45, 1.0), Color(1.0, 0.6, 0.15),
 ]
 
+## Luz de la antorcha
+const TORCH_FLAME := Vector2(0, -66)          # Centro de la llama, relativo a la base
+const TORCH_LIGHT_COLOR := Color(1.0, 0.62, 0.28)
+const TORCH_LIGHT_SIZE := 320                 # Diámetro del halo (px)
+const TORCH_LIGHT_ENERGY := 1.15
+static var _light_tex: GradientTexture2D
+
 var kind := "palm"
 var variant := 0.5          # 0..1: varía inclinación, alto, colores
 var ghost := false          # Vista previa al colocar
@@ -28,15 +36,49 @@ var valid := true:
 		valid = v
 		modulate = (Color(1, 1, 1, 0.65) if v else Color(1.0, 0.35, 0.35, 0.65)) if ghost else Color.WHITE
 
+var _light: PointLight2D
+var _sky: Node
+
 func _ready() -> void:
 	if not ghost:
 		variant = randf()
 	valid = valid
+	if kind == "torch" and not ghost:
+		_sky = get_tree().get_first_node_in_group("sky")
+		_light = PointLight2D.new()
+		_light.texture = _torch_light_texture()
+		_light.color = TORCH_LIGHT_COLOR
+		_light.position = Vector2(0, LIFT) + TORCH_FLAME
+		_light.enabled = false
+		add_child(_light)
 
 func _process(_dt: float) -> void:
 	# La palmera se mece y la antorcha titila
 	if kind == "palm" or kind == "torch":
 		queue_redraw()
+	if _light:
+		# Se prende a medida que oscurece; de día no ilumina nada
+		var night: float = _sky.night if _sky else 0.0
+		var dark := smoothstep(0.55, 0.95, night)
+		var t := Time.get_ticks_msec() / 1000.0 + variant * 10.0
+		var flick := 1.0 + sin(t * 17.0) * 0.06 + sin(t * 29.0) * 0.04
+		_light.energy = TORCH_LIGHT_ENERGY * dark * flick
+		_light.enabled = dark > 0.01
+
+## Halo radial compartido por todas las antorchas: blanco al centro, se apaga hacia afuera.
+static func _torch_light_texture() -> GradientTexture2D:
+	if _light_tex == null:
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.35, 1.0])
+		g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.45), Color(1, 1, 1, 0)])
+		_light_tex = GradientTexture2D.new()
+		_light_tex.gradient = g
+		_light_tex.fill = GradientTexture2D.FILL_RADIAL
+		_light_tex.fill_from = Vector2(0.5, 0.5)
+		_light_tex.fill_to = Vector2(1.0, 0.5)
+		_light_tex.width = TORCH_LIGHT_SIZE
+		_light_tex.height = TORCH_LIGHT_SIZE
+	return _light_tex
 
 func _draw() -> void:
 	draw_set_transform(Vector2(0, LIFT))
