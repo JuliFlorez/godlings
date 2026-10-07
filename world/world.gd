@@ -5,10 +5,18 @@ extends Node2D
 
 const VILLAGER := preload("res://actors/villager/villager.tscn")
 const MUSIC := preload("res://audio/golden_hour_at_the_cove.mp3")
+const BLOOD_MUSIC := preload("res://audio/the_moon_drinks_deep.mp3")
 
 ## Música de fondo: bien bajita, en loop. Entra con un fundido de unos segundos.
+## Con la Luna de Sangre cambia a su propia canción (mismo volumen).
 @export var music_volume_db: float = -26.0
 const MUSIC_FADE_IN := 4.0
+const MUSIC_CROSSFADE := 2.5
+const SILENT_DB := -60.0
+
+var _music: AudioStreamPlayer
+var _blood_music: AudioStreamPlayer
+var _music_tween: Tween
 
 ## Tamaños de la isla. "width" escala el ancho respecto al dibujo original
 ## y "capacity" es cuántos aldeanos pueden vivir a la vez en ese tamaño.
@@ -109,15 +117,40 @@ func _ready() -> void:
 	_start_music()
 
 func _start_music() -> void:
-	var music := AudioStreamPlayer.new()
-	music.name = "Music"
-	var stream: AudioStreamMP3 = MUSIC
+	_music = _make_music_player(MUSIC, "Music")
+	_blood_music = _make_music_player(BLOOD_MUSIC, "BloodMusic")
+	_music.play()
+	_music_tween = create_tween()
+	_music_tween.tween_property(_music, "volume_db", music_volume_db, MUSIC_FADE_IN)
+	$Sky.blood_moon_changed.connect(_on_blood_moon_changed)
+
+func _make_music_player(stream: AudioStreamMP3, player_name: String) -> AudioStreamPlayer:
 	stream.loop = true
-	music.stream = stream
-	music.volume_db = -60.0
-	add_child(music)
-	music.play()
-	create_tween().tween_property(music, "volume_db", music_volume_db, MUSIC_FADE_IN)
+	var p := AudioStreamPlayer.new()
+	p.name = player_name
+	p.stream = stream
+	p.volume_db = SILENT_DB
+	add_child(p)
+	return p
+
+## Fundido cruzado: la canción de la isla se pausa (y después sigue donde quedó),
+## la de la Luna de Sangre arranca de cero cada vez.
+func _on_blood_moon_changed(active: bool) -> void:
+	var fade_in := _blood_music if active else _music
+	var fade_out := _music if active else _blood_music
+	if _music_tween:
+		_music_tween.kill()
+	if active and not _blood_music.playing:
+		_blood_music.play()
+	fade_in.stream_paused = false
+	_music_tween = create_tween().set_parallel()
+	_music_tween.tween_property(fade_in, "volume_db", music_volume_db, MUSIC_CROSSFADE)
+	_music_tween.tween_property(fade_out, "volume_db", SILENT_DB, MUSIC_CROSSFADE)
+	_music_tween.chain().tween_callback(func():
+		if active:
+			_music.stream_paused = true
+		else:
+			_blood_music.stop())
 
 func _process(dt: float) -> void:
 	if hud:

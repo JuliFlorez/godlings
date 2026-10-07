@@ -432,6 +432,22 @@ func get_eaten() -> void:
 	tw.tween_property(self, "rotation", 0.8, 0.35)
 	tw.chain().tween_callback(queue_free)
 
+# --- LUNA DE SANGRE ---
+## Soltado sobre la Luna de Sangre: se lo chupa hacia la boca y se lo traga.
+func _feed_to(moon: Moon) -> void:
+	eaten = true
+	set_physics_process(false)
+	_grant_sacrifice_xp()
+	var mouth := get_canvas_transform().affine_inverse() * moon.mouth_screen_pos()
+	var tw := create_tween().set_parallel()
+	tw.tween_property(self, "global_position", mouth, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "scale", Vector2.ONE * 0.15, 0.3).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "rotation", rotation + TAU, 0.3)
+	tw.chain().tween_callback(func():
+		moon.feed()
+		_spawn_blood(global_position, Vector2.UP, 36)
+		queue_free())
+
 func _spawn_blood(at: Vector2 = global_position, toward: Vector2 = Vector2.UP, amount := 28) -> void:
 	var p := CPUParticles2D.new()
 	p.one_shot = true
@@ -517,6 +533,10 @@ func _start_drag() -> void:
 
 func _stop_drag() -> void:
 	dragging = false
+	var moon := get_tree().get_first_node_in_group("moon") as Moon
+	if moon and moon.can_eat_at(get_viewport().get_mouse_position()):
+		_feed_to(moon)
+		return
 	set_physics_process(true)
 	z_index = 0
 
