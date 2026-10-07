@@ -1,12 +1,14 @@
 extends Control
 class_name Shop
-## Tienda: se gastan ofrendas en decoraciones para la isla, armas/poderes y tiburones.
+## Tienda: se gastan ofrendas en decoraciones para la isla, el cielo (Luna de Sangre),
+## armas/poderes y tiburones.
 ## Las decoraciones se cobran recién al colocarlas (ver DecorPlacer).
 
 var hud: HUD
 var _balance: Label
 var _deco_buttons := {}       # kind -> Button
 var _gun_btn: Button
+var _moon_btn: Button
 var _sharks: Array[Dictionary] = []   # Por tarjeta: {btn, icon, price, status}
 
 func _ready() -> void:
@@ -52,10 +54,17 @@ func _ready() -> void:
 	head.add_child(close_btn)
 	col.add_child(HUD.make_label("Ganás ofrendas con cada sacrificio y cuando tus aldeanos rezan.", 12, HUD.C_MUTED))
 
-	col.add_child(_section("Decoración para la isla"))
+	# Decoración y cielo comparten fila (igual que armas y tiburones abajo)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 22)
+	col.add_child(top)
+	var deco_col := VBoxContainer.new()
+	deco_col.add_theme_constant_override("separation", 10)
+	top.add_child(deco_col)
+	deco_col.add_child(_section("Decoración para la isla"))
 	var deco_row := HBoxContainer.new()
 	deco_row.add_theme_constant_override("separation", 10)
-	col.add_child(deco_row)
+	deco_col.add_child(deco_row)
 	for kind: String in Decoration.KINDS:
 		var info: Dictionary = Decoration.KINDS[kind]
 		var preview := DecorPreview.new()
@@ -65,6 +74,25 @@ func _ready() -> void:
 			close()
 			hud.decoration_chosen.emit(kind))
 		_deco_buttons[kind] = b
+
+	var sky_col := VBoxContainer.new()
+	sky_col.add_theme_constant_override("separation", 10)
+	top.add_child(sky_col)
+	sky_col.add_child(_section("Cielo"))
+	var sky_row := HBoxContainer.new()
+	sky_row.add_theme_constant_override("separation", 10)
+	sky_col.add_child(sky_row)
+	var moon_icon := CenterContainer.new()
+	moon_icon.add_child(HUD.HudIcon.make("blood_moon", 44))
+	_moon_btn = _card(sky_row, moon_icon, "Luna de Sangre", Moon.PRICE, "Desbloquear")
+	_moon_btn.tooltip_text = "De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla."
+	_moon_btn.pressed.connect(func():
+		hud.unlock_blood_moon()
+		_sync())
+	var sun_icon := CenterContainer.new()
+	sun_icon.add_child(HUD.HudIcon.make("blood_sun", 44))
+	sun_icon.modulate = Color(1, 1, 1, 0.45)
+	_card(sky_row, sun_icon, "Sol de Sangre", -1, "Próximamente").disabled = true
 
 	# Armas/poderes y tiburones comparten fila para que la tienda no quede muy alta
 	var bottom := HBoxContainer.new()
@@ -141,6 +169,12 @@ func _sync() -> void:
 	else:
 		_gun_btn.text = "Desbloquear"
 		_gun_btn.disabled = not hud.can_afford(Gun.PRICE)
+	if Moon.blood_unlocked:
+		_moon_btn.text = "Desbloqueada"
+		_moon_btn.disabled = true
+	else:
+		_moon_btn.text = "Desbloquear"
+		_moon_btn.disabled = not hud.can_afford(Moon.PRICE)
 	var owned := hud.shark_on.size()
 	for i in _sharks.size():
 		var s: Dictionary = _sharks[i]

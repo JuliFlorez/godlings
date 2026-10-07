@@ -1,7 +1,11 @@
 extends Celestial
-## Sol: de día es el sprite tranquilo. Tocalo varias veces y se vuelve el Sol
-## Perturbador, dibujado por código: tentáculos de fuego que se retuercen,
-## cuencas vacías que siguen al aldeano más cercano y una sonrisa llena de dientes.
+## Sol: de día es el sprite tranquilo. El Sol de Sangre (perturbador, dibujado por
+## código: tentáculos de fuego que se retuercen, cuencas vacías que siguen al aldeano
+## más cercano y una sonrisa llena de dientes) todavía no se puede activar: en la
+## tienda figura como "Próximamente".
+
+## Cuando el Sol de Sangre esté listo, poner en true para volver a activarlo con toques.
+const BLOOD_SUN_AVAILABLE := false
 
 @export var radius := 36.0
 
@@ -25,6 +29,9 @@ var _cracks: Array[PackedVector2Array] = [
 func _ready() -> void:
 	super()
 	creepy_changed.connect(func(c: bool): sprite.visible = not c)
+
+func can_turn_creepy() -> bool:
+	return BLOOD_SUN_AVAILABLE
 
 func _process(dt: float) -> void:
 	super(dt)

@@ -205,6 +205,13 @@ func unlock_gun() -> bool:
 	_refresh()
 	return true
 
+func unlock_blood_moon() -> bool:
+	if Moon.blood_unlocked or not spend_offerings(Moon.PRICE):
+		return false
+	Moon.blood_unlocked = true
+	popup_text("¡Luna de Sangre desbloqueada! De noche, tocá la luna 5 veces", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), Color(1.0, 0.45, 0.4))
+	return true
+
 func buy_shark() -> bool:
 	if shark_on.size() >= Shark.MAX or not spend_offerings(Shark.PRICE):
 		return false
@@ -597,6 +604,21 @@ class HudIcon extends Control:
 			"shark":
 				draw_colored_polygon(_pts([0.18, 0.74, 0.38, 0.1, 0.86, 0.74]), Color(0.58, 0.64, 0.74))
 				draw_line(Vector2(0.04, 0.76) * s, Vector2(0.96, 0.76) * s, HUD.C_DEVOTION, 2.5, true)
+			"blood_moon":
+				draw_circle(c, s * 0.48, Color(1.0, 0.2, 0.15, 0.25), true, -1.0, true)
+				draw_circle(c, s * 0.4, Color(0.74, 0.17, 0.14), true, -1.0, true)
+				for side: float in [-1.0, 1.0]:
+					draw_circle(c + Vector2(side * 0.14, -0.06) * s, s * 0.09, Color(1.0, 0.95, 0.85), true, -1.0, true)
+					draw_circle(c + Vector2(side * 0.14, -0.04) * s, s * 0.04, Color(0.12, 0.12, 0.18), true, -1.0, true)
+				draw_arc(c + Vector2(0, 0.06) * s, s * 0.18, 0.15 * PI, 0.85 * PI, 10, Color(0.2, 0.02, 0.04), maxf(1.5, s * 0.06), true)
+			"blood_sun":
+				for i in 8:
+					var d := Vector2.from_angle(TAU * i / 8.0)
+					draw_line(c + d * s * 0.3, c + d * s * 0.48, Color(0.88, 0.2, 0.04), maxf(1.5, s * 0.07), true)
+				draw_circle(c, s * 0.3, Color(0.96, 0.42, 0.07), true, -1.0, true)
+				for side: float in [-1.0, 1.0]:
+					draw_circle(c + Vector2(side * 0.1, -0.05) * s, s * 0.06, Color(0.05, 0.01, 0.01), true, -1.0, true)
+				draw_arc(c + Vector2(0, 0.04) * s, s * 0.13, 0.15 * PI, 0.85 * PI, 8, Color(0.05, 0.01, 0.01), maxf(1.5, s * 0.05), true)
 			"lightning":
 				draw_colored_polygon(_pts([0.6, 0.0, 0.16, 0.56, 0.46, 0.56, 0.34, 1.0, 0.84, 0.4, 0.54, 0.4, 0.72, 0.0]), Color(1.0, 0.9, 0.3))
 			"meteor":

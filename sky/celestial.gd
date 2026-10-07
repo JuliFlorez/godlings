@@ -2,7 +2,7 @@ extends Node2D
 class_name Celestial
 ## Astro arrastrable (sol o luna). Si lo soltás cerca del horizonte se pone
 ## y emite `has_set` para que salga el otro. Si lo tocás varias veces seguidas
-## se vuelve perturbador (y otra tanda de toques lo calma).
+## se vuelve perturbador (y otra tanda de toques lo calma), si `can_turn_creepy()` lo permite.
 
 signal has_set
 signal creepy_changed(is_creepy: bool)
@@ -99,13 +99,19 @@ func _register_tap() -> void:
 		_taps = 0
 	_last_tap_ms = now
 	_taps += 1
-	if _taps >= taps_to_transform:
+	if _taps >= taps_to_transform and (creepy or can_turn_creepy()):
 		_taps = 0
 		set_creepy(not creepy)
 	else:
+		if _taps >= taps_to_transform:
+			_taps = 0   # Bloqueado: tiembla pero no se transforma
 		# Cada toque lo hace temblar un poco más: avisa que algo se viene
 		_shake = maxf(_shake, float(_taps) / taps_to_transform * 0.5)
 		_pop(0.85, 0.35)
+
+## Si a esta altura una tanda de toques lo vuelve perturbador (cada astro lo decide).
+func can_turn_creepy() -> bool:
+	return true
 
 func set_creepy(value: bool) -> void:
 	creepy = value

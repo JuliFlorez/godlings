@@ -1,14 +1,18 @@
 extends Celestial
 class_name Moon
 ## Luna acosadora: dibujada por código, con ojos que siguen al aldeano más cercano.
-## Tocala varias veces y se vuelve la Luna de Sangre: roja, con los cráteres
-## abiertos como ojos y una boca llena de dientes.
+## Una vez comprada la Luna de Sangre en la tienda, tocala varias veces y se
+## transforma: roja, con los cráteres abiertos como ojos y una boca llena de dientes.
 ## Como Luna de Sangre se la puede alimentar soltándole aldeanos encima: cada uno
 ## que se come pone el cielo más rojo (hasta MAX_FEED). Calmarla la deja en cero.
 
 signal fed(level: int)
 
 @export var radius := 52.0
+
+## Hay que comprarla en la tienda antes de poder transformarla.
+static var blood_unlocked := false
+const PRICE := 50
 
 const MAX_FEED := 6
 const EAT_MARGIN := 14.0         # Soltarlo hasta esta distancia del borde también cuenta
@@ -36,6 +40,7 @@ const CRATER_EYES := [
 
 func _ready() -> void:
 	super()
+	blood_unlocked = false
 	add_to_group("moon")
 	creepy_changed.connect(func(c: bool):
 		if not c:
@@ -47,6 +52,9 @@ func _process(dt: float) -> void:
 	var hungry := creepy and visible and _villager_held_near()
 	_gape = move_toward(_gape, 1.0 if hungry else 0.0, dt * 4.0)
 	queue_redraw()
+
+func can_turn_creepy() -> bool:
+	return blood_unlocked
 
 ## 0..1: qué tan alimentada está (para el color del cielo).
 func feed_t() -> float:
