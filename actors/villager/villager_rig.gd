@@ -5,6 +5,7 @@ class_name VillagerRig
 ## - En la isla: animación procedural de caminado (bamboleo).
 ## - Agarrado / cayendo / en el agua: ragdoll. Cada articulación es un péndulo
 ##   amortiguado que responde a la gravedad y a la aceleración del cuerpo.
+## - Parpadea cada tantos segundos y los balazos dejan una marca en la parte alcanzada.
 
 const GRAVITY := 1400.0
 const MAX_ACC := 7000.0       # Tope de aceleración medida (evita latigazos absurdos)
@@ -75,6 +76,12 @@ var _prev_vel := Vector2.ZERO
 var _acc := Vector2.ZERO
 var _prev_rot := 0.0
 var _dead_eyes: DeadEyes
+var _blink: Blink
+var _marks := 0
+
+const MAX_MARKS := 10
+## Alfa de villager.png, para saber si un tiro cayó sobre el dibujo o en un hueco.
+static var _alpha: Image
 
 func _ready() -> void:
 	villager = get_parent() as Villager
@@ -100,9 +107,42 @@ func _ready() -> void:
 	_dead_eyes.visible = false
 	head.add_child(_dead_eyes)
 
+	_blink = Blink.new()
+	head.add_child(_blink)
+
 func set_dead() -> void:
 	rag = 1.0
 	_dead_eyes.visible = true
+	_blink.queue_free()
+
+## Deja un agujero de bala pegado a la parte del cuerpo alcanzada (coords globales),
+## así sigue al miembro cuando se mueve. Si el punto cayó en un hueco transparente
+## (la colisión es un rectángulo), se busca el dibujo más cerca yendo hacia el centro.
+func add_bullet_mark(point: Vector2) -> void:
+	if _marks >= MAX_MARKS:
+		return
+	var sprites: Array[Polygon2D] = []
+	for b: Node in [head, arm_r, arm_l, hip, leg_r, leg_l]:  # Del que se dibuja arriba al de abajo
+		sprites.append(b.get_node("Sprite"))
+	if _alpha == null:
+		_alpha = sprites[0].texture.get_image()
+		if _alpha.is_compressed():
+			_alpha.decompress()
+	var center := villager.to_global(Villager.BODY_COM) if villager else global_position
+	for step in 11:
+		var p := point.lerp(center, step / 10.0)
+		for s in sprites:
+			var local := s.to_local(p)
+			if not Geometry2D.is_point_in_polygon(local, s.polygon):
+				continue
+			var px := Vector2i(local + s.uv[0] - s.polygon[0])
+			if Rect2i(Vector2i.ZERO, _alpha.get_size()).has_point(px) and _alpha.get_pixelv(px).a > 0.5:
+				var mark := BulletMark.new()
+				mark.position = local
+				mark.rotation = randf() * TAU
+				s.add_child(mark)
+				_marks += 1
+				return
 
 ## Sacude los miembros según dónde y hacia dónde pegó el tiro (coords globales).
 func hit(point: Vector2, dir: Vector2, strength := 1.0) -> void:
@@ -226,3 +266,77 @@ class DeadEyes extends Node2D:
 			var d := 30.0
 			draw_line(e + Vector2(-d, -d), e + Vector2(d, d), INK, 18.0, true)
 			draw_line(e + Vector2(-d, d), e + Vector2(d, -d), INK, 18.0, true)
+
+## Párpados que bajan un instante cada tantos segundos.
+class Blink extends Node2D:
+	# Blanco de cada ojo relativo al pivote del hueso Head: [centro, radios] (px de villager.png)
+	const EYES := [[Vector2(-137, -191), Vector2(73, 60)], [Vector2(151, -194), Vector2(63, 61)]]
+	const SKIN := Color("c48262")
+	const LASH := Color(0.36, 0.2, 0.13)
+	const CLOSE := 0.06   # Segundos en bajar
+	const HOLD := 0.05    # Cerrados
+	const OPEN := 0.09    # En volver a abrir
+	const COLS := 16
+
+	var _wait := 0.0
+	var _t := -1.0        # < 0: ojos abiertos, esperando
+	var _closed := 0.0    # 0 = abiertos, 1 = cerrados
+
+	func _ready() -> void:
+		_wait = randf_range(0.5, 4.0)  # Que no parpadeen todos juntos
+
+	func _process(dt: float) -> void:
+		if _t < 0.0:
+			_wait -= dt
+			if _wait > 0.0:
+				return
+			_t = 0.0
+		_t += dt
+		if _t < CLOSE:
+			_closed = _t / CLOSE
+		elif _t < CLOSE + HOLD:
+			_closed = 1.0
+		elif _t < CLOSE + HOLD + OPEN:
+			_closed = 1.0 - (_t - CLOSE - HOLD) / OPEN
+		else:
+			_t = -1.0
+			_closed = 0.0
+			# De vez en cuando, doble parpadeo
+			_wait = 0.12 if randf() < 0.2 else randf_range(2.0, 5.0)
+		queue_redraw()
+
+	func _draw() -> void:
+		if _closed <= 0.0:
+			return
+		var skin := PackedColorArray([SKIN, SKIN, SKIN, SKIN])
+		for e: Array in EYES:
+			var c: Vector2 = e[0]
+			var r: Vector2 = e[1]
+			var cut := c.y - r.y + 2.0 * r.y * _closed   # Borde inferior del párpado
+			var top := PackedVector2Array()
+			var edge := PackedVector2Array()
+			for i in COLS + 1:
+				var x := r.x * (2.0 * i / COLS - 1.0)
+				var h := r.y * sqrt(maxf(0.0, 1.0 - (x / r.x) * (x / r.x)))
+				top.append(Vector2(c.x + x, c.y - h))
+				edge.append(Vector2(c.x + x, clampf(cut, c.y - h, c.y + h)))
+			for i in COLS:
+				draw_primitive(PackedVector2Array([top[i], top[i + 1], edge[i + 1], edge[i]]), skin, PackedVector2Array())
+			draw_polyline(edge, LASH, 10.0, true)
+
+## Agujero de bala con una mancha de sangre alrededor (px de villager.png).
+class BulletMark extends Node2D:
+	const BLOOD := Color(0.55, 0.04, 0.04)
+	const HOLE := Color(0.16, 0.02, 0.02)
+	var _blobs: Array[Vector3] = []   # x, y, radio
+
+	func _ready() -> void:
+		for i in randi_range(3, 5):
+			var a := randf() * TAU
+			_blobs.append(Vector3(cos(a), sin(a), 0.0) * randf_range(20.0, 34.0) + Vector3(0, 0, randf_range(9.0, 15.0)))
+
+	func _draw() -> void:
+		draw_circle(Vector2.ZERO, 30.0, BLOOD, true, -1.0, true)
+		for b in _blobs:
+			draw_circle(Vector2(b.x, b.y), b.z, BLOOD, true, -1.0, true)
+		draw_circle(Vector2.ZERO, 15.0, HOLE, true, -1.0, true)

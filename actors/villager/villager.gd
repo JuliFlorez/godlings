@@ -301,6 +301,7 @@ func shoot(hit_point: Vector2, shot_dir: Vector2) -> void:
 	_spawn_blood(hit_point, shot_dir, 40 if headshot else 24)
 	if rig:
 		rig.hit(hit_point, shot_dir, power)
+		rig.add_bullet_mark(hit_point)
 
 	var was_dead := dead
 	_die()
