@@ -108,6 +108,12 @@ func _ready() -> void:
 	_pause.locale_changed.connect(_on_locale_changed)
 	add_child(_pause)
 
+	# Consola de trucos (F1): solo en el editor y en exports de debug
+	if OS.is_debug_build():
+		var console := DebugConsole.new()
+		console.hud = self
+		add_child(console)
+
 func _process(delta: float) -> void:
 	# Recarga suave de Devoción (no durante el menú de pausa)
 	if energy < energy_max and not get_tree().paused:

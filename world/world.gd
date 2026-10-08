@@ -306,6 +306,22 @@ func _edge_point(side: float) -> Vector2:
 			best = p
 	return best
 
+## Para la consola de trucos: salta directo a un nivel de isla, sin gastar puntos.
+func debug_set_island_level(level: int) -> void:
+	level = clampi(level, 0, max_level())
+	if _expanding or level == island_level:
+		return
+	_clear_markers()
+	island_level = level
+	_apply_island_width(ISLAND_LEVELS[island_level].width)
+	if hud:
+		hud.set_island(island_level, max_level())
+	_refresh_markers()
+
+## Para la consola de trucos: aldeanos gratis (sin pasarse de la capacidad).
+func debug_spawn_villagers(n: int) -> void:
+	_spawn_villagers(clampi(n, 0, capacity() - alive_villagers()))
+
 func _sand_burst(at: Vector2) -> void:
 	var p := CPUParticles2D.new()
 	p.one_shot = true
