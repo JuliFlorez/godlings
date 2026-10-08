@@ -1,16 +1,16 @@
-[gd_scene load_steps=14 format=3 uid="uid://bekw82rj3w6o5"]
+[gd_scene format=3 uid="uid://bekw82rj3w6o5"]
 
 [ext_resource type="Script" uid="uid://7j8nneu76tjm" path="res://world/world.gd" id="1_f3sb7"]
 [ext_resource type="Texture2D" uid="uid://jsp430gbwxff" path="res://world/isle.png" id="2_fj7yv"]
 [ext_resource type="Shader" uid="uid://c4ntj1qs10mm7" path="res://world/water.gdshader" id="3_tlwt5"]
 [ext_resource type="Script" uid="uid://cn3qpdosvpko0" path="res://world/water_area.gd" id="4_aqk2v"]
-[ext_resource type="Script" path="res://sky/sky.gd" id="6_sky"]
-[ext_resource type="Script" path="res://sky/stars.gd" id="7_stars"]
-[ext_resource type="Script" path="res://sky/sun.gd" id="8_sun"]
-[ext_resource type="Texture2D" path="res://sky/sun_stalker.png" id="9_sunstalker"]
-[ext_resource type="Script" path="res://sky/moon.gd" id="10_moon"]
-[ext_resource type="Script" path="res://actors/shark.gd" id="11_shark"]
 [ext_resource type="Script" uid="uid://c3l025lsxcbxx" path="res://ui/hud.gd" id="5_dwbse"]
+[ext_resource type="Script" uid="uid://d00iu44lncx5v" path="res://sky/sky.gd" id="6_sky"]
+[ext_resource type="Script" uid="uid://bxgy352lxcbtp" path="res://sky/stars.gd" id="7_stars"]
+[ext_resource type="Script" uid="uid://bvasopjakfflp" path="res://sky/sun.gd" id="8_sun"]
+[ext_resource type="Texture2D" uid="uid://byhedv813wkcp" path="res://sky/sun_stalker.png" id="9_sunstalker"]
+[ext_resource type="Script" uid="uid://bn7kfepw24p7" path="res://sky/moon.gd" id="10_moon"]
+[ext_resource type="Script" uid="uid://c207qw4ixoyh2" path="res://actors/shark.gd" id="11_shark"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_aqk2v"]
 shader = ExtResource("3_tlwt5")
@@ -25,15 +25,15 @@ shader_parameter/ripple_strength = 0.08
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_036b0"]
 size = Vector2(1149.5, 76.5)
 
-[node name="World" type="Node2D"]
+[node name="World" type="Node2D" unique_id=1318916357]
 script = ExtResource("1_f3sb7")
 
-[node name="Sky" type="CanvasLayer" parent="."]
+[node name="Sky" type="CanvasLayer" parent="." unique_id=1532461773]
 layer = -1
 script = ExtResource("6_sky")
 night_tint_path = NodePath("../NightTint")
 
-[node name="Background" type="ColorRect" parent="Sky"]
+[node name="Background" type="ColorRect" parent="Sky" unique_id=883186023]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -42,59 +42,59 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.03529412, 0.627451, 1, 1)
 
-[node name="Stars" type="Node2D" parent="Sky"]
+[node name="Stars" type="Node2D" parent="Sky" unique_id=1962784717]
 modulate = Color(1, 1, 1, 0)
 script = ExtResource("7_stars")
 
-[node name="Sun" type="Node2D" parent="Sky"]
+[node name="Sun" type="Node2D" parent="Sky" unique_id=1907266953]
 position = Vector2(928, 109)
 script = ExtResource("8_sun")
 
-[node name="Sprite2D" type="Sprite2D" parent="Sky/Sun"]
+[node name="Sprite2D" type="Sprite2D" parent="Sky/Sun" unique_id=1846313198]
 scale = Vector2(0.15, 0.15)
 texture = ExtResource("9_sunstalker")
 
-[node name="Moon" type="Node2D" parent="Sky"]
+[node name="Moon" type="Node2D" parent="Sky" unique_id=377287824]
 position = Vector2(928, 109)
 script = ExtResource("10_moon")
 
-[node name="NightTint" type="CanvasModulate" parent="."]
+[node name="NightTint" type="CanvasModulate" parent="." unique_id=994094081]
 
-[node name="isle" type="Polygon2D" parent="."]
+[node name="isle" type="Polygon2D" parent="." unique_id=674438548]
 position = Vector2(-80, -323)
 scale = Vector2(1.0277371, 1.6922779)
 color = Color(1, 0.8392157, 0.101960786, 1)
 polygon = PackedVector2Array(304.96777, 466.8387, 398.9347, 451.4625, 583.8069, 442.00778, 870.8452, 446.73514, 966.2003, 459.73538, 983.7146, 486.32675, 860.1421, 505.23618, 685.973, 517.05457, 464.12646, 504.64526, 326.93182, 488.09952)
 uv = PackedVector2Array(304.96777, 466.8387, 630.0118, 452.03226, 972.264, 466.8387, 862.32263, 504.2903, 637.1286, 505.62256, 420.64517, 506.90323)
 
-[node name="waterRend" type="ColorRect" parent="isle"]
+[node name="waterRend" type="ColorRect" parent="isle" unique_id=1984382349]
 material = SubResource("ShaderMaterial_aqk2v")
-offset_left = 78.81393
+offset_left = 38.92
 offset_top = 431.96207
-offset_right = 1196.8041
-offset_bottom = 571.68945
+offset_right = 1237.71
+offset_bottom = 586.78
 size_flags_horizontal = 4
 mouse_filter = 2
 
-[node name="waterArea" type="Area2D" parent="isle"]
+[node name="waterArea" type="Area2D" parent="isle" unique_id=969581168]
 position = Vector2(77.84091, 190.867)
 scale = Vector2(0.97301143, 0.5909195)
 script = ExtResource("4_aqk2v")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="isle/waterArea"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="isle/waterArea" unique_id=1378816597]
 position = Vector2(575.75, 608.25)
 shape = SubResource("RectangleShape2D_036b0")
 
-[node name="SpriteIsle" type="Sprite2D" parent="."]
+[node name="SpriteIsle" type="Sprite2D" parent="." unique_id=748681076]
 position = Vector2(588.56256, 477)
 scale = Vector2(0.8621826, 0.40264896)
 texture = ExtResource("2_fj7yv")
 
-[node name="Shark" type="Node2D" parent="."]
+[node name="Shark" type="Node2D" parent="." unique_id=955346791]
 script = ExtResource("11_shark")
 water_path = NodePath("../isle/waterArea")
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="UI" type="CanvasLayer" parent="." unique_id=1010833789]
 
-[node name="CanvasLayer" type="CanvasLayer" parent="UI"]
+[node name="CanvasLayer" type="CanvasLayer" parent="UI" unique_id=763675889]
 script = ExtResource("5_dwbse")

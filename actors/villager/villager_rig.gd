@@ -110,6 +110,15 @@ func _ready() -> void:
 	_blink = Blink.new()
 	head.add_child(_blink)
 
+	_share_material(self)
+
+## Todo el rig se dibuja con el material del Rig (el recorte de la línea del agua).
+func _share_material(n: Node) -> void:
+	for c in n.get_children():
+		if c is CanvasItem:
+			c.use_parent_material = true
+		_share_material(c)
+
 func set_dead() -> void:
 	rag = 1.0
 	_dead_eyes.visible = true
@@ -140,6 +149,7 @@ func add_bullet_mark(point: Vector2) -> void:
 				var mark := BulletMark.new()
 				mark.position = local
 				mark.rotation = randf() * TAU
+				mark.use_parent_material = true
 				s.add_child(mark)
 				_marks += 1
 				return

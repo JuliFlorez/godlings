@@ -27,6 +27,15 @@ var _prev_mouse := Vector2.ZERO
 var _mouse_vel := Vector2.ZERO
 var _mouse_acc := Vector2.ZERO
 
+# --- Lanzar: soltado con impulso sale volando con la inercia del mouse ---
+const THROW_SMOOTH := 25.0       # Suavizado de la velocidad del mouse (1/s)
+const THROW_MIN_SPEED := 250.0   # Más lento que esto, soltarlo es solo dejarlo
+const THROW_MAX_SPEED := 1800.0
+const THROW_LAND_DROP := 40.0    # Lanzado sobre la isla: cuánto baja antes de poder aterrizar
+var _throw_vel := Vector2.ZERO
+var _launch_y := 0.0
+var _flight_left_island := false # Salió de la isla durante el vuelo
+
 # HUD / XP
 @export var hud_path: NodePath
 var hud: HUD
@@ -45,6 +54,9 @@ var water_surface_y := 0.0
 var bob_t := 0.0
 const BOB_AMP := 6.0
 const BOB_SPEED := 2.2
+const WATERLINE_SHADER := preload("res://actors/villager/waterline.gdshader")
+const WATERLINE_DEPTH := 4.0  # Flotando, el agua le llega a la cintura
+var _waterline: ShaderMaterial
 
 # Ahogo
 const DROWN_DELAY := 5.0      # Segundos antes de empezar a hundirse
@@ -93,6 +105,11 @@ func _ready() -> void:
 	wander_timer = randf_range(1.5, 4.0)
 	input_pickable = true
 
+	if rig:
+		_waterline = ShaderMaterial.new()
+		_waterline.shader = WATERLINE_SHADER
+		rig.material = _waterline
+
 	if not input_event.is_connected(_on_input_event):
 		input_event.connect(_on_input_event)
 
@@ -127,10 +144,16 @@ func exit_water() -> void:
 	# Ahogándose se hunde por debajo del área de agua: sigue hasta desaparecer
 	if drowning and not dragging:
 		return
+	var was_floating := in_water
 	in_water = false
 	drowning = false
 	drown_elapsed = 0.0
 	modulate.a = 1.0
+	# Sacado del agua de un tirón y soltado antes de que el área lo detecte:
+	# _stop_drag lo dejó "flotando" fuera del agua. Que se caiga, no que camine sobre el agua.
+	var on_island := island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly)
+	if was_floating and not dragging and not eaten and not on_island:
+		_start_fall()
 
 func _physics_process(dt: float) -> void:
 	if eaten:
@@ -176,10 +199,25 @@ func _physics_process(dt: float) -> void:
 		global_position.x += fall_vx * dt
 		rotation += swing_vel * dt
 
-		# Si cae de regreso a la tierra
-		if island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly):
-			_land_on_island()
+		# Los costados de la pantalla lo rebotan: así no se pierde volando fuera de la vista
+		var view := get_viewport().get_visible_rect()
+		if (global_position.x < view.position.x + BODY_HALF_W and fall_vx < 0.0) \
+				or (global_position.x > view.end.x - BODY_HALF_W and fall_vx > 0.0):
+			fall_vx *= -0.5
+			swing_vel *= -0.6
+
+		# Lanzado dentro del agua (sin entrar de nuevo al área): al bajar vuelve a flotar
+		if touching_water and v_fall > 0.0:
+			_start_floating()
 			return
+
+		# Si cae de regreso a la tierra (no mientras sube, ni apenas lanzado sobre la isla)
+		if island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly):
+			if v_fall > 0.0 and (_flight_left_island or global_position.y - _launch_y > THROW_LAND_DROP):
+				_land_on_island()
+				return
+		else:
+			_flight_left_island = true
 
 		var kill_y := get_viewport().get_visible_rect().size.y + 150.0
 		if global_position.y > kill_y:
@@ -480,6 +518,16 @@ func _update_sprite_flip() -> void:
 func _process(dt: float) -> void:
 	if dragging:
 		_update_drag(dt)
+	_update_waterline()
+
+## Flotando (o hundiéndose) lo que queda debajo de la superficie no se ve.
+func _update_waterline() -> void:
+	if _waterline == null:
+		return
+	var cut := in_water and not dragging
+	_waterline.set_shader_parameter("cut", cut)
+	if cut:
+		_waterline.set_shader_parameter("water_y", water_surface_y + WATERLINE_DEPTH)
 
 func _update_drag(dt: float) -> void:
 	var m := get_global_mouse_position()
@@ -488,6 +536,7 @@ func _update_drag(dt: float) -> void:
 		var ma := ((mv - _mouse_vel) / dt).limit_length(MAX_MOUSE_ACC)
 		_mouse_vel = mv
 		_mouse_acc = _mouse_acc.lerp(ma, 0.35)
+		_throw_vel = _throw_vel.lerp(mv, 1.0 - exp(-THROW_SMOOTH * dt))
 	_prev_mouse = m
 
 	# Gravedad efectiva en el marco de la mano: al sacudir, el cuerpo se queda atrás
@@ -520,6 +569,7 @@ func _start_drag() -> void:
 	_prev_mouse = get_global_mouse_position()
 	_mouse_vel = Vector2.ZERO
 	_mouse_acc = Vector2.ZERO
+	_throw_vel = Vector2.ZERO
 	swing_vel = 0.0
 	fall_vx = 0.0
 	set_physics_process(false)
@@ -540,8 +590,11 @@ func _stop_drag() -> void:
 	set_physics_process(true)
 	z_index = 0
 
+	var throw := _throw_vel.limit_length(THROW_MAX_SPEED)
 	var on_island := island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly)
-	if on_island:
+	if throw.length() >= THROW_MIN_SPEED:
+		_launch(throw, on_island)
+	elif on_island:
 		# Rescatado o depositado en tierra firme
 		_land_on_island()
 	else:
@@ -565,9 +618,28 @@ func _start_fall() -> void:
 	velocity = Vector2.ZERO
 	# Mantiene la rotación y el giro del ragdoll al soltarlo
 	swing_vel = clampf(swing_vel, -12.0, 12.0)
+	_launch_y = global_position.y
+	_flight_left_island = true
+
+## Soltado con impulso: sale volando con la velocidad del mouse, incluso desde el agua.
+func _launch(vel: Vector2, from_island: bool) -> void:
+	in_water = false
+	drowning = false
+	drown_elapsed = 0.0
+	modulate.a = 1.0
+	falling = true
+	corpse_grounded = false
+	velocity = Vector2.ZERO
+	fall_vx = vel.x
+	v_fall = vel.y
+	swing_vel = clampf(swing_vel + vel.x * 0.004, -12.0, 12.0)  # Que gire en el aire
+	_launch_y = global_position.y
+	_flight_left_island = not from_island
+	z_index = 10  # Volando pasa por delante de palmeras y aldeanos
 
 func _land_on_island() -> void:
 	falling = false
+	z_index = 0
 	in_water = false
 	drowning = false
 	drown_elapsed = 0.0
