@@ -95,6 +95,18 @@ const MAX_SHOVE := 600.0
 var shove_vel := Vector2.ZERO
 var shove_timer := 0.0
 
+# --- Comida: medio coco en el piso ---
+const FOOD_SPEED := 1.8          # Van a la comida más rápido que cuando pasean
+const EAT_REACH := 6.0
+const EAT_TIME := 1.8
+const FOOD_GIVE_UP := 10.0       # Si no llega en este tiempo (trabado en el borde), la deja
+const FOOD_COOLDOWN := 5.0       # ...y por un rato no busca otra
+var food: Coconut
+var _eat_t := 0.0
+var _food_t := 0.0
+var _food_cooldown := 0.0
+var _rig_rest := Vector2.ZERO
+
 # IA y animaciones
 var wander_timer := 0.0
 @onready var rig: VillagerRig = get_node_or_null("Rig")
@@ -106,6 +118,7 @@ func _ready() -> void:
 	input_pickable = true
 
 	if rig:
+		_rig_rest = rig.position
 		_waterline = ShaderMaterial.new()
 		_waterline.shader = WATERLINE_SHADER
 		rig.material = _waterline
@@ -232,6 +245,9 @@ func _physics_process(dt: float) -> void:
 	rotation = lerp_angle(rotation, 0.0, 10.0 * dt)
 	shove_vel = shove_vel.move_toward(Vector2.ZERO, SHOVE_FRICTION * dt)
 	shove_timer = maxf(0.0, shove_timer - dt)
+	_food_cooldown = maxf(0.0, _food_cooldown - dt)
+	if food != null and _food_ai(dt):
+		return
 	velocity = dir * speed + _separation() + shove_vel
 	var prev_pos := global_position
 	move_and_slide()
@@ -254,6 +270,75 @@ func _physics_process(dt: float) -> void:
 		if wander_timer <= 0.0:
 			_pick_dir()
 			wander_timer = randf_range(2.0, 5.0)
+
+# --- COMIDA ---
+## Parado o caminando en la isla (no agarrado, volando, en el agua ni muerto).
+func is_idle() -> bool:
+	return not (dragging or falling or in_water or eaten or dead)
+
+func wants_food() -> bool:
+	return food == null and is_idle() and _food_cooldown <= 0.0
+
+func go_eat(c: Coconut) -> void:
+	food = c
+	_eat_t = 0.0
+	_food_t = 0.0
+
+func stop_eating() -> void:
+	food = null
+	_eat_t = 0.0
+	if rig:
+		rig.position = _rig_rest
+
+## Le cayó un coco en la cabeza.
+func bonk(at: Vector2) -> void:
+	if rig:
+		rig.hit(at, Vector2.DOWN, 0.6)
+	_ensure_hud()
+	if hud:
+		hud.popup_text("¡Bonk!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
+
+## Camina hasta su medio coco y se lo come. false si ya no tiene comida.
+func _food_ai(dt: float) -> bool:
+	if not is_instance_valid(food) or food.eater != self:
+		stop_eating()
+		return false
+	var to := food.eat_spot(self) - global_position
+	if _eat_t > 0.0 or to.length() <= EAT_REACH:
+		# Comiendo: quieto, mirando el coco y masticando
+		velocity = Vector2.ZERO
+		if rig:
+			rig.set_facing_left(food.point().x < global_position.x)
+			rig.position = _rig_rest + Vector2(0, -absf(sin(_eat_t * 12.0)) * 2.5)
+		_eat_t += dt
+		food.nibble(_eat_t / EAT_TIME)
+		if _eat_t >= EAT_TIME:
+			var f := food
+			stop_eating()
+			f.finish_eating(self)
+			_pick_dir()
+			wander_timer = randf_range(1.5, 3.0)
+		return true
+
+	_food_t += dt
+	if _food_t > FOOD_GIVE_UP:
+		food.release_eater()
+		_food_cooldown = FOOD_COOLDOWN
+		return false
+	dir = to.normalized()
+	_update_sprite_flip()
+	velocity = (dir * speed * FOOD_SPEED + shove_vel).limit_length(maxf(to.length() / dt, shove_vel.length()))
+	var prev_pos := global_position
+	move_and_slide()
+	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
+		if shove_timer > 0.0:
+			_fall_from_shove()
+			return true
+		global_position = prev_pos
+		# El lugar para comer queda fuera de la isla: come estirándose desde el borde
+		if to.length() < 24.0:
+			_eat_t = 0.001
+	return true
 
 ## Empuje suave para no quedar encimado con otros aldeanos en tierra.
 func _separation() -> Vector2:

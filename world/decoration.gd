@@ -53,12 +53,26 @@ const HIT_RECTS := {
 	"torch": Rect2(-12, -78, 24, 81),
 }
 
+## Cocos de la palmera: crecen de a uno en los lugares libres de la copa y se pueden arrancar.
+const COCONUT_SLOTS: Array[Vector2] = [Vector2(-7, 6), Vector2(7, 7), Vector2(0, 13)]  # Relativos a la copa
+const ALL_COCONUTS: Array[float] = [1.0, 1.0, 1.0]
+const COCONUT_R := 6.5
+const COCONUT_PICK_R := 11.0        # Radio para agarrarlos con el mouse
+const COCONUT_GROW_MIN := 15.0      # Segundos entre coco y coco
+const COCONUT_GROW_MAX := 25.0
+const COCONUT_GROW_SPEED := 1.5     # Un coco nuevo tarda 1/esto segundos en llegar a su tamaño
+var hover_coconut := -1             # Coco de la copa bajo el mouse (se resalta)
+var _has_nut: Array[bool] = [true, false, false]
+var _nut_size: Array[float] = [0.0, 0.0, 0.0]   # 0..1: los nuevos crecen de a poco
+var _grow_t := 0.0
+
 var _light: PointLight2D
 var _sky: Node
 
 func _ready() -> void:
 	if not ghost:
 		variant = randf()
+		_grow_t = randf_range(COCONUT_GROW_MIN, COCONUT_GROW_MAX)
 	valid = valid
 	if kind == "torch" and not ghost:
 		_sky = get_tree().get_first_node_in_group("sky")
@@ -81,10 +95,32 @@ func hit_test(global_point: Vector2) -> bool:
 	var r: Rect2 = HIT_RECTS.get(kind, HIT_RECTS.flowers)
 	return r.has_point(global_point - global_position - Vector2(0, LIFT))
 
-func _process(_dt: float) -> void:
+## Centro de un coco de la copa, en coordenadas globales.
+func coconut_global(i: int) -> Vector2:
+	return global_position + Vector2(0, LIFT) + palm_top(variant) + COCONUT_SLOTS[i]
+
+## Índice del coco maduro bajo el punto (el de más adelante), o -1.
+func coconut_at(global_point: Vector2) -> int:
+	if kind != "palm" or ghost or moving:
+		return -1
+	for i in range(COCONUT_SLOTS.size() - 1, -1, -1):
+		if _has_nut[i] and _nut_size[i] >= 1.0 and coconut_global(i).distance_to(global_point) <= COCONUT_PICK_R:
+			return i
+	return -1
+
+func take_coconut(i: int) -> void:
+	_has_nut[i] = false
+	_nut_size[i] = 0.0
+	hover_coconut = -1
+	if _grow_t <= 0.0:
+		_grow_t = randf_range(COCONUT_GROW_MIN, COCONUT_GROW_MAX)
+
+func _process(dt: float) -> void:
 	# La palmera se mece y la antorcha titila
 	if kind == "palm" or kind == "torch":
 		queue_redraw()
+	if kind == "palm" and not ghost:
+		_grow_coconuts(dt)
 	if _light:
 		# Se prende a medida que oscurece; de día no ilumina nada
 		var night: float = _sky.night if _sky else 0.0
@@ -109,26 +145,49 @@ static func _torch_light_texture() -> GradientTexture2D:
 		_light_tex.height = TORCH_LIGHT_SIZE
 	return _light_tex
 
+## Cada tanto nace un coco en un lugar libre de la copa; los nuevos crecen de a poco.
+func _grow_coconuts(dt: float) -> void:
+	var free_slots: Array[int] = []
+	for i in COCONUT_SLOTS.size():
+		_nut_size[i] = move_toward(_nut_size[i], 1.0 if _has_nut[i] else 0.0, dt * COCONUT_GROW_SPEED)
+		if not _has_nut[i]:
+			free_slots.append(i)
+	if free_slots.is_empty():
+		return
+	_grow_t -= dt
+	if _grow_t <= 0.0:
+		_has_nut[free_slots.pick_random()] = true
+		_grow_t = randf_range(COCONUT_GROW_MIN, COCONUT_GROW_MAX)
+
 func _draw() -> void:
 	draw_set_transform(Vector2(0, LIFT))
-	paint(self, kind, variant, Time.get_ticks_msec() / 1000.0)
+	paint(self, kind, variant, Time.get_ticks_msec() / 1000.0, ALL_COCONUTS if ghost else _nut_size)
+	if hover_coconut >= 0:
+		var c := palm_top(variant) + COCONUT_SLOTS[hover_coconut]
+		draw_arc(c, COCONUT_R + 2.5, 0.0, TAU, 20, Color(1.0, 0.95, 0.6, 0.9), 1.5, true)
 
 static func price_of(k: String) -> int:
 	return KINDS[k].price
 
+## Copa de la palmera (donde nacen las hojas y cuelgan los cocos), relativa a la base.
+static func palm_top(v: float) -> Vector2:
+	return Vector2(lerpf(-16.0, 16.0, v), -lerpf(92.0, 116.0, fposmod(v * 7.3, 1.0)))
+
 ## Dibuja la decoración con la base en el origen (hacia arriba es -y).
-static func paint(ci: CanvasItem, k: String, v: float, t: float) -> void:
+## "nuts" es el tamaño (0..1) de cada coco de la palmera.
+static func paint(ci: CanvasItem, k: String, v: float, t: float, nuts: Array[float] = ALL_COCONUTS) -> void:
 	ci.draw_colored_polygon(_ellipse(Vector2(0, 2), 20 if k == "palm" else 14, 5), Color(0, 0, 0, 0.18))
 	match k:
-		"palm": _paint_palm(ci, v, t)
+		"palm": _paint_palm(ci, v, t, nuts)
 		"bush": _paint_bush(ci, v)
 		"flowers": _paint_flowers(ci, v)
 		"rock": _paint_rock(ci, v)
 		"torch": _paint_torch(ci, t)
 
-static func _paint_palm(ci: CanvasItem, v: float, t: float) -> void:
-	var lean := lerpf(-16.0, 16.0, v)
-	var h := lerpf(92.0, 116.0, fposmod(v * 7.3, 1.0))
+static func _paint_palm(ci: CanvasItem, v: float, t: float, nuts: Array[float]) -> void:
+	var top := palm_top(v)
+	var lean := top.x
+	var h := -top.y
 	# Tronco en segmentos, más finito arriba
 	var n := 8
 	for i in n:
@@ -140,7 +199,6 @@ static func _paint_palm(ci: CanvasItem, v: float, t: float) -> void:
 		var wb := lerpf(7.0, 4.0, b)
 		var col := Color(0.55, 0.36, 0.2) if i % 2 == 0 else Color(0.48, 0.3, 0.16)
 		ci.draw_colored_polygon(PackedVector2Array([pa + Vector2(-wa, 0), pb + Vector2(-wb, 0), pb + Vector2(wb, 0), pa + Vector2(wa, 0)]), col)
-	var top := Vector2(lean, -h)
 	# Hojas: curvas que caen, meciéndose con el viento
 	var angles := [-172.0, -145.0, -118.0, -62.0, -35.0, -8.0, -90.0]
 	for i in angles.size():
@@ -163,8 +221,9 @@ static func _paint_palm(ci: CanvasItem, v: float, t: float) -> void:
 			var s := s_i / 8.0
 			rib.append(top + dir * length * s + Vector2(0, 26.0 * s * s))
 		ci.draw_polyline(rib, Color(0.1, 0.36, 0.14), 1.2, true)
-	for o in [Vector2(-4, 4), Vector2(4, 5), Vector2(0, 8)]:
-		ci.draw_circle(top + o, 4.0, Color(0.45, 0.3, 0.15), true, -1.0, true)
+	for i in COCONUT_SLOTS.size():
+		if nuts[i] > 0.0:
+			Coconut.paint_whole(ci, top + COCONUT_SLOTS[i], COCONUT_R * nuts[i])
 
 static func _paint_bush(ci: CanvasItem, v: float) -> void:
 	var dark := Color(0.14, 0.44, 0.2).lerp(Color(0.2, 0.5, 0.16), v)

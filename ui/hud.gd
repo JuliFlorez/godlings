@@ -332,6 +332,10 @@ func _refresh() -> void:
 		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
 	elif _decor_edit == DecorPlacer.Edit.HOVER:
 		_hint.text = tr("Arrastrá para moverla · click derecho para quitarla (devuelve la mitad).")
+	elif _decor_edit == DecorPlacer.Edit.COCONUT:
+		_hint.text = tr("Agarrá el coco y tiráselo en la cabeza a un aldeano.")
+	elif _decor_edit == DecorPlacer.Edit.COCONUT_HELD:
+		_hint.text = tr("Soltalo encima de un aldeano para partirlo.")
 	elif full and not island_maxed:
 		_hint.text = tr("Isla llena: sacrificá aldeanos para ganar puntos y expandirla.")
 	elif not has_energy:

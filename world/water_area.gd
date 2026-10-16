@@ -3,6 +3,7 @@ extends Area2D
 @onready var col: CollisionShape2D = $CollisionShape2D
 
 func _ready() -> void:
+	add_to_group("water")   # Los cocos lo buscan para saber si cayeron al agua
 	monitoring = true
 	monitorable = true
 
