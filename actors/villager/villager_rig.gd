@@ -77,6 +77,7 @@ var _acc := Vector2.ZERO
 var _prev_rot := 0.0
 var _dead_eyes: DeadEyes
 var _blink: Blink
+var _mouth: Mouth
 var _marks := 0
 
 const MAX_MARKS := 10
@@ -109,6 +110,9 @@ func _ready() -> void:
 
 	_blink = Blink.new()
 	head.add_child(_blink)
+
+	_mouth = Mouth.new()
+	head.add_child(_mouth)
 
 	_share_material(self)
 
@@ -184,6 +188,16 @@ func _process(dt: float) -> void:
 
 	var ragdoll := villager.dragging or villager.falling or villager.in_water or villager.eaten or villager.dead
 	rag = move_toward(rag, 1.0 if ragdoll else 0.0, BLEND_SPEED * dt)
+
+	# Boca: "¡wow!" mientras lo tienen agarrado o va volando; masticando cuando come
+	if villager.dead:
+		_mouth.target = 0.0
+	elif villager.dragging or villager.falling:
+		_mouth.target = 1.0
+	elif villager.food and villager._eat_t > 0.0:
+		_mouth.target = absf(sin(villager._eat_t * 12.0)) * 0.45
+	else:
+		_mouth.target = 0.0
 
 	# Gravedad efectiva que "sienten" los miembros: g - a (+ arrastre del aire)
 	var g_world := Vector2(0.0, GRAVITY) - _acc
@@ -333,6 +347,50 @@ class Blink extends Node2D:
 			for i in COLS:
 				draw_primitive(PackedVector2Array([top[i], top[i + 1], edge[i + 1], edge[i]]), skin, PackedVector2Array())
 			draw_polyline(edge, LASH, 10.0, true)
+
+## Boca abierta en "O" que tapa la boquita del dibujo (una línea). target: 0 cerrada, 1 abierta.
+class Mouth extends Node2D:
+	# Relativo al pivote del hueso Head (px de villager.png)
+	const CENTER := Vector2(11, -82)
+	const LINE_HALF := Vector2(72, 16)   # Lo que hay que tapar de la boca dibujada
+	const SIZE := Vector2(44, 56)         # Radios de la "O" bien abierta
+	const SKIN := Color("c48262")
+	const INSIDE := Color(0.32, 0.07, 0.06)
+	const TONGUE := Color(0.86, 0.38, 0.4)
+	const LIP := Color(0.36, 0.2, 0.13)
+	const OPEN_SPEED := 14.0
+	const CLOSE_SPEED := 6.0
+
+	var target := 0.0
+	var _open := 0.0
+
+	func _process(dt: float) -> void:
+		var speed := OPEN_SPEED if target > _open else CLOSE_SPEED
+		var prev := _open
+		_open = move_toward(_open, target, speed * dt)
+		if _open != prev:
+			queue_redraw()
+
+	func _draw() -> void:
+		if _open <= 0.01:
+			return
+		var k := ease(_open, 0.6)
+		# Tapa la línea de la boca original (con la piel) y abre la "O" encima
+		draw_colored_polygon(_ellipse(CENTER, LINE_HALF * Vector2(1.0, 1.3)), Color(SKIN, minf(1.0, _open * 3.0)))
+		var r := SIZE * Vector2(lerpf(1.25, 1.0, k), 1.0) * k
+		r.y = maxf(r.y, 8.0)
+		draw_colored_polygon(_ellipse(CENTER, r), INSIDE)
+		draw_colored_polygon(_ellipse(CENTER + Vector2(0, r.y * 0.45), Vector2(r.x * 0.62, r.y * 0.4)), TONGUE)
+		draw_polyline(_ellipse(CENTER, r, true), LIP, 9.0, true)
+
+	static func _ellipse(c: Vector2, r: Vector2, closed := false) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		for i in 25:
+			if i == 24 and not closed:
+				break
+			var a := TAU * i / 24.0
+			pts.append(c + Vector2(cos(a) * r.x, sin(a) * r.y))
+		return pts
 
 ## Agujero de bala con una mancha de sangre alrededor (px de villager.png).
 class BulletMark extends Node2D:

@@ -107,6 +107,12 @@ var _food_t := 0.0
 var _food_cooldown := 0.0
 var _rig_rest := Vector2.ZERO
 
+# --- Voz: "¡wow!" al agarrarlo. Cada aldeano tiene su propio tono ---
+const WOW := preload("res://audio/wow.wav")
+const VOICE_DB := -4.0
+var _voice: AudioStreamPlayer
+var _voice_pitch := 1.0
+
 # IA y animaciones
 var wander_timer := 0.0
 @onready var rig: VillagerRig = get_node_or_null("Rig")
@@ -125,6 +131,12 @@ func _ready() -> void:
 
 	if not input_event.is_connected(_on_input_event):
 		input_event.connect(_on_input_event)
+
+	_voice = AudioStreamPlayer.new()
+	_voice.stream = WOW
+	_voice.volume_db = VOICE_DB
+	_voice_pitch = randf_range(0.9, 1.25)
+	add_child(_voice)
 
 	_ensure_hud()
 
@@ -659,6 +671,9 @@ func _start_drag() -> void:
 	fall_vx = 0.0
 	set_physics_process(false)
 	z_index = 10
+	if not dead:
+		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
+		_voice.play()
 	if dead:
 		corpse_timer = 0.0
 		modulate.a = 1.0
