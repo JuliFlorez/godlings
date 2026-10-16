@@ -84,6 +84,7 @@ var _offer_chip: Control
 var _shop_btn: Button
 var _shop: Shop
 var _placing := false
+var _decor_edit := DecorPlacer.Edit.NONE
 var _pause: PauseMenu
 
 func _ready() -> void:
@@ -242,7 +243,7 @@ func set_shark_on(index: int, on: bool) -> void:
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
 ## de decoraciones ni la pistola, que la usan para cerrar/terminar/guardar).
 func esc_is_free() -> bool:
-	return not (_shop and _shop.visible) and not _placing and not _gun_armed
+	return not (_shop and _shop.visible) and not _placing and not _gun_armed and _decor_edit != DecorPlacer.Edit.MOVING
 
 ## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.
 func _on_locale_changed() -> void:
@@ -254,6 +255,11 @@ func _on_locale_changed() -> void:
 ## Mientras se colocan decoraciones (para la pista de abajo del panel).
 func set_placing(on: bool) -> void:
 	_placing = on
+	_refresh()
+
+## Mouse sobre una decoración puesta, o moviéndola (para la pista y para Esc).
+func set_decor_edit(state: DecorPlacer.Edit) -> void:
+	_decor_edit = state
 	_refresh()
 
 ## Texto flotante que sube y se desvanece (posición en pantalla).
@@ -322,6 +328,10 @@ func _refresh() -> void:
 		_hint.text = tr("Click en la isla para colocar · click derecho o Esc para terminar.")
 	elif _gun_armed:
 		_hint.text = tr("Click para disparar · click derecho, Esc o G para guardarla.")
+	elif _decor_edit == DecorPlacer.Edit.MOVING:
+		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
+	elif _decor_edit == DecorPlacer.Edit.HOVER:
+		_hint.text = tr("Arrastrá para moverla · click derecho para quitarla (devuelve la mitad).")
 	elif full and not island_maxed:
 		_hint.text = tr("Isla llena: sacrificá aldeanos para ganar puntos y expandirla.")
 	elif not has_energy:

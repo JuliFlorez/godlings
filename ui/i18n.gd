@@ -21,6 +21,8 @@ const EN := {
 	"Desbloqueala en la tienda (%d ofrendas)": "Unlock it in the shop (%d offerings)",
 	"Click en la isla para colocar · click derecho o Esc para terminar.": "Click the island to place · right click or Esc to finish.",
 	"Click para disparar · click derecho, Esc o G para guardarla.": "Click to shoot · right click, Esc or G to holster it.",
+	"Arrastrá para moverla · click derecho para quitarla (devuelve la mitad).": "Drag to move it · right click to remove it (refunds half).",
+	"Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.": "Drop it on the island · right click or Esc to leave it where it was.",
 	"Isla llena: sacrificá aldeanos para ganar puntos y expandirla.": "Island full: sacrifice villagers to earn points and expand it.",
 	"Devoción insuficiente: se recarga con el tiempo.": "Not enough devotion: it refills over time.",
 	"¡Tocá un orbe + en la isla para expandirla!": "Tap a + orb on the island to expand it!",

@@ -34,7 +34,24 @@ var ghost := false          # Vista previa al colocar
 var valid := true:
 	set(v):
 		valid = v
-		modulate = (Color(1, 1, 1, 0.65) if v else Color(1.0, 0.35, 0.35, 0.65)) if ghost else Color.WHITE
+		_tint()
+var hovered := false:       # El mouse está encima (se puede mover o quitar)
+	set(v):
+		hovered = v
+		_tint()
+var moving := false:        # La están arrastrando a otro lugar
+	set(v):
+		moving = v
+		_tint()
+
+## Zona clickeable para moverla o quitarla, relativa a la base (hacia arriba es -y).
+const HIT_RECTS := {
+	"palm": Rect2(-40, -128, 80, 130),
+	"bush": Rect2(-23, -28, 46, 31),
+	"flowers": Rect2(-15, -20, 30, 23),
+	"rock": Rect2(-21, -22, 42, 25),
+	"torch": Rect2(-12, -78, 24, 81),
+}
 
 var _light: PointLight2D
 var _sky: Node
@@ -51,6 +68,18 @@ func _ready() -> void:
 		_light.position = Vector2(0, LIFT) + TORCH_FLAME
 		_light.enabled = false
 		add_child(_light)
+
+func _tint() -> void:
+	if ghost or moving:
+		modulate = Color(1, 1, 1, 0.65) if valid else Color(1.0, 0.35, 0.35, 0.65)
+	elif hovered:
+		modulate = Color(1.3, 1.25, 1.1)
+	else:
+		modulate = Color.WHITE
+
+func hit_test(global_point: Vector2) -> bool:
+	var r: Rect2 = HIT_RECTS.get(kind, HIT_RECTS.flowers)
+	return r.has_point(global_point - global_position - Vector2(0, LIFT))
 
 func _process(_dt: float) -> void:
 	# La palmera se mece y la antorcha titila
