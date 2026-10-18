@@ -196,7 +196,6 @@ func _physics_process(dt: float) -> void:
 			drown_elapsed += dt
 			if drown_elapsed >= DROWN_DELAY:
 				drowning = true
-				_grant_sacrifice_xp()
 
 		if drowning:
 			# Hundirse y desvanecerse
@@ -205,6 +204,8 @@ func _physics_process(dt: float) -> void:
 			rotation = lerp_angle(rotation, 0.5, 3.0 * dt)
 			velocity = Vector2.ZERO
 			if modulate.a <= 0.02:
+				# Recién acá cuenta como sacrificio: mientras se hunde todavía se lo puede rescatar
+				_grant_sacrifice_xp()
 				queue_free()
 			return
 		else:

@@ -1,6 +1,6 @@
 # 🌴 Godlings
 
-Un prototipo de **God Game / simulación de deidades** desarrollado en **Godot 4.5** (GL Compatibility).
+Un prototipo de **God Game / simulación de deidades** desarrollado en **Godot 4.7** (GL Compatibility).
 
 En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio del océano.
 
@@ -34,7 +34,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 ## 🚀 Cómo ejecutar
 
 1. Descargá o cloná este repositorio.
-2. Abrí **Godot Engine 4.5** (o superior).
+2. Abrí **Godot Engine 4.7** (o superior).
 3. Seleccioná **Importar** y elegí el archivo `project.godot`.
 4. Presioná **F5** para ejecutar la escena principal (`res://world/world.tscn`).
 
