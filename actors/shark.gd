@@ -122,7 +122,8 @@ func _ready() -> void:
 	_sprite.texture = TEXTURE
 	_sprite.scale = Vector2.ONE * _k
 	_sprite.material = _material
-	add_child(_sprite)
+	# Interno: así world.gd puede duplicar el tiburón sin copiar este sprite
+	add_child(_sprite, false, Node.INTERNAL_MODE_FRONT)
 
 	visible = false
 	set_process(false)

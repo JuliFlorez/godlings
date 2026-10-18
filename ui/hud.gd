@@ -255,7 +255,11 @@ func lose_shark(index: int) -> void:
 
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
 ## de decoraciones ni la pistola, que la usan para cerrar/terminar/guardar).
+## Tampoco con el click apretado: en pausa se perdería el soltado de lo que se está
+## arrastrando (aldeano, tiburón, coco, sol o luna) y quedaría pegado al cursor.
 func esc_is_free() -> bool:
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		return false
 	return not (_shop and _shop.visible) and not _placing and not _gun_armed and _decor_edit != DecorPlacer.Edit.MOVING
 
 ## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.
