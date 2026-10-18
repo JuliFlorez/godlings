@@ -18,7 +18,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
   - Sistema de rescate al regresarlos a tierra firme.
 - ☀️ **Sol Acosador / 🌙 Luna Acosadora**: Arrastrá el sol hasta el horizonte y se pone: el cielo pasa por el atardecer, cae la noche, salen las estrellas y sube la Luna Acosadora (que no les saca los ojos de encima a los aldeanos). Bajá la luna y vuelve el día.
   - 😱 **Modo Perturbador**: tocá el sol o la luna 5 veces seguidas y se transforman. El Sol Perturbador tiene tentáculos de fuego, cuencas vacías y una sonrisa llena de dientes; la Luna Perturbadora se pone roja, sus cráteres se abren como ojos y le gotea sangre de la boca. Otros 5 toques y vuelven a la normalidad.
-- 🦈 **Tiburón**: Una aleta patrulla el agua y va a por cualquier aldeano que esté flotando. Cada aldeano comido cuenta como sacrificio (+XP).
+- 🦈 **Tiburón**: Una aleta patrulla el agua y va a por cualquier aldeano que esté flotando. Cada aldeano comido cuenta como sacrificio (+XP). Se lo puede agarrar de la aleta y sacar del agua: se sacude colgando, se lo puede tirar y, si cae en la isla, va coleteando hasta volver al agua.
 - 🏝️ **Isla Expandible**: La isla tiene 7 tamaños. Empieza chica (5 aldeanos como máximo) y cada expansión sube la capacidad (hasta 26).
 - 🛍️ **Tienda y Ofrendas**: cada sacrificio deja +5 ofrendas y cada aldeano vivo reza y deja +1 cada 10 segundos. En la Tienda se gastan en:
   - **Decoración**: palmeras, arbustos, flores, rocas y antorchas. Se colocan con un click sobre la isla (se cobran al colocarlas) y los aldeanos pasan por delante o por detrás según la profundidad.
@@ -50,4 +50,5 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - **Botón "Invocar aldeano"**: Invoca un nuevo aldeano consumiendo 10 puntos de Devoción (si hay lugar en la isla).
 - **Orbe "+" en la isla / Botón "Expandir isla"**: Gasta un punto de expansión para agrandar la isla.
 - **Botón "Tienda"**: Comprar decoraciones (click en la isla para colocarlas, click derecho o Esc para terminar) y desbloquear la pistola.
+- **Click en la aleta del tiburón + Arrastrar**: Sacarlo del agua (soltalo en el agua, tiralo o dejalo en la isla).
 - **Tecla G / casilla "Pistola"**: Sacar o guardar la pistola (una vez desbloqueada en la tienda).
