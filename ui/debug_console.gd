@@ -164,8 +164,10 @@ func run(text: String) -> void:
 func _unlock_all() -> void:
 	Gun.unlocked = true
 	Moon.blood_unlocked = true
-	while hud.shark_on.size() < Shark.MAX:
-		hud.shark_on.append(true)
-		hud.shark_changed.emit(hud.shark_on.size() - 1, true)
+	for i in Shark.MAX:
+		if not hud.shark_owned[i]:
+			hud.shark_owned[i] = true
+			hud.shark_on[i] = true
+			hud.shark_changed.emit(i, true)
 	hud._refresh()
 	_ok(tr("Desbloqueado: pistola, Luna de Sangre y %d tiburones") % Shark.MAX)

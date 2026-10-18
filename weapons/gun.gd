@@ -3,7 +3,8 @@ class_name Gun
 ## Pistola: se desbloquea en la tienda y después se saca desde el HUD o con la tecla G
 ## (Esc o click derecho la guardan).
 ## Apunta desde la esquina inferior derecha hacia el mouse; cada click dispara.
-## Los aldeanos alcanzados mueren y caen en ragdoll (ver Villager.shoot).
+## Los aldeanos alcanzados mueren y caen en ragdoll (ver Villager.shoot); los tiburones
+## también se mueren y hay que volver a comprarlos (ver Shark.shoot).
 
 signal armed_changed(on: bool)
 
@@ -106,12 +107,14 @@ func _shoot(at: Vector2) -> void:
 	var hit := _target_at(at)
 	if hit is Villager:
 		(hit as Villager).shoot(at, dir)
+	elif hit is Shark:
+		(hit as Shark).shoot(at, dir)
 	elif hit is Area2D:
 		_puff(at, Color(0.85, 0.95, 1.0), 14)       # Salpicadura en el agua
 	elif _on_island(at):
 		_puff(at, Color(0.93, 0.8, 0.55), 10)       # Polvo de arena
 
-## Lo que hay bajo el punto: un aldeano (el de más adelante), el agua o nada.
+## Lo que hay bajo el punto: un aldeano o un tiburón (el de más adelante), el agua o nada.
 func _target_at(at: Vector2) -> Object:
 	var q := PhysicsPointQueryParameters2D.new()
 	q.position = at
@@ -126,6 +129,10 @@ func _target_at(at: Vector2) -> Object:
 				best = c
 		elif c is Area2D and c.has_method("get_global_rect"):
 			water = c
+	for s in get_tree().get_nodes_in_group("shark"):
+		var shark := s as Shark
+		if shark.is_shot_at(at) and (best == null or shark.is_in_front_of(best)):
+			return shark
 	return best if best else water
 
 func _on_island(p: Vector2) -> bool:

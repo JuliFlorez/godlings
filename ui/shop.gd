@@ -136,7 +136,7 @@ func _ready() -> void:
 		card.add_child(status)
 		card.move_child(status, price.get_index())
 		b.pressed.connect(func():
-			if i < hud.shark_on.size():
+			if hud.shark_owned[i]:
 				hud.set_shark_on(i, not hud.shark_on[i])
 			else:
 				hud.buy_shark()
@@ -175,11 +175,11 @@ func _sync() -> void:
 	else:
 		_moon_btn.text = "Desbloquear"
 		_moon_btn.disabled = not hud.can_afford(Moon.PRICE)
-	var owned := hud.shark_on.size()
+	var next := hud.shark_owned.find(false)   # Se compran en orden: el primero que falta
 	for i in _sharks.size():
 		var s: Dictionary = _sharks[i]
 		var b: Button = s.btn
-		var bought := i < owned
+		var bought := hud.shark_owned[i]
 		var on := bought and hud.shark_on[i]
 		s.price.visible = not bought
 		s.status.visible = bought
@@ -190,9 +190,9 @@ func _sync() -> void:
 			b.text = "Desactivar" if on else "Activar"
 			b.disabled = false
 		else:
-			# Se compran en orden: el segundo recién después del primero
+			# (Si matan al primero y el segundo sigue vivo, se recompra el primero)
 			b.text = "Comprar"
-			b.disabled = i > owned or not hud.can_afford(Shark.PRICE)
+			b.disabled = i != next or not hud.can_afford(Shark.PRICE)
 
 # ---- Construcción ----
 func _section(title: String) -> Label:

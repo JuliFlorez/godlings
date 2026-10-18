@@ -554,7 +554,8 @@ class BloodPool extends Node2D:
 		draw_circle(Vector2(radius * 0.35, -radius * 0.2), radius * 0.55, COLOR.darkened(0.15), true, -1.0, true)
 
 # --- TIBURÓN ---
-func get_eaten() -> void:
+## En el agua se hunde. En la isla (mouth = la boca del tiburón) se lo chupa hacia la boca.
+func get_eaten(mouth := Vector2.INF) -> void:
 	if eaten:
 		return
 	eaten = true
@@ -562,9 +563,14 @@ func get_eaten() -> void:
 	_grant_sacrifice_xp()
 	_spawn_blood()
 	var tw := create_tween().set_parallel()
-	tw.tween_property(self, "global_position:y", global_position.y + 45.0, 0.35).set_ease(Tween.EASE_IN)
-	tw.tween_property(self, "modulate:a", 0.0, 0.35)
-	tw.tween_property(self, "rotation", 0.8, 0.35)
+	if mouth.is_finite():
+		tw.tween_property(self, "global_position", mouth, 0.18).set_ease(Tween.EASE_IN)
+		tw.tween_property(self, "scale", Vector2.ONE * 0.2, 0.18).set_ease(Tween.EASE_IN)
+		tw.tween_property(self, "modulate:a", 0.0, 0.18).set_delay(0.06)
+	else:
+		tw.tween_property(self, "global_position:y", global_position.y + 45.0, 0.35).set_ease(Tween.EASE_IN)
+		tw.tween_property(self, "modulate:a", 0.0, 0.35)
+		tw.tween_property(self, "rotation", 0.8, 0.35)
 	tw.chain().tween_callback(queue_free)
 
 # --- LUNA DE SANGRE ---

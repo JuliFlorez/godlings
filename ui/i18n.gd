@@ -33,6 +33,7 @@ const EN := {
 	"¡Pistola desbloqueada! Sacala con G": "Gun unlocked! Draw it with G",
 	"¡Luna de Sangre desbloqueada! De noche, tocá la luna 5 veces": "Blood Moon unlocked! At night, tap the moon 5 times",
 	"¡Tiburón suelto en el agua!": "A shark is loose in the water!",
+	"¡Mataste al tiburón! Comprá otro en la tienda": "You killed the shark! Buy another one in the shop",
 	"EN LA TIENDA": "IN THE SHOP",
 	"PRÓXIMAMENTE": "COMING SOON",
 	"Pistola": "Gun",

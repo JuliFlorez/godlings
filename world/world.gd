@@ -94,6 +94,8 @@ func _ready() -> void:
 		hud.expand_pressed.connect(expand_island)
 		hud.expansion_points_changed.connect(func(_p): _refresh_markers())
 		hud.shark_changed.connect(func(i: int, on: bool): sharks[i].set_active(on))
+		for i in sharks.size():
+			sharks[i].killed.connect(hud.lose_shark.bind(i))
 
 	# Últimos hijos: reciben los clicks antes que el sol/luna y los aldeanos
 	gun = Gun.new()

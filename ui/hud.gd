@@ -24,7 +24,9 @@ var xp: int = 0
 var energy: float = 100.0
 var expansion_points: int = 0
 var offerings: int = 0
-## Un valor por tiburón comprado (en orden de compra): si está prendido.
+## Por tiburón (Shark.MAX): si está comprado y si está prendido.
+## Si lo matan de un tiro deja de estar comprado: hay que volver a comprarlo.
+var shark_owned: Array[bool] = []
 var shark_on: Array[bool] = []
 var _points_earned: int = 0
 var _refill_rate: float = 0.0  # puntos de energía por segundo
@@ -97,6 +99,8 @@ func _ready() -> void:
 	_refill_rate = energy_max / (energy_refill_minutes * 60.0)
 	energy = energy_max
 	offerings = start_offerings
+	shark_owned.resize(Shark.MAX)
+	shark_on.resize(Shark.MAX)
 
 	_build_ui()
 	_xp_bar.value = xp
@@ -226,19 +230,28 @@ func unlock_blood_moon() -> bool:
 	popup_text("¡Luna de Sangre desbloqueada! De noche, tocá la luna 5 veces", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), Color(1.0, 0.45, 0.4))
 	return true
 
+## Compra el primer tiburón que falta (se compran en orden).
 func buy_shark() -> bool:
-	if shark_on.size() >= Shark.MAX or not spend_offerings(Shark.PRICE):
+	var index := shark_owned.find(false)
+	if index < 0 or not spend_offerings(Shark.PRICE):
 		return false
-	shark_on.append(true)
-	shark_changed.emit(shark_on.size() - 1, true)
+	shark_owned[index] = true
+	shark_on[index] = true
+	shark_changed.emit(index, true)
 	popup_text("¡Tiburón suelto en el agua!", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_DEVOTION)
 	return true
 
 func set_shark_on(index: int, on: bool) -> void:
-	if index < 0 or index >= shark_on.size() or shark_on[index] == on:
+	if index < 0 or index >= shark_on.size() or not shark_owned[index] or shark_on[index] == on:
 		return
 	shark_on[index] = on
 	shark_changed.emit(index, on)
+
+## Lo mataron de un tiro: hay que volver a comprarlo.
+func lose_shark(index: int) -> void:
+	shark_owned[index] = false
+	shark_on[index] = false
+	popup_text("¡Mataste al tiburón! Comprá otro en la tienda", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_WARN)
 
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
 ## de decoraciones ni la pistola, que la usan para cerrar/terminar/guardar).
