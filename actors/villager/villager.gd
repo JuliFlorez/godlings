@@ -109,7 +109,7 @@ var _rig_rest := Vector2.ZERO
 
 # --- Carnet: nombre y apellido los pone el jugador en modo seleccionar (ver VillagerCard) ---
 enum Gender { MALE, FEMALE }
-static var _issued := 0          # Números de carnet repartidos
+static var ids_issued := 0       # Números de carnet repartidos (se guarda con la partida)
 var id_number := 0
 var first_name := ""
 var last_name := ""
@@ -146,8 +146,8 @@ func _ready() -> void:
 	_voice_pitch = randf_range(0.9, 1.25)
 	add_child(_voice)
 
-	_issued += 1
-	id_number = _issued
+	ids_issued += 1
+	id_number = ids_issued
 	_ensure_hud()
 	if hud:
 		hud.add_name_tag(self)

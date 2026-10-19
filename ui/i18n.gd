@@ -98,6 +98,11 @@ const EN := {
 	"Idioma": "Language",
 	"Continuar": "Resume",
 	"Salir del juego": "Quit game",
+	"Nueva partida": "New game",
+	"¿Empezar de cero? Se pierden la isla, los aldeanos, las ofrendas y todo lo comprado.": "Start over? You lose the island, the villagers, the offerings and everything you bought.",
+	"Cancelar": "Cancel",
+	"Sí, borrar todo": "Yes, wipe it all",
+	"La partida se guarda sola.": "Your game saves automatically.",
 	# Consola de trucos (F1)
 	"Consola de trucos": "Cheat console",
 	"escribí [b]ayuda[/b] o [b]help[/b]. F1 para cerrar.": "type [b]help[/b] or [b]ayuda[/b]. F1 to close.",

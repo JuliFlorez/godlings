@@ -67,6 +67,11 @@ func _ready() -> void:
 	sun.has_set.connect(moon.rise)
 	moon.has_set.connect(sun.rise)
 
+## Partida guardada de noche: arranca con la luna arriba y el sol escondido.
+func start_at_night() -> void:
+	sun.hide_below()
+	moon.show_up()
+
 func _process(dt: float) -> void:
 	# Si el sol no está en el cielo, es de noche
 	night = sun.height_t() if sun.visible else 1.0

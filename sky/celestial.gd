@@ -149,6 +149,14 @@ func rise() -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	_tween.tween_callback(func(): is_up = true)
 
+## Deja el astro en lo alto del cielo sin animación
+func show_up() -> void:
+	if _tween:
+		_tween.kill()
+	is_up = true
+	position = rest_pos
+	show()
+
 ## Deja el astro escondido bajo el horizonte sin animación
 func hide_below() -> void:
 	is_up = false

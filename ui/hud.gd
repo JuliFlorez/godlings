@@ -13,6 +13,7 @@ signal gun_toggled(on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
+signal new_game_requested
 
 @export var energy_max: float = 100.0
 @export var energy_refill_minutes: float = 5.0  # 5 min para llenarse de 0 a 100
@@ -292,6 +293,41 @@ func add_name_tag(v: Villager) -> void:
 	tag.villager = v
 	tag.hud = self
 	_tags.add_child(tag)
+
+# ---- Partida guardada (ver World.save_game) ----
+## Progreso y compras.
+func save_state() -> Dictionary:
+	return {
+		"xp": xp,
+		"energy": energy,
+		"offerings": offerings,
+		"expansion_points": expansion_points,
+		"points_earned": _points_earned,
+		"gun": Gun.unlocked,
+		"blood_moon": Moon.blood_unlocked,
+		"shark_owned": shark_owned,
+		"shark_on": shark_on,
+	}
+
+func load_state(d: Dictionary) -> void:
+	xp = d.get("xp", xp)
+	energy = clampf(d.get("energy", energy), 0.0, energy_max)
+	offerings = d.get("offerings", offerings)
+	expansion_points = d.get("expansion_points", expansion_points)
+	_points_earned = d.get("points_earned", _points_earned)
+	Gun.unlocked = d.get("gun", false)
+	Moon.blood_unlocked = d.get("blood_moon", false)
+	var owned: Array = d.get("shark_owned", [])
+	var on: Array = d.get("shark_on", [])
+	for i in mini(shark_owned.size(), mini(owned.size(), on.size())):
+		shark_owned[i] = owned[i]
+		shark_on[i] = owned[i] and on[i]
+		if shark_on[i]:
+			shark_changed.emit(i, true)
+	_xp_bar.value = xp       # Sin la animación de las barras llenándose
+	_energy_bar.value = energy
+	expansion_points_changed.emit(expansion_points)
+	_refresh()
 
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
 ## de decoraciones, la pistola ni el carnet, que la usan para cerrar/terminar/guardar).

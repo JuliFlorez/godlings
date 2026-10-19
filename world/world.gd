@@ -57,6 +57,13 @@ var _pivot: Vector2
 var _expanding := false
 var _markers: Array[ExpandMarker] = []
 
+## Partida guardada. Va aparte de las opciones (user://settings.cfg), así "Nueva partida"
+## la borra sin tocar el volumen ni el idioma. Se guarda sola cada tanto y al salir.
+const SAVE_PATH := "user://save.cfg"
+const AUTOSAVE_INTERVAL := 20.0
+var _autosave_t := 0.0
+var _saving := true   # Se apaga al empezar de cero, para no volver a guardar lo que se borró
+
 func _ready() -> void:
 	# Capas sobre la isla y el tiburón: primero el piso, después lo que tiene altura
 	ground = Node2D.new()
@@ -96,6 +103,7 @@ func _ready() -> void:
 		hud.shark_changed.connect(func(i: int, on: bool): sharks[i].set_active(on))
 		for i in sharks.size():
 			sharks[i].killed.connect(hud.lose_shark.bind(i))
+		hud.new_game_requested.connect(_new_game)
 
 	# Últimos hijos: reciben los clicks antes que el sol/luna y los aldeanos
 	gun = Gun.new()
@@ -121,7 +129,9 @@ func _ready() -> void:
 		if on:
 			placer.stop())
 
-	_spawn_villagers(mini(starting_villagers, capacity()))
+	Villager.ids_issued = 0
+	if not _load_game():
+		_spawn_villagers(mini(starting_villagers, capacity()))
 	_start_music()
 
 func _start_music() -> void:
@@ -173,6 +183,16 @@ func _process(dt: float) -> void:
 			if n > 0:
 				hud.add_offerings(n)
 
+	_autosave_t += dt
+	if _autosave_t >= AUTOSAVE_INTERVAL:
+		_autosave_t = 0.0
+		save_game()
+
+func _notification(what: int) -> void:
+	# Al cerrar la ventana (y desde "Salir del juego", que manda lo mismo)
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_game()
+
 func _ensure_hud() -> void:
 	if hud == null:
 		hud = get_tree().get_first_node_in_group("hud") as HUD
@@ -195,16 +215,22 @@ func alive_villagers() -> int:
 func _spawn_villagers(n: int) -> void:
 	if island_poly_global.size() == 0:
 		return
+	for i in n:
+		_add_villager(_island_point())
 
+func _add_villager(pos: Vector2) -> Villager:
+	var v: Villager = VILLAGER.instantiate()
+	v.global_position = pos
+	v.island_poly = island_poly_global
+	props.add_child(v)
+	return v
+
+## Un punto al azar dentro de la isla.
+func _island_point() -> Vector2:
 	var aabb := Rect2(island_poly_global[0], Vector2.ZERO)
 	for p in island_poly_global:
 		aabb = aabb.expand(p)
-
-	for i in n:
-		var v := VILLAGER.instantiate()
-		v.global_position = _rand_point_in_poly(island_poly_global, aabb)
-		v.island_poly = island_poly_global
-		props.add_child(v)
+	return _rand_point_in_poly(island_poly_global, aabb)
 
 func _rand_point_in_poly(poly: PackedVector2Array, box: Rect2) -> Vector2:
 	for i in 200:
@@ -314,8 +340,8 @@ func _edge_point(side: float) -> Vector2:
 			best = p
 	return best
 
-## Para la consola de trucos: salta directo a un nivel de isla, sin gastar puntos.
-func debug_set_island_level(level: int) -> void:
+## Salta directo a un nivel de isla, sin gastar puntos (consola de trucos y partida guardada).
+func set_island_level(level: int) -> void:
 	level = clampi(level, 0, max_level())
 	if _expanding or level == island_level:
 		return
@@ -329,6 +355,87 @@ func debug_set_island_level(level: int) -> void:
 ## Para la consola de trucos: aldeanos gratis (sin pasarse de la capacidad).
 func debug_spawn_villagers(n: int) -> void:
 	_spawn_villagers(clampi(n, 0, capacity() - alive_villagers()))
+
+# ---- Partida guardada ----
+## Guarda lo que hace a la partida: progreso y compras (ver HUD.save_state), el tamaño
+## de la isla, los aldeanos con su carnet, las decoraciones y cómo está el cielo.
+## Lo que pasa en el momento no (cadáveres, cocos sueltos, aldeanos volando o en el
+## agua): los vivos que no estaban parados en la isla aparecen en ella al cargar.
+func save_game() -> void:
+	if not _saving or hud == null:
+		return
+	var villagers := []
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v == null or v.dead or v.eaten or v.drowning or v.is_queued_for_deletion():
+			continue
+		var standing := v.is_idle() and Geometry2D.is_point_in_polygon(v.global_position, island_poly_global)
+		villagers.append({
+			"pos": v.global_position if standing else _island_point(),
+			"id": v.id_number,
+			"first_name": v.first_name,
+			"last_name": v.last_name,
+			"gender": v.gender,
+		})
+	var decorations := []
+	for c in props.get_children():
+		var d := c as Decoration
+		if d:
+			decorations.append({"kind": d.kind, "pos": placer.resting_position(d), "variant": d.variant})
+
+	var sky := $Sky
+	var cfg := ConfigFile.new()
+	cfg.set_value("game", "hud", hud.save_state())
+	cfg.set_value("island", "level", island_level)
+	cfg.set_value("island", "villagers", villagers)
+	cfg.set_value("island", "next_id", Villager.ids_issued)
+	cfg.set_value("island", "decorations", decorations)
+	cfg.set_value("sky", "night", sky.moon.visible)
+	cfg.set_value("sky", "sun_creepy", sky.sun.creepy)
+	cfg.set_value("sky", "moon_creepy", sky.moon.creepy)
+	cfg.set_value("sky", "moon_fed", sky.moon.feed_level)
+	cfg.save(SAVE_PATH)
+
+## Sigue la partida guardada. false si no había ninguna (arranca una nueva).
+func _load_game() -> bool:
+	var cfg := ConfigFile.new()
+	if hud == null or cfg.load(SAVE_PATH) != OK:
+		return false
+	hud.load_state(cfg.get_value("game", "hud", {}))
+	set_island_level(cfg.get_value("island", "level", island_level))
+	for d: Dictionary in cfg.get_value("island", "decorations", []):
+		if not Decoration.KINDS.has(d.get("kind")):
+			continue
+		var deco := Decoration.new()
+		deco.kind = d.kind
+		props.add_child(deco)
+		deco.global_position = d.get("pos", _island_point())
+		deco.variant = d.get("variant", deco.variant)   # Después de _ready, que elige una al azar
+	for d: Dictionary in cfg.get_value("island", "villagers", []):
+		var v := _add_villager(d.get("pos", _island_point()))
+		v.id_number = d.get("id", v.id_number)
+		v.first_name = d.get("first_name", "")
+		v.last_name = d.get("last_name", "")
+		v.gender = d.get("gender", Villager.Gender.MALE)
+	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
+
+	var sky := $Sky
+	if cfg.get_value("sky", "night", false):
+		sky.start_at_night()
+	if cfg.get_value("sky", "sun_creepy", false):
+		sky.sun.set_creepy(true)
+	if cfg.get_value("sky", "moon_creepy", false):
+		sky.moon.set_creepy(true)
+		sky.moon.feed_level = cfg.get_value("sky", "moon_fed", 0)
+	return true
+
+## "Nueva partida" (menú de pausa): borra lo guardado y arranca de cero.
+func _new_game() -> void:
+	_saving = false
+	DirAccess.remove_absolute(SAVE_PATH)
+	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	get_tree().paused = false
+	get_tree().reload_current_scene()
 
 func _sand_burst(at: Vector2) -> void:
 	var p := CPUParticles2D.new()

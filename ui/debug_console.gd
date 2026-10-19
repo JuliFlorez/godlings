@@ -141,7 +141,7 @@ func run(text: String) -> void:
 			_ok(tr("+%d puntos de expansión") % n)
 		"isla", "island":
 			var lvl: int = world.max_level() if arg < 0 else arg - 1
-			world.debug_set_island_level(lvl)
+			world.set_island_level(lvl)
 			_ok(tr("Isla en nivel %d / %d") % [world.island_level + 1, world.max_level() + 1])
 		"aldeanos", "villagers":
 			var room: int = world.capacity() - world.alive_villagers()

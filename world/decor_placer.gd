@@ -58,6 +58,11 @@ func stop() -> void:
 func is_active() -> bool:
 	return kind != ""
 
+## Dónde queda la decoración (para la partida guardada): si la están moviendo, su lugar
+## de antes, que es adonde vuelve si la sueltan fuera de la isla.
+func resting_position(d: Decoration) -> Vector2:
+	return _move_from if d == _moving else d.global_position
+
 func _process(_dt: float) -> void:
 	if _ghost:
 		_update_ghost()

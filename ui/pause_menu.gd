@@ -1,6 +1,6 @@
 extends Control
 class_name PauseMenu
-## Menú de pausa (Esc): volumen general y de música, idioma y salir del juego.
+## Menú de pausa (Esc): volumen general y de música, idioma, nueva partida y salir del juego.
 ## Mientras está abierto el juego queda en pausa. Esc no lo abre si la tienda,
 ## la colocación de decoraciones o la pistola están usando esa tecla.
 
@@ -12,6 +12,8 @@ var _music_value: Label
 var _master_slider: HSlider
 var _music_slider: HSlider
 var _lang_buttons := {}       # código -> Button
+var _actions: Control         # Continuar / Nueva partida / Salir
+var _confirm: Control         # "¿Empezar de cero?" antes de borrar la partida
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -66,25 +68,63 @@ func _ready() -> void:
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 4)
 	col.add_child(gap)
+	_actions = VBoxContainer.new()
+	_actions.add_theme_constant_override("separation", 12)
+	col.add_child(_actions)
 	var resume := _button("Continuar", HUD.C_SHOP)
 	resume.add_theme_color_override("font_color", Color(0.08, 0.14, 0.08))
 	resume.add_theme_color_override("font_hover_color", Color(0.08, 0.14, 0.08))
 	resume.pressed.connect(close)
-	col.add_child(resume)
+	_actions.add_child(resume)
+	var new_game := _button("Nueva partida", Color(1, 1, 1, 0.08))
+	new_game.pressed.connect(_show_confirm.bind(true))
+	_actions.add_child(new_game)
 	var quit := _button("Salir del juego", Color(0.75, 0.25, 0.22))
 	quit.pressed.connect(func():
 		Settings.save()
+		# Igual que cerrar la ventana: así el mundo guarda la partida antes de salir
+		get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST)
 		get_tree().quit())
-	col.add_child(quit)
+	_actions.add_child(quit)
+
+	_confirm = VBoxContainer.new()
+	_confirm.add_theme_constant_override("separation", 12)
+	col.add_child(_confirm)
+	var warn := HUD.make_label("¿Empezar de cero? Se pierden la isla, los aldeanos, las ofrendas y todo lo comprado.", 14, HUD.C_WARN)
+	warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	warn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	warn.custom_minimum_size = Vector2(296, 0)
+	_confirm.add_child(warn)
+	var answers := HBoxContainer.new()
+	answers.add_theme_constant_override("separation", 8)
+	_confirm.add_child(answers)
+	var cancel := _button("Cancelar", Color(1, 1, 1, 0.08))
+	cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cancel.pressed.connect(_show_confirm.bind(false))
+	answers.add_child(cancel)
+	var wipe := _button("Sí, borrar todo", Color(0.75, 0.25, 0.22))
+	wipe.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wipe.pressed.connect(func(): hud.new_game_requested.emit())
+	answers.add_child(wipe)
+
+	var note := HUD.make_label("La partida se guarda sola.", 12, HUD.C_MUTED)
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(note)
+	_show_confirm(false)
 
 func open() -> void:
 	visible = true
 	get_tree().paused = true
+	_show_confirm(false)
 	_sync()
 
 func close() -> void:
 	visible = false
 	get_tree().paused = false
+
+func _show_confirm(on: bool) -> void:
+	_actions.visible = not on
+	_confirm.visible = on
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE):
