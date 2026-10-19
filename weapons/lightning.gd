@@ -7,8 +7,8 @@ class_name Lightning
 ## quedan carbonizados y se hacen cenizas. El rayo salta a los que están cerca y, si cae
 ## en el agua, la descarga se esparce y fríe a todos los que flotan alrededor (tiburones
 ## incluidos, ver Shark.zap).
-## La nube, los rayos y la mira se dibujan en HUD.overlay: encima del mundo pero sin el
-## tinte de la noche (si no, de noche el rayo se vería apagado).
+## La nube, los rayos y la mira se dibujan en HUD.overlay (con un HUD.Painter): encima del
+## mundo pero sin el tinte de la noche (si no, de noche el rayo se vería apagado).
 
 signal armed_changed(on: bool)
 
@@ -46,7 +46,7 @@ var _cloud := Vector2.ZERO               # Centro de la nube (mundo)
 var _cloud_a := 0.0                      # Aparece y se va con un fundido
 var _glow := 0.0                         # La nube se ilumina por dentro al descargar
 var _t := 0.0
-var _fx: Fx
+var _fx: HUD.Painter
 var _thunder: AudioStreamPlayer
 var _buzz: AudioStreamPlayer
 static var _thunder_wav: AudioStreamWAV
@@ -56,8 +56,8 @@ static var _spark_ramp: Gradient
 func _ready() -> void:
 	armed = false
 	unlocked = false
-	_fx = Fx.new()
-	_fx.lightning = self
+	_fx = HUD.Painter.new()
+	_fx.paint = _paint
 	var hud := get_tree().get_first_node_in_group("hud") as HUD
 	if hud:
 		hud.overlay.add_child(_fx)
@@ -363,7 +363,7 @@ func _puff(at: Vector2, color: Color, amount: int, speed: float, gravity: float)
 	p.emitting = true
 	p.finished.connect(p.queue_free)
 
-# ---- Dibujo (lo llama Fx, desde HUD.overlay) ----
+# ---- Dibujo (en HUD.overlay) ----
 func _paint(ci: CanvasItem) -> void:
 	ci.draw_set_transform_matrix(get_canvas_transform())
 	if _cloud_a > 0.0:
@@ -453,17 +453,6 @@ func _paint_discharge(ci: CanvasItem, d: Dictionary) -> void:
 			var p: Vector2 = target.body_center() if target is Villager else target.global_position
 			paint_bolt(ci, jagged(c, p, 0.2, 4, rng), 1.6, k)
 
-## Dibuja la nube, los rayos y la mira desde HUD.overlay.
-class Fx extends Node2D:
-	var lightning: Lightning
-
-	func _process(_dt: float) -> void:
-		queue_redraw()
-
-	func _draw() -> void:
-		if is_instance_valid(lightning):
-			lightning._paint(self)
-
 ## Quemadura en la arena donde cayó el rayo (en la capa del piso).
 class Scorch extends Node2D:
 	const LIFE := 16.0
@@ -530,7 +519,7 @@ static func _make_thunder() -> AudioStreamWAV:
 		var thump := sin(TAU * 48.0 * t) * exp(-t * 9.0) * 0.5
 		buf[i] = crack + rumble + thump
 		peak = maxf(peak, absf(buf[i]))
-	return _to_wav(buf, rate, 0.95 / maxf(peak, 0.001))
+	return Synth.wav(buf, rate, 0.95 / maxf(peak, 0.001))
 
 ## Zumbido de electrocutado: un "bzzz" con chisporroteo que se corta a rachas.
 static func _make_buzz() -> AudioStreamWAV:
@@ -551,16 +540,4 @@ static func _make_buzz() -> AudioStreamWAV:
 		var gate := 1.0 if sin(TAU * 17.0 * t) > -0.3 else 0.35
 		var env := minf(1.0, t * 50.0) * pow(maxf(0.0, 1.0 - t / dur), 1.2)
 		buf[i] = (saw * 0.35 + square * 0.12 + hp * 0.5) * gate * env
-	return _to_wav(buf, rate, 0.9)
-
-static func _to_wav(buf: PackedFloat32Array, rate: int, gain: float) -> AudioStreamWAV:
-	var data := PackedByteArray()
-	data.resize(buf.size() * 2)
-	for i in buf.size():
-		data.encode_s16(i * 2, int(clampf(buf[i] * gain, -1.0, 1.0) * 32767.0))
-	var w := AudioStreamWAV.new()
-	w.format = AudioStreamWAV.FORMAT_16_BITS
-	w.mix_rate = rate
-	w.stereo = false
-	w.data = data
-	return w
+	return Synth.wav(buf, rate, 0.9)

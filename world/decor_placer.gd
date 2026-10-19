@@ -73,7 +73,7 @@ func _process(_dt: float) -> void:
 		# El coco se suelta solo (escucha el click); acá solo se nota que ya no está en la mano
 		if not is_instance_valid(_held_nut) or _held_nut.state != Coconut.State.HELD:
 			_held_nut = null
-			if not (Gun.armed or Lightning.armed):
+			if not HUD.aiming():
 				Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 			_sync_hud()
 	else:
@@ -165,7 +165,7 @@ func _edit_input(event: InputEvent) -> void:
 ## después los de las palmeras y por último las decoraciones. Vacío si no hay nada o si
 ## hay un aldeano delante: agarrar aldeanos tiene prioridad.
 func _pick(p: Vector2) -> Dictionary:
-	if Gun.armed or Lightning.armed or _held_nut or get_tree().paused or get_viewport().gui_get_hovered_control() != null:
+	if HUD.aiming() or _held_nut or get_tree().paused or get_viewport().gui_get_hovered_control() != null:
 		return {}
 	for v in get_tree().get_nodes_in_group("villager"):
 		if v is Villager and v.dragging:
@@ -204,7 +204,7 @@ func _set_hover(h: Dictionary) -> void:
 	_show_hover(_hover, false)
 	_hover = h
 	_show_hover(h, true)
-	if not (Gun.armed or Lightning.armed):
+	if not HUD.aiming():
 		Input.set_default_cursor_shape(Input.CURSOR_ARROW if h.is_empty() else Input.CURSOR_POINTING_HAND)
 	_sync_hud()
 
@@ -254,7 +254,7 @@ func _cancel_move() -> void:
 	d.moving = false
 	var tw := d.create_tween()
 	tw.tween_property(d, "global_position", _move_from, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	if not (Gun.armed or Lightning.armed):
+	if not HUD.aiming():
 		Input.set_default_cursor_shape(Input.CURSOR_ARROW)
 	_sync_hud()
 

@@ -5,11 +5,11 @@ class_name Shark
 ## Se lo puede agarrar de la aleta y sacar del agua: cuelga y se sacude, se lo puede tirar
 ## y, si cae en la isla, va saltando con la boca abierta (y se come a los aldeanos que alcanza)
 ## hasta volver a caerse al agua.
-## Con la pistola o con el rayo se lo puede matar: queda panza arriba y hay que volver a comprarlo.
+## Con la pistola, el rayo o el meteorito se lo puede matar: queda panza arriba y hay que volver a comprarlo.
 ## El cuerpo es blando: el dibujo va en una malla que se dobla por la columna (cabeza y cola
 ## cuelgan, se quedan atrás con los tirones y rebotan al caer). Muerto queda todavía más flojo.
 
-## Lo mataron de un tiro o de un rayo (el HUD lo da por perdido: hay que volver a comprarlo).
+## Lo mataron (de un tiro, un rayo o un meteorito): el HUD lo da por perdido y hay que volver a comprarlo.
 signal killed
 
 const PRICE := 40
@@ -68,6 +68,7 @@ const DEAD_LAND_TIME := 6.0      # Tirado en la isla antes de desvanecerse
 const C_BLOOD := Color(0.8, 0.05, 0.05)
 const C_SPARK := Color(1.0, 0.92, 0.55)
 const C_CHARRED := Color(0.3, 0.27, 0.25)   # Achicharrado por un rayo
+const C_SINGED := Color(0.62, 0.55, 0.5)    # Chamuscado por un meteorito
 # Agujeros de bala: los mismos que en los aldeanos (VillagerRig.BulletMark), del mismo tamaño en
 # pantalla (villager.png se ve a 0.079 y shark.png a SPRITE_W / 512 = 0.293)
 const MARK_SCALE := 0.27
@@ -670,7 +671,7 @@ func _draw() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
 		return
-	if not active or state == State.HELD or Gun.armed or Lightning.armed or get_tree().paused:
+	if not active or state == State.HELD or HUD.aiming() or get_tree().paused:
 		return
 	if get_viewport().gui_get_hovered_control() != null:
 		return
@@ -928,6 +929,16 @@ func zap(at: Vector2) -> void:
 	_puff(at, C_SPARK, 26, 300.0)
 	_sprite.modulate = C_CHARRED
 	_kill(Vector2.ZERO)
+
+## Lo alcanzó la explosión de un meteorito (ver Meteor): se muere chamuscado y sale despedido.
+func blast(push: Vector2) -> void:
+	_puff(global_position, C_BLOOD, 24, 260.0, push.normalized())
+	_sprite.modulate = C_SINGED
+	_kill(push)
+
+## Si está vivo a menos de radius de p (para la explosión del meteorito).
+func alive_near(p: Vector2, radius: float) -> bool:
+	return visible and active and not dead and global_position.distance_to(p) <= radius
 
 ## Si está nadando cerca de x (para la descarga del rayo en el agua).
 func swims_near(x: float, radius: float) -> bool:

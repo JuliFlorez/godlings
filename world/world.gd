@@ -44,6 +44,7 @@ var island_poly_global: PackedVector2Array
 var hud: HUD
 var gun: Gun
 var lightning: Lightning
+var meteor: Meteor
 var placer: DecorPlacer
 var sharks: Array[Shark] = []
 ## Aldeanos y decoraciones, ordenados por Y para que el de adelante tape al de atrás.
@@ -111,6 +112,8 @@ func _ready() -> void:
 	add_child(gun)
 	lightning = Lightning.new()
 	add_child(lightning)
+	meteor = Meteor.new()
+	add_child(meteor)
 	placer = DecorPlacer.new()
 	placer.hud = hud
 	placer.props = props
@@ -121,31 +124,37 @@ func _ready() -> void:
 		gun.armed_changed.connect(hud.set_gun_armed)
 		hud.lightning_toggled.connect(lightning.set_armed)
 		lightning.armed_changed.connect(hud.set_lightning_armed)
+		hud.meteor_toggled.connect(meteor.set_armed)
+		meteor.armed_changed.connect(hud.set_meteor_armed)
 		hud.decoration_chosen.connect(func(k: String):
-			gun.set_armed(false)
-			lightning.set_armed(false)
+			_disarm()
 			placer.start(k))
 		# Al pasar a seleccionar, el click vuelve a ser para los aldeanos
 		hud.select_mode_changed.connect(func(on: bool):
 			if on:
-				gun.set_armed(false)
-				lightning.set_armed(false)
+				_disarm()
 				if placer.is_active():
 					placer.stop())
-	# La pistola y el rayo no van juntos
-	gun.armed_changed.connect(func(on: bool):
-		if on:
-			lightning.set_armed(false)
-			placer.stop())
-	lightning.armed_changed.connect(func(on: bool):
-		if on:
-			gun.set_armed(false)
-			placer.stop())
+	# Sacar un arma o poder guarda los demás
+	for w in _weapons():
+		w.armed_changed.connect(func(on: bool):
+			if on:
+				_disarm(w)
+				placer.stop())
 
 	Villager.ids_issued = 0
 	if not _load_game():
 		_spawn_villagers(mini(starting_villagers, capacity()))
 	_start_music()
+
+func _weapons() -> Array[Node]:
+	return [gun, lightning, meteor]
+
+## Guarda las armas y poderes (menos keep).
+func _disarm(keep: Node = null) -> void:
+	for w in _weapons():
+		if w != keep:
+			w.set_armed(false)
 
 func _start_music() -> void:
 	_music = _make_music_player(MUSIC, "Music")

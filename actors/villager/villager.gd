@@ -101,6 +101,9 @@ var _arcs: ZapArcs
 var _smoke: CPUParticles2D
 var _pile: AshPile
 
+# --- Meteorito (ver Meteor): lo mira venir con la boca abierta y la explosión lo hace volar ---
+var _scared := 0.0
+
 # --- Espacio personal y empujones ---
 # Los aldeanos no chocan físicamente entre sí: se esquivan con una separación suave.
 # El que está agarrado sí empuja a los demás, y los puede tirar de la isla.
@@ -598,7 +601,7 @@ class BloodPool extends Node2D:
 # --- RAYO ---
 ## Si le puede caer un rayo (vivo o cadáver; no si ya se está friendo).
 func can_zap() -> bool:
-	return not eaten and zap_state == Zap.NONE and not is_queued_for_deletion() and modulate.a > 0.2
+	return can_blast() and modulate.a > 0.2
 
 ## Le cayó un rayo (ver Lightning): se electrocuta y muere.
 func zap() -> void:
@@ -830,6 +833,41 @@ class AshPile extends Node2D:
 			pts.append(Vector2(u * w, 1.5 - h * pow(maxf(0.0, 1.0 - u * u), 0.6)))
 		return pts
 
+# --- METEORITO ---
+## Si lo puede alcanzar una explosión (vivo o cadáver; no si se está friendo por un rayo).
+func can_blast() -> bool:
+	return not eaten and zap_state == Zap.NONE and not is_queued_for_deletion()
+
+## Ve venir un meteorito desde from: lo mira, con la boca abierta, durante time segundos.
+func scare(time: float, from: Vector2) -> void:
+	_scared = maxf(_scared, time)
+	if rig and is_idle():
+		rig.set_facing_left(from.x < global_position.x)
+
+func is_scared() -> bool:
+	return _scared > 0.0
+
+## Lo alcanzó la explosión de un meteorito (ver Meteor) y sale volando con push. Si es letal
+## muere chamuscado; si no, sale despedido vivo (y capaz que cae al agua).
+func blast(push: Vector2, lethal: bool) -> void:
+	if not can_blast():
+		return
+	var dir := push.normalized()
+	if lethal:
+		_spawn_blood(body_center(), dir, 18)
+		_die()
+		if _waterline:
+			_waterline.set_shader_parameter("burnt", 0.45)   # Chamuscado (ver waterline.gdshader)
+	elif not dead:
+		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
+		_voice.play()
+	if rig:
+		rig.hit(body_center(), dir, 1.2)
+	if dragging:
+		return
+	_launch(push, island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly))
+	swing_vel = clampf(swing_vel + randf_range(-6.0, 6.0), -12.0, 12.0)   # Que dé vueltas en el aire
+
 # --- TIBURÓN ---
 ## En el agua se hunde. En la isla (mouth = la boca del tiburón) se lo chupa hacia la boca.
 func get_eaten(mouth := Vector2.INF) -> void:
@@ -900,6 +938,7 @@ func _process(dt: float) -> void:
 		_update_drag(dt)
 	_update_zap(dt)
 	_update_waterline()
+	_scared = maxf(0.0, _scared - dt)
 
 ## Flotando (o hundiéndose) lo que queda debajo de la superficie no se ve.
 func _update_waterline() -> void:
@@ -937,7 +976,7 @@ func _update_drag(dt: float) -> void:
 
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed and not dragging and not eaten and not Gun.armed and not Lightning.armed:
+		if event.pressed and not dragging and not eaten and not HUD.aiming():
 			# En modo seleccionar no se lo agarra: se abre su carnet
 			_ensure_hud()
 			if hud and hud.select_mode:

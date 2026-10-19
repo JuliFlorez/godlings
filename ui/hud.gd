@@ -5,13 +5,14 @@ class_name HUD
 ## Menú inferior: modo del click (arrastrar o seleccionar aldeanos) y armas y poderes
 ## (los que todavía no existen dicen "Próximamente").
 ## Toda la interfaz se construye por código. Debajo de todo va overlay: lo que se dibuja
-## encima del mundo sin el tinte de la noche (el destello y los rayos, ver Lightning).
+## encima del mundo sin el tinte de la noche (el destello, el rayo y el meteorito, ver Painter).
 
 signal spawn_pressed
 signal expand_pressed
 signal expansion_points_changed(points: int)
 signal gun_toggled(on: bool)
 signal lightning_toggled(on: bool)
+signal meteor_toggled(on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
@@ -57,6 +58,7 @@ const C_SPAWN := Color(0.98, 0.58, 0.24)
 const C_EXPAND := Color(0.98, 0.78, 0.22)
 const C_GUN := Color(0.9, 0.36, 0.32)
 const C_ZAP := Color(1.0, 0.86, 0.3)
+const C_METEOR := Color(1.0, 0.55, 0.22)
 const C_SOON := Color(1.0, 0.8, 0.3)
 const C_OFFERING := Color(1.0, 0.84, 0.34)
 const C_SHOP := Color(0.46, 0.84, 0.52)
@@ -65,7 +67,7 @@ const C_SHOP := Color(0.46, 0.84, 0.52)
 const TOOLS := [
 	["gun", "Pistola", "G", true, "Sacar o guardar la pistola [G]"],
 	["lightning", "Rayo", "R", true, "Sacar o guardar el rayo [R]"],
-	["meteor", "Meteorito", "", false, "Un meteorito que deja un cráter en la isla"],
+	["meteor", "Meteorito", "M", true, "Sacar o guardar el meteorito [M]"],
 	["tornado", "Tornado", "", false, "Un tornado que levanta aldeanos por el aire"],
 	["rain", "Diluvio", "", false, "Una tormenta que inunda la orilla"],
 ]
@@ -82,14 +84,13 @@ var _points_value: Label
 var _spawn_btn: Button
 var _expand_btn: Button
 var _gun_btn: Button
-var _gun_icon: Control
-var _gun_lock: Control
 var _gun_armed := false
 var _lightning_btn: Button
-var _lightning_icon: Control
-var _lightning_lock: Control
 var _lightning_armed := false
+var _meteor_btn: Button
+var _meteor_armed := false
 var _slot_zap: StyleBoxFlat
+var _slot_meteor: StyleBoxFlat
 ## Encima del mundo y debajo de la interfaz, sin el tinte de la noche.
 var overlay: Control
 var _flash_rect: ColorRect
@@ -228,6 +229,15 @@ func set_lightning_armed(on: bool) -> void:
 	_lightning_armed = on
 	_refresh()
 
+func set_meteor_armed(on: bool) -> void:
+	_meteor_armed = on
+	_refresh()
+
+## Si hay un arma o poder afuera: el click es para eso (no para agarrar aldeanos, el
+## tiburón, cocos ni decoraciones).
+static func aiming() -> bool:
+	return Gun.armed or Lightning.armed or Meteor.armed
+
 ## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
 func flash_screen(amount: float) -> void:
 	_flash_amount = maxf(_flash_amount, amount)
@@ -269,6 +279,14 @@ func unlock_lightning() -> bool:
 		return false
 	Lightning.unlocked = true
 	popup_text("¡Rayo desbloqueado! Sacalo con R", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_ZAP)
+	_refresh()
+	return true
+
+func unlock_meteor() -> bool:
+	if Meteor.unlocked or not spend_offerings(Meteor.PRICE):
+		return false
+	Meteor.unlocked = true
+	popup_text("¡Meteorito desbloqueado! Sacalo con M", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_METEOR)
 	_refresh()
 	return true
 
@@ -338,6 +356,7 @@ func save_state() -> Dictionary:
 		"points_earned": _points_earned,
 		"gun": Gun.unlocked,
 		"lightning": Lightning.unlocked,
+		"meteor": Meteor.unlocked,
 		"blood_moon": Moon.blood_unlocked,
 		"shark_owned": shark_owned,
 		"shark_on": shark_on,
@@ -351,6 +370,7 @@ func load_state(d: Dictionary) -> void:
 	_points_earned = d.get("points_earned", _points_earned)
 	Gun.unlocked = d.get("gun", false)
 	Lightning.unlocked = d.get("lightning", false)
+	Meteor.unlocked = d.get("meteor", false)
 	Moon.blood_unlocked = d.get("blood_moon", false)
 	var owned: Array = d.get("shark_owned", [])
 	var on: Array = d.get("shark_on", [])
@@ -365,13 +385,13 @@ func load_state(d: Dictionary) -> void:
 	_refresh()
 
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
-## de decoraciones, la pistola, el rayo ni el carnet, que la usan para cerrar/terminar/guardar).
+## de decoraciones, las armas y poderes ni el carnet, que la usan para cerrar/terminar/guardar).
 ## Tampoco con el click apretado: en pausa se perdería el soltado de lo que se está
 ## arrastrando (aldeano, tiburón, coco, sol o luna) y quedaría pegado al cursor.
 func esc_is_free() -> bool:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return false
-	return not (_shop and _shop.visible) and not _placing and not _gun_armed and not _lightning_armed \
+	return not (_shop and _shop.visible) and not _placing and not aiming() \
 			and _decor_edit != DecorPlacer.Edit.MOVING and not _card.visible
 
 ## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.
@@ -447,17 +467,12 @@ func _refresh() -> void:
 
 	_offer_value.text = str(offerings)
 
-	_gun_btn.add_theme_stylebox_override("normal", _slot_active if _gun_armed else _slot_idle)
-	_gun_btn.add_theme_stylebox_override("hover", _slot_active if _gun_armed else _slot_hover)
-	_gun_lock.visible = not Gun.unlocked
-	_gun_icon.modulate = Color.WHITE if Gun.unlocked else Color(1, 1, 1, 0.45)
-	_gun_btn.tooltip_text = tr("Sacar o guardar la pistola [G]") if Gun.unlocked else tr("Desbloqueala en la tienda (%d ofrendas)") % Gun.PRICE
-
-	_lightning_btn.add_theme_stylebox_override("normal", _slot_zap if _lightning_armed else _slot_idle)
-	_lightning_btn.add_theme_stylebox_override("hover", _slot_zap if _lightning_armed else _slot_hover)
-	_lightning_lock.visible = not Lightning.unlocked
-	_lightning_icon.modulate = Color.WHITE if Lightning.unlocked else Color(1, 1, 1, 0.45)
-	_lightning_btn.tooltip_text = tr("Sacar o guardar el rayo [R]") if Lightning.unlocked else tr("Desbloquealo en la tienda (%d ofrendas)") % Lightning.PRICE
+	_sync_weapon(_gun_btn, Gun.unlocked, _gun_armed, _slot_active,
+			"Sacar o guardar la pistola [G]", "Desbloqueala en la tienda (%d ofrendas)", Gun.PRICE)
+	_sync_weapon(_lightning_btn, Lightning.unlocked, _lightning_armed, _slot_zap,
+			"Sacar o guardar el rayo [R]", "Desbloquealo en la tienda (%d ofrendas)", Lightning.PRICE)
+	_sync_weapon(_meteor_btn, Meteor.unlocked, _meteor_armed, _slot_meteor,
+			"Sacar o guardar el meteorito [M]", "Desbloquealo en la tienda (%d ofrendas)", Meteor.PRICE)
 
 	_drag_btn.add_theme_stylebox_override("normal", _slot_idle if select_mode else _slot_mode)
 	_drag_btn.add_theme_stylebox_override("hover", _slot_hover if select_mode else _slot_mode)
@@ -470,6 +485,8 @@ func _refresh() -> void:
 		_hint.text = tr("Click para disparar · click derecho, Esc o G para guardarla.")
 	elif _lightning_armed:
 		_hint.text = tr("Click para lanzar un rayo · click derecho, Esc o R para guardarlo.")
+	elif _meteor_armed:
+		_hint.text = tr("Click en la isla o el agua para tirar un meteorito · click derecho, Esc o M para guardarlo.")
 	elif _decor_edit == DecorPlacer.Edit.MOVING:
 		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
 	elif _decor_edit == DecorPlacer.Edit.HOVER:
@@ -489,6 +506,15 @@ func _refresh() -> void:
 	else:
 		_hint.text = ""
 	_hint.visible = _hint.text != ""
+
+## Slot de un arma o poder de la tienda: resaltado mientras está afuera; bloqueado se ve
+## apagado, con el cartel "En la tienda".
+func _sync_weapon(slot: Button, unlocked: bool, out: bool, active: StyleBoxFlat, tip: String, locked_tip: String, price: int) -> void:
+	slot.add_theme_stylebox_override("normal", active if out else _slot_idle)
+	slot.add_theme_stylebox_override("hover", active if out else _slot_hover)
+	slot.get_meta("lock").visible = not unlocked
+	slot.get_meta("icon").modulate = Color.WHITE if unlocked else Color(1, 1, 1, 0.45)
+	slot.tooltip_text = tr(tip) if unlocked else tr(locked_tip) % price
 
 func _flash(c: Control) -> void:
 	var tw := c.create_tween()
@@ -585,6 +611,7 @@ func _build_toolbar() -> void:
 	_slot_active = make_box(Color(C_GUN, 0.38), 12, C_GUN.lightened(0.3), 2)
 	_slot_mode = make_box(Color(C_DEVOTION, 0.30), 12, C_DEVOTION.lightened(0.2), 2)
 	_slot_zap = make_box(Color(C_ZAP, 0.32), 12, C_ZAP.lightened(0.3), 2)
+	_slot_meteor = make_box(Color(C_METEOR, 0.34), 12, C_METEOR.lightened(0.3), 2)
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -616,26 +643,27 @@ func _build_toolbar() -> void:
 
 	for t in TOOLS:
 		var slot := _tool_slot(row, t[0], t[1], t[2], t[3], t[4])
-		if t[0] == "gun":
-			_gun_btn = slot
-			_gun_icon = slot.get_meta("icon")
-			_gun_lock = _slot_badge(slot, "EN LA TIENDA", C_SHOP)
-			# Bloqueada, el slot lleva a la tienda
-			_gun_btn.pressed.connect(func():
-				if Gun.unlocked:
-					gun_toggled.emit(not _gun_armed)
-				else:
-					open_shop())
-		elif t[0] == "lightning":
-			_lightning_btn = slot
-			_lightning_btn.add_theme_stylebox_override("pressed", _slot_zap)
-			_lightning_icon = slot.get_meta("icon")
-			_lightning_lock = _slot_badge(slot, "EN LA TIENDA", C_SHOP)
-			_lightning_btn.pressed.connect(func():
-				if Lightning.unlocked:
-					lightning_toggled.emit(not _lightning_armed)
-				else:
-					open_shop())
+		match t[0]:
+			"gun":
+				_gun_btn = _weapon_slot(slot, _slot_active, func(): return Gun.unlocked,
+						func(): gun_toggled.emit(not _gun_armed))
+			"lightning":
+				_lightning_btn = _weapon_slot(slot, _slot_zap, func(): return Lightning.unlocked,
+						func(): lightning_toggled.emit(not _lightning_armed))
+			"meteor":
+				_meteor_btn = _weapon_slot(slot, _slot_meteor, func(): return Meteor.unlocked,
+						func(): meteor_toggled.emit(not _meteor_armed))
+
+## Arma o poder que se compra en la tienda: lo saca o lo guarda, y bloqueado lleva a la tienda.
+func _weapon_slot(slot: Button, active: StyleBoxFlat, unlocked: Callable, toggle: Callable) -> Button:
+	slot.add_theme_stylebox_override("pressed", active)
+	slot.set_meta("lock", _slot_badge(slot, "EN LA TIENDA", C_SHOP))
+	slot.pressed.connect(func():
+		if unlocked.call():
+			toggle.call()
+		else:
+			open_shop())
+	return slot
 
 ## Panel de la barra de abajo; devuelve la fila donde van los slots.
 func _toolbar_panel(parent: Control) -> HBoxContainer:
@@ -778,6 +806,17 @@ static func make_box(bg: Color, radius: int, border := Color(0, 0, 0, 0), border
 	s.content_margin_bottom = pad.w
 	s.anti_aliasing = true
 	return s
+
+## Lienzo en overlay que pide a paint(lienzo) que lo dibuje cada cuadro (ver Lightning y Meteor).
+class Painter extends Node2D:
+	var paint: Callable
+
+	func _process(_dt: float) -> void:
+		queue_redraw()
+
+	func _draw() -> void:
+		if paint.is_valid():
+			paint.call(self)
 
 ## Íconos vectoriales simples para el HUD.
 class HudIcon extends Control:

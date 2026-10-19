@@ -1,7 +1,7 @@
 extends Control
 class_name Shop
 ## Tienda: se gastan ofrendas en decoraciones para la isla, el cielo (Luna de Sangre),
-## armas/poderes (pistola y rayo) y tiburones.
+## armas/poderes (pistola, rayo y meteorito) y tiburones.
 ## Las decoraciones se cobran recién al colocarlas (ver DecorPlacer).
 
 var hud: HUD
@@ -9,6 +9,7 @@ var _balance: Label
 var _deco_buttons := {}       # kind -> Button
 var _gun_btn: Button
 var _lightning_btn: Button
+var _meteor_btn: Button
 var _moon_btn: Button
 var _sharks: Array[Dictionary] = []   # Por tarjeta: {btn, icon, price, status}
 
@@ -85,11 +86,8 @@ func _ready() -> void:
 	sky_col.add_child(sky_row)
 	var moon_icon := CenterContainer.new()
 	moon_icon.add_child(HUD.HudIcon.make("blood_moon", 44))
-	_moon_btn = _card(sky_row, moon_icon, "Luna de Sangre", Moon.PRICE, "Desbloquear")
-	_moon_btn.tooltip_text = "De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla."
-	_moon_btn.pressed.connect(func():
-		hud.unlock_blood_moon()
-		_sync())
+	_moon_btn = _unlock_card(sky_row, moon_icon, "Luna de Sangre", Moon.PRICE,
+			"De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla.", hud.unlock_blood_moon)
 	var sun_icon := CenterContainer.new()
 	sun_icon.add_child(HUD.HudIcon.make("blood_sun", 44))
 	sun_icon.modulate = Color(1, 1, 1, 0.45)
@@ -109,21 +107,19 @@ func _ready() -> void:
 	for t in HUD.TOOLS:
 		var icon := CenterContainer.new()
 		icon.add_child(HUD.HudIcon.make(t[0], 40))
-		if t[0] == "gun":
-			_gun_btn = _card(power_row, icon, t[1], Gun.PRICE, "Desbloquear")
-			_gun_btn.pressed.connect(func():
-				hud.unlock_gun()
-				_sync())
-		elif t[0] == "lightning":
-			_lightning_btn = _card(power_row, icon, t[1], Lightning.PRICE, "Desbloquear")
-			_lightning_btn.tooltip_text = "Fulmina aldeanos y salta a los que están cerca. En el agua fríe a todos los que flotan."
-			_lightning_btn.pressed.connect(func():
-				hud.unlock_lightning()
-				_sync())
-		else:
-			icon.modulate = Color(1, 1, 1, 0.45)
-			var b := _card(power_row, icon, t[1], -1, "Próximamente")
-			b.disabled = true
+		match t[0]:
+			"gun":
+				_gun_btn = _unlock_card(power_row, icon, t[1], Gun.PRICE, "", hud.unlock_gun)
+			"lightning":
+				_lightning_btn = _unlock_card(power_row, icon, t[1], Lightning.PRICE,
+						"Fulmina aldeanos y salta a los que están cerca. En el agua fríe a todos los que flotan.", hud.unlock_lightning)
+			"meteor":
+				_meteor_btn = _unlock_card(power_row, icon, t[1], Meteor.PRICE,
+						"Explota y deja un cráter: mata a los que están cerca y hace volar a los demás.", hud.unlock_meteor)
+			_:
+				icon.modulate = Color(1, 1, 1, 0.45)
+				var b := _card(power_row, icon, t[1], -1, "Próximamente")
+				b.disabled = true
 
 	var shark_col := VBoxContainer.new()
 	shark_col.add_theme_constant_override("separation", 10)
@@ -170,24 +166,10 @@ func _sync() -> void:
 	_balance.text = str(hud.offerings)
 	for kind: String in _deco_buttons:
 		_deco_buttons[kind].disabled = not hud.can_afford(Decoration.price_of(kind))
-	if Gun.unlocked:
-		_gun_btn.text = "Desbloqueada"
-		_gun_btn.disabled = true
-	else:
-		_gun_btn.text = "Desbloquear"
-		_gun_btn.disabled = not hud.can_afford(Gun.PRICE)
-	if Lightning.unlocked:
-		_lightning_btn.text = "Desbloqueado"
-		_lightning_btn.disabled = true
-	else:
-		_lightning_btn.text = "Desbloquear"
-		_lightning_btn.disabled = not hud.can_afford(Lightning.PRICE)
-	if Moon.blood_unlocked:
-		_moon_btn.text = "Desbloqueada"
-		_moon_btn.disabled = true
-	else:
-		_moon_btn.text = "Desbloquear"
-		_moon_btn.disabled = not hud.can_afford(Moon.PRICE)
+	_sync_unlock(_gun_btn, Gun.unlocked, Gun.PRICE, "Desbloqueada")
+	_sync_unlock(_lightning_btn, Lightning.unlocked, Lightning.PRICE, "Desbloqueado")
+	_sync_unlock(_meteor_btn, Meteor.unlocked, Meteor.PRICE, "Desbloqueado")
+	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada")
 	var next := hud.shark_owned.find(false)   # Se compran en orden: el primero que falta
 	for i in _sharks.size():
 		var s: Dictionary = _sharks[i]
@@ -207,7 +189,21 @@ func _sync() -> void:
 			b.text = "Comprar"
 			b.disabled = i != next or not hud.can_afford(Shark.PRICE)
 
+## done: lo que dice una vez desbloqueado ("Desbloqueada" o "Desbloqueado", según el artículo).
+func _sync_unlock(b: Button, unlocked: bool, price: int, done: String) -> void:
+	b.text = done if unlocked else "Desbloquear"
+	b.disabled = unlocked or not hud.can_afford(price)
+
 # ---- Construcción ----
+## Tarjeta de algo que se desbloquea una sola vez (armas, poderes, la Luna de Sangre).
+func _unlock_card(parent: Control, preview: Control, title: String, price: int, tip: String, unlock: Callable) -> Button:
+	var b := _card(parent, preview, title, price, "Desbloquear")
+	b.tooltip_text = tip
+	b.pressed.connect(func():
+		unlock.call()
+		_sync())
+	return b
+
 func _section(title: String) -> Label:
 	var l := HUD.make_label(title, 11, HUD.C_MUTED)
 	l.uppercase = true   # Mayúsculas al mostrar, así el texto sigue siendo la clave de traducción
