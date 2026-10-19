@@ -146,10 +146,20 @@ var _voice_pitch := 1.0
 
 # IA y animaciones
 var wander_timer := 0.0
+## Paseo: caminan un tramo y cada tanto se paran un rato. Arrancan, frenan y doblan de a poco.
+const REST_CHANCE := 0.35        # Al terminar un tramo, probabilidad de quedarse quieto
+const REST_TIME := Vector2(1.5, 4.0)
+const WALK_ACCEL := 2.5          # Por segundo: de quieto a paso normal en 0.4 s
+const TURN_RATE := 6.0           # Qué tan rápido dobla hacia la nueva dirección
+const PACE := Vector2(0.85, 1.2) # Cada uno camina a su ritmo (veces speed)
+var _walk := 0.0                 # 0 = quieto, 1 = a paso normal
+var _heading := Vector2.ZERO     # Hacia dónde va de verdad (sigue a dir de a poco)
+var _resting := false
 @onready var rig: VillagerRig = get_node_or_null("Rig")
 
 func _ready() -> void:
 	randomize()
+	speed *= randf_range(PACE.x, PACE.y)
 	_pick_dir()
 	wander_timer = randf_range(1.5, 4.0)
 	input_pickable = true
@@ -305,7 +315,11 @@ func _physics_process(dt: float) -> void:
 	_food_cooldown = maxf(0.0, _food_cooldown - dt)
 	if food != null and _food_ai(dt):
 		return
-	velocity = dir * speed + _separation() + shove_vel
+	# Asustado (ve venir un meteorito) se queda quieto mirándolo
+	_walk = move_toward(_walk, 0.0 if _resting or is_scared() else 1.0, WALK_ACCEL * dt)
+	# Al doblar va más despacio (y si vuelve para atrás, frena y arranca de nuevo)
+	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * dt))
+	velocity = _heading * speed * smoothstep(0.0, 1.0, _walk) + _separation() + shove_vel
 	var prev_pos := global_position
 	move_and_slide()
 
@@ -318,15 +332,22 @@ func _physics_process(dt: float) -> void:
 			return
 		if Geometry2D.is_point_in_polygon(prev_pos, island_poly):
 			global_position = prev_pos
+			_heading = Vector2.ZERO   # Frena en el borde y sale para el otro lado
 		var to_center := (island_center - global_position).normalized()
 		dir = to_center.rotated(randf_range(-0.35, 0.35)).normalized()
 		_update_sprite_flip()
+		_resting = false
 		wander_timer = randf_range(1.5, 3.5)
 	else:
 		wander_timer -= dt
 		if wander_timer <= 0.0:
-			_pick_dir()
-			wander_timer = randf_range(2.0, 5.0)
+			if not _resting and randf() < REST_CHANCE:
+				_resting = true
+				wander_timer = randf_range(REST_TIME.x, REST_TIME.y)
+			else:
+				_resting = false
+				_pick_dir()
+				wander_timer = randf_range(2.0, 5.0)
 
 # --- COMIDA ---
 ## Parado o caminando en la isla (no agarrado, volando, en el agua ni muerto).
@@ -340,6 +361,7 @@ func go_eat(c: Coconut) -> void:
 	food = c
 	_eat_t = 0.0
 	_food_t = 0.0
+	_resting = false
 
 func stop_eating() -> void:
 	food = null
@@ -1090,4 +1112,6 @@ func _land_on_island() -> void:
 	swing_vel = 0.0
 	shove_vel = Vector2.ZERO
 	shove_timer = 0.0
+	_walk = 0.0   # Arranca a caminar de a poco
+	_heading = Vector2.ZERO
 	_pick_dir()

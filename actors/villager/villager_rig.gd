@@ -2,7 +2,11 @@ extends Node2D
 class_name VillagerRig
 
 ## Rig esqueletal del aldeano (Skeleton2D + Bone2D).
-## - En la isla: animación procedural de caminado (bamboleo).
+## - En la isla: animación procedural de caminado. El dibujo es de frente, así que el paso
+##   se ve de frente: el pie que da el paso sube y la pierna se acorta (la rodilla viene
+##   hacia adelante), el cuerpo baja al apoyar y sube al pasar la pierna, el peso se corre
+##   sobre la pierna apoyada y los brazos van al revés que las piernas, un poco atrasados.
+##   Parado respira y mira para los costados. Al darse vuelta se achata y se espeja.
 ## - Agarrado / cayendo / en el agua: ragdoll. Cada articulación es un péndulo
 ##   amortiguado que responde a la gravedad y a la aceleración del cuerpo.
 ## - Parpadea cada tantos segundos y los balazos dejan una marca en la parte alcanzada.
@@ -15,14 +19,27 @@ const GRAV_TORQUE := 55.0     # Qué tan fuerte la gravedad tira de los miembros
 const AIR_DRAG := 0.7         # Al caer, el aire empuja los miembros hacia arriba
 const BODY_SPIN_INERTIA := 0.6  # Los miembros se resisten a que el cuerpo gire
 
-# Caminado
-const STEP_RATE := 9.0        # rad/s de fase a velocidad de referencia
+# Caminado (px de la imagen: en pantalla es más o menos un 8%)
+const STEP_RATE := 8.5        # rad/s de fase a velocidad de referencia
 const REF_SPEED := 40.0
-const BOB := 14.0             # Rebote de cadera (px de la imagen)
-const SWAY := 0.08            # Balanceo de cadera (rad)
-const STEP_LIFT := 0.32       # Apertura de la pierna que da el paso (rad)
+const BOB := 20.0             # Cuánto sube el cuerpo al pasar la pierna (los pies no se despegan)
+const SHIFT := 8.0            # El peso se corre sobre la pierna apoyada
+const SWAY := 0.07            # Y el cuerpo se inclina hacia ese lado (rad)
+const LIFT := 40.0            # Cuánto sube el pie que da el paso
+const KNEE := 0.14            # Y cuánto se acorta esa pierna (la rodilla viene hacia adelante)
+const LEG_SPLAY := 0.05       # Y cuánto se abre (rad)
+const HEAD_DIP := 12.0        # La cabeza se hunde un poco al apoyar el pie
 const ARM_DOWN := 1.25        # Brazos caídos al caminar (el arte está en pose T)
-const ARM_SWING := 0.28
+const ARM_FWD := 0.4          # El brazo que va adelante se cierra sobre el cuerpo (rad)...
+const ARM_SHORT := 0.18       # ...se acorta (apunta hacia la cámara)...
+const ARM_NEAR := 0.06        # ...y se ve un poco más grueso (está más cerca)
+const ARM_BACK := 0.16        # El que va atrás se abre un poco
+const ARM_WALK_K := 90.0      # Los brazos son más flojos que el resto: van un poco atrasados
+const BREATH := 4.0           # Parado: sube y baja al respirar
+const BREATH_RATE := 2.4      # rad/s
+const LOOK := 0.12            # Parado: inclina la cabeza para un lado y otro (rad)
+const LOOK_TIME := Vector2(1.5, 4.0)
+const TURN_TIME := 0.18       # Segundos en darse vuelta
 
 # Manos: el dibujo las tiene abiertas con la palma al frente (pose T). Con los brazos
 # caídos eso se ve raro, así que se angostan hacia los dedos y parecen giradas de costado.
@@ -56,6 +73,7 @@ class Joint:
 	var min_a: float
 	var max_a: float
 	var target := 0.0         # Pose objetivo (caminado, o reposo en ragdoll)
+	var walk_k := WALK_K      # Rigidez caminando
 	var shock := 0.0          # Ángulo en la pose de electrocutado
 	var angle := 0.0
 	var vel := 0.0
@@ -84,6 +102,9 @@ var j_leg_l: Joint
 var j_leg_r: Joint
 
 var hip_rest := Vector2.ZERO
+var head_rest := Vector2.ZERO
+var leg_l_rest := Vector2.ZERO
+var leg_r_rest := Vector2.ZERO
 var base_scale := 1.0
 var phase := 0.0
 var rag := 0.0                # 0 = caminando, 1 = ragdoll total
@@ -97,6 +118,11 @@ var _blink: Blink
 var _mouth: Mouth
 var _marks := 0
 var _xray: Array[XRay] = []
+var _facing := 1.0            # 1 = mira a la derecha, -1 = a la izquierda (se da vuelta de a poco)
+var _t := 0.0
+var _look := 0.0
+var _look_target := 0.0
+var _look_t := 0.0
 
 const MAX_MARKS := 10
 ## Alfa de villager.png, para saber si un tiro cayó sobre el dibujo o en un hueco.
@@ -105,7 +131,12 @@ static var _alpha: Image
 func _ready() -> void:
 	villager = get_parent() as Villager
 	base_scale = absf(scale.x)
+	_facing = -1.0 if scale.x < 0.0 else 1.0
 	hip_rest = hip.position
+	head_rest = head.position
+	leg_l_rest = leg_l.position
+	leg_r_rest = leg_r.position
+	phase = randf() * TAU   # Así no caminan todos al mismo compás
 
 	j_head  = Joint.new(head,  Vector2.UP,    40.0, 0.35, -0.7, 0.7)
 	j_arm_l = Joint.new(arm_l, Vector2.LEFT,   5.0, 1.0, -1.9, 2.4)
@@ -113,6 +144,8 @@ func _ready() -> void:
 	j_leg_l = Joint.new(leg_l, Vector2.DOWN,  10.0, 1.0, -1.3, 1.3)
 	j_leg_r = Joint.new(leg_r, Vector2.DOWN,  10.0, 1.0, -1.3, 1.3)
 	joints = [j_head, j_arm_l, j_arm_r, j_leg_l, j_leg_r]
+	j_arm_l.walk_k = ARM_WALK_K
+	j_arm_r.walk_k = ARM_WALK_K
 	j_arm_l.shock = SHOCK_ARM
 	j_arm_r.shock = -SHOCK_ARM
 	j_leg_l.shock = SHOCK_LEG
@@ -248,13 +281,16 @@ func hit(point: Vector2, dir: Vector2, strength := 1.0) -> void:
 		var spin := (tip - base).normalized().cross(dir.normalized()) * flip
 		j.vel += spin * (HIT_SPIN + HIT_SPIN_NEAR * near) * strength + randf_range(-3.0, 3.0)
 
+## Se da vuelta de a poco (ver _process): se achata hasta quedar de canto y se espeja.
 func set_facing_left(left: bool) -> void:
-	scale.x = -base_scale if left else base_scale
+	_facing = -1.0 if left else 1.0
 
 func _process(dt: float) -> void:
 	if villager == null or dt <= 0.0:
 		return
 	dt = minf(dt, 1.0 / 30.0)
+	_t += dt
+	scale.x = move_toward(scale.x, _facing * base_scale, 2.0 * base_scale / TURN_TIME * dt)
 
 	# --- Aceleración medida del cuerpo (en mundo) ---
 	var pos := global_position
@@ -317,27 +353,37 @@ func _process(dt: float) -> void:
 	if walking:
 		phase = fmod(phase + STEP_RATE * (speed / REF_SPEED) * dt, TAU)
 	var amt := clampf(speed / REF_SPEED, 0.0, 1.0) * (1.0 - rag)
+	var still := (1.0 - amt) * (1.0 - rag)   # Parado en la isla
 	var s := sin(phase)
+	var lift_l := maxf(0.0, s) * amt         # Pie izquierdo en el aire (0..1)
+	var lift_r := maxf(0.0, -s) * amt
+	var contact := pow(1.0 - absf(s), 3.0) * amt   # Recién apoyó: el peso cae
 	var hip_rot := SWAY * s * amt
-	var lift_l := maxf(0.0, s) * STEP_LIFT * amt
-	var lift_r := maxf(0.0, -s) * STEP_LIFT * amt
+	var rise := absf(s) * BOB * amt + sin(_t * BREATH_RATE) * BREATH * still
 
 	hip.rotation = hip_rot
-	hip.position = hip_rest + Vector2(0.0, -absf(s) * BOB * amt)
+	hip.position = hip_rest + Vector2(SHIFT * s * amt, -rise)
+	_place_leg(leg_l, leg_l_rest, lift_l)
+	_place_leg(leg_r, leg_r_rest, lift_r)
+	head.position = head_rest + Vector2(0.0, HEAD_DIP * contact)
+	# El brazo de un lado va adelante cuando sube la pierna del otro
+	arm_l.scale = Vector2(1.0 - ARM_SHORT * lift_r, 1.0 + ARM_NEAR * lift_r)
+	arm_r.scale = Vector2(1.0 - ARM_SHORT * lift_l, 1.0 + ARM_NEAR * lift_l)
+	_update_look(dt, still)
 
 	# Con amt = 0 (ragdoll total) esto queda en la pose de reposo: brazos abajo, resto recto
-	j_head.target  = -hip_rot * 0.6
-	j_arm_l.target = -ARM_DOWN + ARM_SWING * s * amt - hip_rot
-	j_arm_r.target =  ARM_DOWN + ARM_SWING * s * amt - hip_rot
-	j_leg_l.target =  lift_l - hip_rot
-	j_leg_r.target = -lift_r - hip_rot
+	j_head.target  = -hip_rot * 0.6 + _look
+	j_arm_l.target = -ARM_DOWN - ARM_FWD * lift_r + ARM_BACK * lift_l - hip_rot
+	j_arm_r.target =  ARM_DOWN + ARM_FWD * lift_l - ARM_BACK * lift_r - hip_rot
+	j_leg_l.target =  LEG_SPLAY * lift_l - hip_rot
+	j_leg_r.target = -LEG_SPLAY * lift_r - hip_rot
 
 	# --- Simulación de cada articulación ---
 	for j in joints:
 		j.angle -= d_rot * BODY_SPIN_INERTIA * rag
 
-		var k := lerpf(WALK_K, j.rag_k * (DEAD_LIMP if villager.dead else 1.0), rag)
-		var c := lerpf(2.0 * sqrt(WALK_K), damping, rag)
+		var k := lerpf(j.walk_k, j.rag_k * (DEAD_LIMP if villager.dead else 1.0), rag)
+		var c := lerpf(2.0 * sqrt(j.walk_k), damping, rag)
 		var axis := j.axis.rotated(hip.rotation + j.angle)
 		var torque := axis.cross(g_rig) * GRAV_TORQUE * j.grav * rag
 
@@ -354,6 +400,33 @@ func _process(dt: float) -> void:
 
 	_apply()
 
+## Pone la pierna para que el pie quede apoyado (o levantado, lift de 0 a 1) donde va,
+## aunque la cadera suba, se corra o se incline.
+func _place_leg(leg: Bone2D, rest: Vector2, lift: float) -> void:
+	var pivot := hip_rest + rest - Vector2(0.0, LIFT * lift)   # En el esqueleto
+	leg.position = (pivot - hip.position).rotated(-hip.rotation)
+	leg.scale = Vector2(1.0, 1.0 - KNEE * lift)
+
+## Parado, cada tanto inclina la cabeza para un lado (o la endereza). Caminando, derecha.
+func _update_look(dt: float, still: float) -> void:
+	_look_t -= dt
+	if still < 0.5:
+		_look_target = 0.0
+	elif _look_t <= 0.0:
+		_look_t = randf_range(LOOK_TIME.x, LOOK_TIME.y)
+		_look_target = 0.0 if randf() < 0.3 else randf_range(-LOOK, LOOK)
+	_look = move_toward(_look, _look_target * still, 0.6 * dt)
+
+## Vuelve a su lugar los huesos que mueve el caminado (para las poses que no caminan).
+func _rest_walk_pose() -> void:
+	leg_l.position = leg_l_rest
+	leg_r.position = leg_r_rest
+	leg_l.scale = Vector2.ONE
+	leg_r.scale = Vector2.ONE
+	head.position = head_rest
+	arm_l.scale = Vector2.ONE
+	arm_r.scale = Vector2.ONE
+
 ## Electrocutándose: tieso con brazos y piernas abiertos, temblando y gritando. Carbonizado
 ## en la isla se queda duro así hasta hacerse cenizas. true si ya se encargó de los huesos.
 func _zap_pose() -> bool:
@@ -362,6 +435,7 @@ func _zap_pose() -> bool:
 	if villager.zap_state != Villager.Zap.SHOCK:
 		return villager.zap_pinned()
 	_mouth.target = randf_range(0.7, 1.0)
+	_rest_walk_pose()
 	hip.position = hip_rest + Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * SHOCK_SHAKE
 	hip.rotation = randf_range(-0.05, 0.05)
 	for j in joints:
