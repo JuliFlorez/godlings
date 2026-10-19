@@ -440,18 +440,30 @@ class Mouth extends Node2D:
 		return pts
 
 ## Agujero de bala con una mancha de sangre alrededor (px de villager.png).
+## (Shark pinta la misma marca sobre su dibujo.)
 class BulletMark extends Node2D:
 	const BLOOD := Color(0.55, 0.04, 0.04)
 	const HOLE := Color(0.16, 0.02, 0.02)
+	const RADIUS := 30.0
+	const HOLE_RADIUS := 15.0
+	const BLOB_DIST := Vector2(20.0, 34.0)    # Manchitas alrededor: a qué distancia del centro
+	const BLOB_RADIUS := Vector2(9.0, 15.0)
 	var _blobs: Array[Vector3] = []   # x, y, radio
 
 	func _ready() -> void:
-		for i in randi_range(3, 5):
-			var a := randf() * TAU
-			_blobs.append(Vector3(cos(a), sin(a), 0.0) * randf_range(20.0, 34.0) + Vector3(0, 0, randf_range(9.0, 15.0)))
+		_blobs = random_blobs()
 
 	func _draw() -> void:
-		draw_circle(Vector2.ZERO, 30.0, BLOOD, true, -1.0, true)
+		draw_circle(Vector2.ZERO, RADIUS, BLOOD, true, -1.0, true)
 		for b in _blobs:
 			draw_circle(Vector2(b.x, b.y), b.z, BLOOD, true, -1.0, true)
-		draw_circle(Vector2.ZERO, 15.0, HOLE, true, -1.0, true)
+		draw_circle(Vector2.ZERO, HOLE_RADIUS, HOLE, true, -1.0, true)
+
+	## Entre 3 y 5 manchitas alrededor del agujero: x, y, radio.
+	static func random_blobs() -> Array[Vector3]:
+		var blobs: Array[Vector3] = []
+		for i in randi_range(3, 5):
+			var a := randf() * TAU
+			blobs.append(Vector3(cos(a), sin(a), 0.0) * randf_range(BLOB_DIST.x, BLOB_DIST.y) \
+					+ Vector3(0, 0, randf_range(BLOB_RADIUS.x, BLOB_RADIUS.y)))
+		return blobs

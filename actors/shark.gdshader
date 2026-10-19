@@ -1,7 +1,8 @@
 shader_type canvas_item;
 
 // Tiburón: la línea del agua (igual que waterline.gdshader) y la boca que se abre.
-// La mandíbula gira alrededor de la comisura y en el hueco se ve la boca por dentro, con dientes.
+// La mandíbula gira alrededor de la comisura (con sus dientes del dibujo); entre los dientes se ve el fondo
+// y solo queda un rincón oscuro en la comisura.
 // Las medidas de la boca van en píxeles del dibujo (que mira a la izquierda).
 uniform bool cut = false;
 uniform float water_y = 0.0;
@@ -9,16 +10,16 @@ uniform float wave_amp = 1.5;      // Ondulación de la línea
 uniform vec4 foam_color : source_color = vec4(0.85, 0.95, 1.0, 0.8);
 
 uniform float jaw = 0.0;                   // Apertura en radianes (0 = cerrada)
+uniform sampler2D jaw_mask : filter_nearest;   // Blanco: la mandíbula de abajo, con sus dientes; gris: se borra (la arma shark.gd)
 uniform vec2 hinge = vec2(170.0, 176.0);   // Comisura: la mandíbula gira acá
 uniform vec2 snout = vec2(40.0, 170.0);    // Punta del hocico, arriba de la boca
-uniform float lip = 112.0;                 // Distancia de la comisura a la punta del labio de abajo
-uniform vec4 mouth_color : source_color = vec4(0.30, 0.02, 0.05, 1.0);
-uniform vec4 tongue_color : source_color = vec4(0.80, 0.27, 0.32, 1.0);
-uniform vec4 tooth_color : source_color = vec4(1.0, 0.97, 0.86, 1.0);
+uniform float cheek = 40.0;                // Hasta dónde llega lo oscuro desde la comisura
+uniform float jaw_rigid = 0.45;   // Ángulo bajo la línea hasta donde la mandíbula gira entera (rad)
+uniform float jaw_skin = 2.0;     // Más abajo la papada se comprime, hasta quedar quieta acá
+uniform vec4 mouth_color : source_color = vec4(0.30, 0.03, 0.06, 1.0);
+uniform vec4 throat_color : source_color = vec4(0.07, 0.0, 0.02, 1.0);
 uniform vec4 ink : source_color = vec4(0.05, 0.05, 0.08, 1.0);
 
-const float TOOTH_W = 16.0;
-const float TOOTH_H = 14.0;
 const float LINE = 3.0;            // Grosor del contorno
 
 varying vec2 world_pos;
@@ -35,59 +36,72 @@ vec2 rotate(vec2 v, float a) {
     return vec2(c * v.x - s * v.y, s * v.x + c * v.y);
 }
 
-// > 0 adentro de un diente. along: distancia desde la comisura; depth: cuánto se mete en la boca.
-float tooth(float along, float depth, float phase) {
-    float tri = 1.0 - abs(fract(along / TOOTH_W + phase) - 0.5) * 2.0;
-    return TOOTH_H * smoothstep(10.0, 40.0, along) * tri - depth;
+// 0 = cabeza, 0.5 = se borra con la boca abierta, 1 = mandíbula
+float mask_at(vec2 p, vec2 size) {
+    if (any(lessThan(p, vec2(0.0))) || any(greaterThanEqual(p, size))) {
+        return 0.0;
+    }
+    return texture(jaw_mask, p / size).r;
 }
 
+// "a" encima de "b" (colores sin premultiplicar).
+vec4 over(vec4 a, vec4 b) {
+    float alpha = a.a + b.a * (1.0 - a.a);
+    if (alpha <= 0.0) {
+        return vec4(0.0);
+    }
+    return vec4((a.rgb * a.a + b.rgb * b.a * (1.0 - a.a)) / alpha, alpha);
+}
+
+// De abajo hacia arriba: el hueco de la boca, la cabeza (con los dientes de arriba) y la
+// mandíbula (con los suyos), que gira entera. La papada de abajo se comprime hasta la comisura,
+// así el contorno de la panza no se corta.
 vec4 open_mouth(sampler2D tex, vec2 uv, vec4 col, vec2 size) {
     vec2 p = uv * size;
     vec2 ax = normalize(snout - hinge);    // De la comisura hacia la punta
     vec2 down = vec2(ax.y, -ax.x);
-    float len = length(snout - hinge);
+    vec2 rel = p - hinge;
+    float r = length(rel);
+    float ang = atan(dot(rel, down), dot(rel, ax));    // Bajo la línea de la boca: positivo
 
-    // Punto de la mandíbula cerrada que, con la boca abierta, cae acá
-    vec2 q = hinge + rotate(p - hinge, jaw);
-    float q_along = dot(q - hinge, ax);
-    float q_down = dot(q - hinge, down);
-    // (Lo que está más adelante que el labio de abajo es el diente de arriba que cuelga: no se mueve)
-    if (q_along > 0.0 && q_along < lip + 4.0 && q_down > 0.0 && all(greaterThanEqual(q, vec2(0.0))) && all(lessThan(q, size))) {
-        vec4 jaw_px = texture(tex, q / size) * tint;
-        if (jaw_px.a > 0.01) {
-            return jaw_px;
+    // Papada: entre la mandíbula y jaw_skin se aprieta
+    if (ang > jaw_rigid + jaw && ang < jaw_skin) {
+        float k = jaw / (jaw_skin - jaw_rigid);
+        float src = (ang - k * jaw_skin) / (1.0 - k);
+        vec2 q2 = hinge + r * (cos(src) * ax + sin(src) * down);
+        if (all(greaterThanEqual(q2, vec2(0.0))) && all(lessThan(q2, size))) {
+            return texture(tex, q2 / size) * tint;
         }
-    }
-
-    float p_along = dot(p - hinge, ax);
-    float p_down = dot(p - hinge, down);
-    if (p_along <= 0.0 || p_down <= 0.0 || (p_along > lip + 4.0 && col.a > 0.01)) {
-        return col;    // Cabeza y cuerpo: quedan donde están
-    }
-    // Donde estaba la mandíbula: el hueco de la boca, o nada.
-    // Adelante lo cierra una línea de la punta del hocico a la punta del labio de abajo.
-    float lift = -q_down;    // Altura sobre la mandíbula
-    float front = mix(len, lip, p_down / max(p_down + lift, 0.001)) - length(p - hinge);
-    if (q_down >= 0.0 || front < 0.0) {
         return vec4(0.0);
     }
-    float edge = min(min(p_down, lift), front);
-    float t = max(tooth(p_along, p_down, 0.0), tooth(q_along, lift, 0.5)) - smoothstep(14.0, 0.0, front) * TOOTH_H;
-    vec4 c;
-    if (t > 0.0) {
-        c = t < LINE ? ink : tooth_color;
-    } else if (edge < LINE) {
+
+    // El hueco: solo un rincón oscuro en la comisura, entre las dos mandíbulas.
+    // Más adelante la boca abierta queda transparente (se ve el fondo entre los dientes).
+    vec2 q = hinge + rotate(rel, jaw);    // Punto de la boca cerrada que, abierta, cae acá
+    float lift = -dot(q - hinge, down);   // Altura sobre la mandíbula
+    vec4 c = vec4(0.0);
+    if (ang > -0.2 && lift > 0.0 && r < cheek) {
         c = ink;
-    } else {
-        float tongue = smoothstep(16.0, 4.0, lift) * smoothstep(25.0, 55.0, q_along) * smoothstep(len - 5.0, len - 35.0, q_along);
-        c = mix(mouth_color, tongue_color, tongue);
-        c.rgb *= mix(0.6, 1.0, smoothstep(0.0, 50.0, p_along));    // Más oscuro hacia la garganta
+        if (cheek - r >= LINE) {
+            c = mix(throat_color, mouth_color, smoothstep(0.0, cheek, r));   // Más oscuro hacia la garganta
+        }
+        c *= tint;
     }
-    return c * tint;
+    if (mask_at(p, size) < 0.25) {
+        c = over(col, c);
+    }
+    if (ang - jaw <= jaw_rigid && mask_at(q, size) > 0.75) {
+        c = over(texture(tex, q / size) * tint, c);
+    }
+    return c;
 }
 
 void fragment() {
     vec4 col = COLOR;
+    // La malla sobra por debajo del dibujo (para la mandíbula abierta): ahí no hay nada
+    if (UV.y > 1.0) {
+        col = vec4(0.0);
+    }
     if (jaw > 0.001) {
         col = open_mouth(TEXTURE, UV, col, 1.0 / TEXTURE_PIXEL_SIZE);
     }
