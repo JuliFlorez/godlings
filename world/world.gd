@@ -2,6 +2,7 @@ extends Node2D
 
 @onready var isle: Polygon2D = $isle
 @onready var isle_sprite: Sprite2D = $SpriteIsle
+@onready var sea: Sea = $isle/waterRend
 
 const VILLAGER := preload("res://actors/villager/villager.tscn")
 const MUSIC := preload("res://audio/golden_hour_at_the_cove.mp3")
@@ -293,6 +294,7 @@ func _apply_island_width(w: float) -> void:
 		local_pts.append(isle.to_local(g))
 	isle.polygon = local_pts
 	isle_sprite.scale = _base_sprite_scale * k
+	sea.fit_island(isle_sprite)
 	island_poly_global = global_pts
 
 	for v in get_tree().get_nodes_in_group("villager"):

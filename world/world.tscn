@@ -11,16 +11,12 @@
 [ext_resource type="Texture2D" uid="uid://byhedv813wkcp" path="res://sky/sun_stalker.png" id="9_sunstalker"]
 [ext_resource type="Script" uid="uid://bn7kfepw24p7" path="res://sky/moon.gd" id="10_moon"]
 [ext_resource type="Script" uid="uid://c207qw4ixoyh2" path="res://actors/shark.gd" id="11_shark"]
+[ext_resource type="Script" uid="uid://dib8ntkgbg7ri" path="res://world/sea.gd" id="12_sea"]
+[ext_resource type="Script" uid="uid://6hdvhs37kjsd" path="res://sky/clouds.gd" id="13_clouds"]
+[ext_resource type="Script" uid="uid://dg2fl24vkmiqv" path="res://sky/birds.gd" id="14_birds"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_aqk2v"]
 shader = ExtResource("3_tlwt5")
-shader_parameter/shallow_color = Color(0.27, 0.78, 1, 1)
-shader_parameter/deep_color = Color(0.02, 0.4, 0.8, 1)
-shader_parameter/wave_scale = 30.0
-shader_parameter/wave_amp = 0.05
-shader_parameter/wave_speed = 1.2
-shader_parameter/ripple_freq = 120.0
-shader_parameter/ripple_strength = 0.08
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_036b0"]
 size = Vector2(1149.5, 76.5)
@@ -46,6 +42,12 @@ color = Color(0.03529412, 0.627451, 1, 1)
 modulate = Color(1, 1, 1, 0)
 script = ExtResource("7_stars")
 
+[node name="Clouds" type="Node2D" parent="Sky"]
+script = ExtResource("13_clouds")
+
+[node name="Birds" type="Node2D" parent="Sky"]
+script = ExtResource("14_birds")
+
 [node name="Sun" type="Node2D" parent="Sky" unique_id=1907266953]
 position = Vector2(928, 109)
 script = ExtResource("8_sun")
@@ -69,6 +71,7 @@ uv = PackedVector2Array(304.96777, 466.8387, 630.0118, 452.03226, 972.264, 466.8
 
 [node name="waterRend" type="ColorRect" parent="isle" unique_id=1984382349]
 material = SubResource("ShaderMaterial_aqk2v")
+script = ExtResource("12_sea")
 offset_left = 38.92
 offset_top = 431.96207
 offset_right = 1237.71

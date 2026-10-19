@@ -188,6 +188,7 @@ func enter_water(surface_y: float) -> void:
 	water_surface_y = surface_y
 	# Caminando por la orilla el cuerpo roza el agua, pero sigue en tierra
 	if falling or dragging:
+		Sea.ripple_at(self, Vector2(global_position.x, surface_y), 1.0 if falling else 0.6)
 		_start_floating()
 
 func _start_floating() -> void:

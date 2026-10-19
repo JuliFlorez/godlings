@@ -222,6 +222,7 @@ func _impact(m: Dictionary) -> void:
 	if wet:
 		_puff(at, Color(0.85, 0.95, 1.0), 60, 560.0, 900.0, 22.0, 1.0)          # Columna de agua
 		_puff(at, Color(0.92, 0.94, 0.97, 0.6), 18, 90.0, -70.0, 70.0, 1.4)     # Vapor
+		Sea.ripple_at(self, at, 2.0)
 		return
 	var crater := Crater.new()
 	var layer := get_tree().get_first_node_in_group("ground_layer")

@@ -9,7 +9,8 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 ## ✨ Características
 
 - 🏝️ **Isla Procedural / Poligonal**: Detección de límites orgánicos mediante polígonos 2D.
-- 🌊 **Agua Dinámica**: Shader 2D personalizado con simulación de olas y efecto ripple (`water.gdshader`).
+- 🌊 **Mar vivo** (`water.gdshader`): olas en perspectiva (chiquitas en el horizonte) con crestas de espuma que avanzan y cambian de forma, el reflejo del sol o la luna (largo y naranja al atardecer, rojo con la Luna de Sangre) y destellos sueltos. De lejos refleja el color del cielo. Alrededor de la isla hay una laguna turquesa con espuma en la orilla y olitas que salen (sigue la forma de la isla cuando crece), y lo que cae al agua (aldeanos, cocos, el tiburón, el meteorito) deja anillos.
+- ☁️ **Nubes y gaviotas**: nubes que pasan despacio (las lejanas, más chicas y lentas) y cambian de color con la hora: blancas de día, rosadas al atardecer, azul oscuro de noche y bordó con la Luna de Sangre; cada rayo las ilumina. De día, cada tanto cruza una bandadita de gaviotas.
 - 👥 **Aldeanos Interactivos**:
   - IA de vagabundeo aleatorio con giro hacia el centro de la isla en los bordes.
   - Mecánica de arrastrar y soltar (*drag & drop*) con el cursor.

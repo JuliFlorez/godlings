@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## Ciclo día/noche: bajás el sol hasta el horizonte y sale la luna (y al revés).
-## El color del cielo y el tinte del mundo dependen de qué tan bajo está el sol.
+## El color del cielo, el de las nubes y el tinte del mundo dependen de qué tan bajo está el sol.
 ## Con la Luna de Sangre en el cielo todo se tiñe de rojo, y cuanto más se la
 ## alimenta, más rojo. Cada rayo ilumina todo un instante (ver flash).
 
@@ -16,6 +16,7 @@ const C_FLASH_SKY := Color(0.86, 0.9, 1.0)
 
 @onready var background: ColorRect = $Background
 @onready var stars: Node2D = $Stars
+@onready var clouds: Clouds = $Clouds
 @onready var sun: Celestial = $Sun
 @onready var moon: Moon = $Moon
 @onready var night_tint: CanvasModulate = get_node_or_null(night_tint_path)
@@ -65,6 +66,7 @@ func _ready() -> void:
 	sun.horizon_y = horizon_y
 	moon.horizon_y = horizon_y
 	stars.max_y = horizon_y - 10.0
+	clouds.max_y = horizon_y - 58.0
 	moon.hide_below()
 
 	sun.has_set.connect(moon.rise)
@@ -94,5 +96,6 @@ func _process(dt: float) -> void:
 	background.color = _sky.sample(night).lerp(_blood_sky.sample(_level), _blood).lerp(C_FLASH_SKY, _flash * 0.65)
 	var star_red := 1.0 - 0.6 * _blood
 	stars.modulate = Color(1.0, star_red, star_red, smoothstep(0.65, 1.0, night))
+	clouds.set_light(night, _blood, _flash, background.color)
 	if night_tint:
 		night_tint.color = _tint.sample(night).lerp(_blood_tint.sample(_level), _blood).lerp(Color.WHITE, _flash)

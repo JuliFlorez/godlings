@@ -1149,6 +1149,7 @@ func _on_island(p: Vector2) -> bool:
 
 func _splash(at: Vector2, amount: int) -> void:
 	_puff(at, Color(0.85, 0.95, 1.0), amount, 260.0)
+	Sea.ripple_at(self, at, amount / 26.0)
 
 func _puff(at: Vector2, color: Color, amount: int, speed := 140.0, toward := Vector2.UP) -> void:
 	var p := CPUParticles2D.new()

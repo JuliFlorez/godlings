@@ -157,6 +157,7 @@ func _splash(p: Vector2) -> void:
 	state = State.SINKING
 	z_index = 0
 	_burst(p, Color(0.85, 0.95, 1.0), 12, 160.0)
+	Sea.ripple_at(self, p, 0.5)
 
 # ---- En el piso ----
 func _rest(dt: float) -> void:
