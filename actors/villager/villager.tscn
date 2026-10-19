@@ -65,8 +65,8 @@ bone_angle = 180.0
 
 [node name="Sprite" type="Polygon2D" parent="Rig/Skeleton2D/Hip/ArmL"]
 texture = ExtResource("2_g8jkn")
-polygon = PackedVector2Array(7, -40, -85, -42, -140, -65, -193, -65, -237, -44, -239, 52, -175, 57, -153, 94, -110, 94, -101, 51, 7, 51)
-uv = PackedVector2Array(422, 522, 330, 520, 275, 497, 222, 497, 178, 518, 176, 614, 240, 619, 262, 656, 305, 656, 314, 613, 422, 613)
+polygon = PackedVector2Array(7, -40, -85, -42, -115, -55, -138, -51, -138, 47, -160, 47, -160, 83, -153, 94, -110, 94, -101, 51, 7, 51)
+uv = PackedVector2Array(422, 522, 330, 520, 300, 507, 277, 511, 277, 609, 255, 609, 255, 645, 262, 656, 305, 656, 314, 613, 422, 613)
 
 [node name="ArmR" type="Bone2D" parent="Rig/Skeleton2D/Hip"]
 position = Vector2(97, -218)
@@ -77,8 +77,8 @@ bone_angle = 0.0
 
 [node name="Sprite" type="Polygon2D" parent="Rig/Skeleton2D/Hip/ArmR"]
 texture = ExtResource("2_g8jkn")
-polygon = PackedVector2Array(-6, -40, 88, -42, 106, -78, 163, -68, 228, -47, 234, 42, 180, 52, 150, 90, 88, 88, 78, 51, -6, 51)
-uv = PackedVector2Array(606, 522, 700, 520, 718, 484, 775, 494, 840, 515, 846, 604, 792, 614, 762, 652, 700, 650, 690, 613, 606, 613)
+polygon = PackedVector2Array(-6, -40, 88, -42, 106, -78, 148, -76, 158, -2, 150, 68, 123, 90, 88, 88, 78, 51, -6, 51)
+uv = PackedVector2Array(606, 522, 700, 520, 718, 484, 760, 486, 770, 560, 762, 630, 735, 652, 700, 650, 690, 613, 606, 613)
 
 [node name="Head" type="Bone2D" parent="Rig/Skeleton2D/Hip"]
 position = Vector2(0, -257)

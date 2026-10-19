@@ -22,6 +22,14 @@ const STEP_LIFT := 0.32       # Apertura de la pierna que da el paso (rad)
 const ARM_DOWN := 1.25        # Brazos caídos al caminar (el arte está en pose T)
 const ARM_SWING := 0.28
 
+# Manos: el dibujo las tiene abiertas con la palma al frente (pose T). Con los brazos
+# caídos eso se ve raro, así que se angostan hacia los dedos y parecen giradas de costado.
+const HAND_SQUASH := 0.4      # Ancho que queda en la punta de los dedos (1 = como el dibujo)
+const HAND_L := Rect2(-239, -65, 114, 115)  # Zona de la mano en el hueso (px de villager.png)
+const HAND_R := Rect2(133, -68, 105, 118)
+const WRIST_L := -138.0       # Donde la pulsera tapa la unión con el brazo
+const WRIST_R := 158.0
+
 # Resortes: modo caminar (rígido) vs ragdoll (flojo)
 const WALK_K := 320.0
 const BLEND_SPEED := 8.0      # Velocidad de transición caminar <-> ragdoll
@@ -114,7 +122,39 @@ func _ready() -> void:
 	_mouth = Mouth.new()
 	head.add_child(_mouth)
 
+	_turn_hand(arm_l, HAND_L, WRIST_L)
+	_turn_hand(arm_r, HAND_R, WRIST_R)
+
 	_share_material(self)
+
+## Arma la mano como una malla aparte (el Sprite del brazo termina en la pulsera) y la
+## angosta desde la muñeca hasta la punta de los dedos.
+func _turn_hand(arm: Bone2D, area: Rect2, wrist_x: float) -> void:
+	const COLS := 6
+	var sprite: Polygon2D = arm.get_node("Sprite")
+	var to_uv := sprite.uv[0] - sprite.polygon[0]
+	var tip_x := area.position.x if wrist_x < 0.0 else area.end.x
+	var pts := PackedVector2Array()
+	var uvs := PackedVector2Array()
+	for i in COLS + 1:
+		var x := lerpf(area.position.x, area.end.x, float(i) / COLS)
+		var squash := lerpf(1.0, HAND_SQUASH, clampf((x - wrist_x) / (tip_x - wrist_x), 0.0, 1.0))
+		for y: float in [area.position.y, 0.0, area.end.y]:
+			pts.append(Vector2(x, y * squash))
+			uvs.append(Vector2(x, y) + to_uv)
+	var quads := []
+	for i in COLS:
+		for row in 2:
+			var a := i * 3 + row
+			quads.append(PackedInt32Array([a, a + 3, a + 4, a + 1]))
+	var hand := Polygon2D.new()
+	hand.name = "Hand"
+	hand.texture = sprite.texture
+	hand.polygon = pts
+	hand.uv = uvs
+	hand.polygons = quads
+	arm.add_child(hand)
+	arm.move_child(hand, 0)  # Detrás del brazo, así la pulsera tapa la unión
 
 ## Todo el rig se dibuja con el material del Rig (el recorte de la línea del agua).
 func _share_material(n: Node) -> void:
@@ -127,6 +167,13 @@ func set_dead() -> void:
 	rag = 1.0
 	_dead_eyes.visible = true
 	_blink.queue_free()
+
+## Para la foto del carnet (un rig suelto, sin aldeano): pone la misma cara que el
+## aldeano, con la boca de "¡wow!" y los ojos en X si está muerto.
+func copy_face(from: VillagerRig) -> void:
+	_mouth.target = from._mouth.target
+	if from._dead_eyes.visible and not _dead_eyes.visible:
+		set_dead()
 
 ## Deja un agujero de bala pegado a la parte del cuerpo alcanzada (coords globales),
 ## así sigue al miembro cuando se mueve. Si el punto cayó en un hueco transparente

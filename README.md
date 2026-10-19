@@ -16,6 +16,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
   - Física de caída libre al soltarlos al vacío.
   - Flotación y balanceo en el agua, con animación paulatina de ahogo.
   - Sistema de rescate al regresarlos a tierra firme.
+  - 🪪 **Carnet**: en modo *Seleccionar*, un click sobre un aldeano abre su carnet con foto (parpadea, y si se muere pone ojos en X), número, género y campos para ponerle nombre y apellido. El nombre queda flotando arriba de su cabeza.
 - ☀️ **Sol Acosador / 🌙 Luna Acosadora**: Arrastrá el sol hasta el horizonte y se pone: el cielo pasa por el atardecer, cae la noche, salen las estrellas y sube la Luna Acosadora (que no les saca los ojos de encima a los aldeanos). Bajá la luna y vuelve el día.
   - 😱 **Modo Perturbador**: tocá el sol o la luna 5 veces seguidas y se transforman. El Sol Perturbador tiene tentáculos de fuego, cuencas vacías y una sonrisa llena de dientes; la Luna Perturbadora se pone roja, sus cráteres se abren como ojos y le gotea sangre de la boca. Otros 5 toques y vuelven a la normalidad.
 - 🦈 **Tiburón**: Una aleta patrulla el agua y va a por cualquier aldeano que esté flotando. Cada aldeano comido cuenta como sacrificio (+XP). Se lo puede agarrar de la aleta y sacar del agua: se sacude colgando, se lo puede tirar y, si cae en la isla, va saltando con la boca abierta y se come a los aldeanos que alcanza hasta volver al agua. Con la pistola se lo puede matar (queda panza arriba) y hay que volver a comprarlo en la tienda.
@@ -43,6 +44,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 ## 🎮 Controles
 
 - **Click Izquierdo + Arrastrar**: Agarrar un aldeano y moverlo por la pantalla.
+- **Botón "Arrastrar / Seleccionar" (tecla S)**: Cambia lo que hace el click sobre los aldeanos: agarrarlos o abrir su carnet para ponerles nombre (Esc o ✕ lo cierran).
 - **Soltar en la isla**: El aldeano continúa caminando normalmente (o es rescatado si estaba en el agua).
 - **Soltar en el agua / vacío**: El aldeano cae y comienza a flotar / ahogarse.
 - **Arrastrar el sol (o la luna) hasta el horizonte**: Se pone y sale el otro astro (día ↔ noche).

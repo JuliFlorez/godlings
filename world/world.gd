@@ -111,6 +111,12 @@ func _ready() -> void:
 		hud.decoration_chosen.connect(func(k: String):
 			gun.set_armed(false)
 			placer.start(k))
+		# Al pasar a seleccionar, el click vuelve a ser para los aldeanos
+		hud.select_mode_changed.connect(func(on: bool):
+			if on:
+				gun.set_armed(false)
+				if placer.is_active():
+					placer.stop())
 	gun.armed_changed.connect(func(on: bool):
 		if on:
 			placer.stop())

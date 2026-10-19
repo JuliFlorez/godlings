@@ -2,7 +2,8 @@ extends CanvasLayer
 class_name HUD
 ## Panel superior izquierdo: XP (progreso al próximo punto de expansión),
 ## Devoción, población de la isla, botones de Invocar / Expandir, Ofrendas y Tienda.
-## Menú inferior: armas y poderes (los que todavía no existen dicen "Próximamente").
+## Menú inferior: modo del click (arrastrar o seleccionar aldeanos) y armas y poderes
+## (los que todavía no existen dicen "Próximamente").
 ## Toda la interfaz se construye por código.
 
 signal spawn_pressed
@@ -11,6 +12,7 @@ signal expansion_points_changed(points: int)
 signal gun_toggled(on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
+signal select_mode_changed(on: bool)
 
 @export var energy_max: float = 100.0
 @export var energy_refill_minutes: float = 5.0  # 5 min para llenarse de 0 a 100
@@ -28,6 +30,8 @@ var offerings: int = 0
 ## Si lo matan de un tiro deja de estar comprado: hay que volver a comprarlo.
 var shark_owned: Array[bool] = []
 var shark_on: Array[bool] = []
+## Modo seleccionar: el click sobre un aldeano abre su carnet en vez de agarrarlo.
+var select_mode := false
 var _points_earned: int = 0
 var _refill_rate: float = 0.0  # puntos de energía por segundo
 
@@ -88,6 +92,11 @@ var _shop: Shop
 var _placing := false
 var _decor_edit := DecorPlacer.Edit.NONE
 var _pause: PauseMenu
+var _drag_btn: Button
+var _select_btn: Button
+var _slot_mode: StyleBoxFlat
+var _tags: Control
+var _card: VillagerCard
 
 func _ready() -> void:
 	add_to_group("hud")
@@ -118,6 +127,12 @@ func _ready() -> void:
 		var console := DebugConsole.new()
 		console.hud = self
 		add_child(console)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_S \
+			and not get_tree().paused:
+		set_select_mode(not select_mode)
+		get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	# Recarga suave de Devoción (no durante el menú de pausa)
@@ -253,14 +268,40 @@ func lose_shark(index: int) -> void:
 	shark_on[index] = false
 	popup_text("¡Mataste al tiburón! Comprá otro en la tienda", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_WARN)
 
+# ---- Modo seleccionar y carnet ----
+func set_select_mode(on: bool) -> void:
+	if on == select_mode:
+		return
+	select_mode = on
+	if not on:
+		_card.close()
+	select_mode_changed.emit(on)
+	_refresh()
+
+## Click sobre un aldeano en modo seleccionar: abre su carnet.
+func select_villager(v: Villager) -> void:
+	_card.open(v)
+
+## El aldeano con el carnet abierto (o null).
+func selected_villager() -> Villager:
+	return _card.villager if _card and _card.visible else null
+
+## Cartel con el nombre arriba de la cabeza (cada aldeano pide el suyo al aparecer).
+func add_name_tag(v: Villager) -> void:
+	var tag := NameTag.new()
+	tag.villager = v
+	tag.hud = self
+	_tags.add_child(tag)
+
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
-## de decoraciones ni la pistola, que la usan para cerrar/terminar/guardar).
+## de decoraciones, la pistola ni el carnet, que la usan para cerrar/terminar/guardar).
 ## Tampoco con el click apretado: en pausa se perdería el soltado de lo que se está
 ## arrastrando (aldeano, tiburón, coco, sol o luna) y quedaría pegado al cursor.
 func esc_is_free() -> bool:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return false
-	return not (_shop and _shop.visible) and not _placing and not _gun_armed and _decor_edit != DecorPlacer.Edit.MOVING
+	return not (_shop and _shop.visible) and not _placing and not _gun_armed and _decor_edit != DecorPlacer.Edit.MOVING \
+			and not _card.visible
 
 ## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.
 func _on_locale_changed() -> void:
@@ -341,6 +382,11 @@ func _refresh() -> void:
 	_gun_icon.modulate = Color.WHITE if Gun.unlocked else Color(1, 1, 1, 0.45)
 	_gun_btn.tooltip_text = tr("Sacar o guardar la pistola [G]") if Gun.unlocked else tr("Desbloqueala en la tienda (%d ofrendas)") % Gun.PRICE
 
+	_drag_btn.add_theme_stylebox_override("normal", _slot_idle if select_mode else _slot_mode)
+	_drag_btn.add_theme_stylebox_override("hover", _slot_hover if select_mode else _slot_mode)
+	_select_btn.add_theme_stylebox_override("normal", _slot_mode if select_mode else _slot_idle)
+	_select_btn.add_theme_stylebox_override("hover", _slot_mode if select_mode else _slot_hover)
+
 	if _placing:
 		_hint.text = tr("Click en la isla para colocar · click derecho o Esc para terminar.")
 	elif _gun_armed:
@@ -353,6 +399,8 @@ func _refresh() -> void:
 		_hint.text = tr("Agarrá el coco y tiráselo en la cabeza a un aldeano.")
 	elif _decor_edit == DecorPlacer.Edit.COCONUT_HELD:
 		_hint.text = tr("Soltalo encima de un aldeano para partirlo.")
+	elif select_mode:
+		_hint.text = tr("Click en un aldeano para ver su carnet y ponerle nombre · S para volver a arrastrar.")
 	elif full and not island_maxed:
 		_hint.text = tr("Isla llena: sacrificá aldeanos para ganar puntos y expandirla.")
 	elif not has_energy:
@@ -374,6 +422,12 @@ func _build_ui() -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
+
+	# Nombres arriba de las cabezas: debajo de todos los paneles
+	_tags = Control.new()
+	_tags.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tags.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_tags)
 
 	var panel := PanelContainer.new()
 	panel.position = Vector2(14, 14)
@@ -432,10 +486,14 @@ func _build_ui() -> void:
 
 	_build_toolbar()
 
+	_card = VillagerCard.new()
+	_root.add_child(_card)
+
 func _build_toolbar() -> void:
 	_slot_idle = make_box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1)
 	_slot_hover = make_box(Color(1, 1, 1, 0.13), 12, Color(1, 1, 1, 0.28), 1)
 	_slot_active = make_box(Color(C_GUN, 0.38), 12, C_GUN.lightened(0.3), 2)
+	_slot_mode = make_box(Color(C_DEVOTION, 0.30), 12, C_DEVOTION.lightened(0.2), 2)
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -451,14 +509,19 @@ func _build_toolbar() -> void:
 	bottom_gap.custom_minimum_size = Vector2(0, 8)
 	bottom_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dock.add_child(bottom_gap)
+	var bars := HBoxContainer.new()
+	bars.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bars.add_theme_constant_override("separation", 10)
+	center.add_child(bars)
 
-	var bar := PanelContainer.new()
-	bar.mouse_filter = Control.MOUSE_FILTER_STOP  # Los clicks en la barra no llegan al mundo
-	bar.add_theme_stylebox_override("panel", make_box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(8, 8, 8, 8)))
-	center.add_child(bar)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	bar.add_child(row)
+	# Modo del click: arrastrar aldeanos o seleccionarlos (carnet)
+	var mode_row := _toolbar_panel(bars)
+	_drag_btn = _tool_slot(mode_row, "hand", "Arrastrar", "", true, "Agarrá y tirá aldeanos [S]")
+	_drag_btn.pressed.connect(set_select_mode.bind(false))
+	_select_btn = _tool_slot(mode_row, "select", "Seleccionar", "S", true, "Click en un aldeano para ver su carnet [S]")
+	_select_btn.pressed.connect(set_select_mode.bind(true))
+
+	var row := _toolbar_panel(bars)
 
 	for t in TOOLS:
 		var slot := _tool_slot(row, t[0], t[1], t[2], t[3], t[4])
@@ -472,6 +535,17 @@ func _build_toolbar() -> void:
 					gun_toggled.emit(not _gun_armed)
 				else:
 					open_shop())
+
+## Panel de la barra de abajo; devuelve la fila donde van los slots.
+func _toolbar_panel(parent: Control) -> HBoxContainer:
+	var bar := PanelContainer.new()
+	bar.mouse_filter = Control.MOUSE_FILTER_STOP  # Los clicks en la barra no llegan al mundo
+	bar.add_theme_stylebox_override("panel", make_box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(8, 8, 8, 8)))
+	parent.add_child(bar)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	bar.add_child(row)
+	return row
 
 func _tool_slot(parent: Control, kind: String, title: String, key: String, available: bool, tip: String) -> Button:
 	var b := Button.new()
@@ -649,6 +723,25 @@ class HudIcon extends Control:
 				draw_circle(c, s * 0.48, HUD.C_EXPAND, true, -1.0, true)
 				draw_line(c - Vector2(s * 0.26, 0), c + Vector2(s * 0.26, 0), Color.WHITE, 2.0, true)
 				draw_line(c - Vector2(0, s * 0.26), c + Vector2(0, s * 0.26), Color.WHITE, 2.0, true)
+			"hand":
+				# Mano abierta, para agarrar
+				var skin := Color(0.98, 0.8, 0.62)
+				var w := s * 0.13
+				for i in 4:
+					var x := s * (0.33 + i * 0.12)
+					var tip := s * (0.2 if i == 1 or i == 2 else 0.26)
+					draw_line(Vector2(x, s * 0.56), Vector2(x, tip), skin, w, true)
+					draw_circle(Vector2(x, tip), w * 0.5, skin, true, -1.0, true)
+				draw_line(Vector2(0.3, 0.66) * s, Vector2(0.14, 0.46) * s, skin, w, true)
+				draw_circle(Vector2(0.14, 0.46) * s, w * 0.5, skin, true, -1.0, true)
+				draw_rect(Rect2(Vector2(0.27, 0.48) * s, Vector2(0.48, 0.24) * s), skin)
+				draw_circle(Vector2(0.51, 0.7) * s, s * 0.24, skin, true, -1.0, true)
+			"select":
+				# Flecha del mouse
+				var arrow := _pts([0.26, 0.06, 0.26, 0.84, 0.44, 0.67, 0.57, 0.95, 0.71, 0.89, 0.58, 0.61, 0.82, 0.61])
+				draw_colored_polygon(arrow, Color.WHITE)
+				arrow.append(arrow[0])
+				draw_polyline(arrow, Color(0.1, 0.13, 0.22), maxf(1.5, s * 0.06), true)
 			"coin":
 				draw_circle(c, s * 0.48, HUD.C_OFFERING.darkened(0.25), true, -1.0, true)
 				draw_circle(c, s * 0.38, HUD.C_OFFERING, true, -1.0, true)

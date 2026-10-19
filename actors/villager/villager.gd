@@ -107,6 +107,14 @@ var _food_t := 0.0
 var _food_cooldown := 0.0
 var _rig_rest := Vector2.ZERO
 
+# --- Carnet: nombre y apellido los pone el jugador en modo seleccionar (ver VillagerCard) ---
+enum Gender { MALE, FEMALE }
+static var _issued := 0          # Números de carnet repartidos
+var id_number := 0
+var first_name := ""
+var last_name := ""
+var gender := Gender.MALE        # Por ahora son todos varones
+
 # --- Voz: "¡wow!" al agarrarlo. Cada aldeano tiene su propio tono ---
 const WOW := preload("res://audio/wow.wav")
 const VOICE_DB := -4.0
@@ -138,11 +146,19 @@ func _ready() -> void:
 	_voice_pitch = randf_range(0.9, 1.25)
 	add_child(_voice)
 
+	_issued += 1
+	id_number = _issued
 	_ensure_hud()
+	if hud:
+		hud.add_name_tag(self)
 
 func _ensure_hud() -> void:
 	if hud == null:
 		hud = get_tree().get_first_node_in_group("hud") as HUD
+
+## "Nombre Apellido" (vacío si todavía no le pusieron nombre).
+func full_name() -> String:
+	return ("%s %s" % [first_name, last_name]).strip_edges()
 
 func enter_water(surface_y: float) -> void:
 	touching_water = true
@@ -658,7 +674,12 @@ func _update_drag(dt: float) -> void:
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed and not dragging and not eaten and not Gun.armed:
-			_start_drag()
+			# En modo seleccionar no se lo agarra: se abre su carnet
+			_ensure_hud()
+			if hud and hud.select_mode:
+				hud.select_villager(self)
+			else:
+				_start_drag()
 			get_viewport().set_input_as_handled()
 
 func _input(event: InputEvent) -> void:
