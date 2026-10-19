@@ -18,7 +18,7 @@ const COMMANDS := [
 	["puntos / points [n]", "Suma puntos de expansión (por defecto los que faltan para el máximo)"],
 	["isla / island [n]", "Pone la isla en ese nivel (por defecto el máximo)"],
 	["aldeanos / villagers [n]", "Invoca aldeanos gratis (por defecto hasta llenar la isla)"],
-	["desbloquear / unlock", "Pistola, Luna de Sangre y todos los tiburones"],
+	["desbloquear / unlock", "Pistola, rayo, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
 	["limpiar / clear", "Borra la consola"],
 ]
@@ -163,6 +163,7 @@ func run(text: String) -> void:
 
 func _unlock_all() -> void:
 	Gun.unlocked = true
+	Lightning.unlocked = true
 	Moon.blood_unlocked = true
 	for i in Shark.MAX:
 		if not hud.shark_owned[i]:
@@ -170,4 +171,4 @@ func _unlock_all() -> void:
 			hud.shark_on[i] = true
 			hud.shark_changed.emit(i, true)
 	hud._refresh()
-	_ok(tr("Desbloqueado: pistola, Luna de Sangre y %d tiburones") % Shark.MAX)
+	_ok(tr("Desbloqueado: pistola, rayo, Luna de Sangre y %d tiburones") % Shark.MAX)

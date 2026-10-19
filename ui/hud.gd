@@ -4,12 +4,14 @@ class_name HUD
 ## Devoción, población de la isla, botones de Invocar / Expandir, Ofrendas y Tienda.
 ## Menú inferior: modo del click (arrastrar o seleccionar aldeanos) y armas y poderes
 ## (los que todavía no existen dicen "Próximamente").
-## Toda la interfaz se construye por código.
+## Toda la interfaz se construye por código. Debajo de todo va overlay: lo que se dibuja
+## encima del mundo sin el tinte de la noche (el destello y los rayos, ver Lightning).
 
 signal spawn_pressed
 signal expand_pressed
 signal expansion_points_changed(points: int)
 signal gun_toggled(on: bool)
+signal lightning_toggled(on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
@@ -54,6 +56,7 @@ const C_WARN := Color(1.0, 0.55, 0.45)
 const C_SPAWN := Color(0.98, 0.58, 0.24)
 const C_EXPAND := Color(0.98, 0.78, 0.22)
 const C_GUN := Color(0.9, 0.36, 0.32)
+const C_ZAP := Color(1.0, 0.86, 0.3)
 const C_SOON := Color(1.0, 0.8, 0.3)
 const C_OFFERING := Color(1.0, 0.84, 0.34)
 const C_SHOP := Color(0.46, 0.84, 0.52)
@@ -61,7 +64,7 @@ const C_SHOP := Color(0.46, 0.84, 0.52)
 ## Menú inferior de armas y poderes: [ícono, nombre, tecla, disponible, descripción]
 const TOOLS := [
 	["gun", "Pistola", "G", true, "Sacar o guardar la pistola [G]"],
-	["lightning", "Rayo", "", false, "Fulminá aldeanos desde el cielo"],
+	["lightning", "Rayo", "R", true, "Sacar o guardar el rayo [R]"],
 	["meteor", "Meteorito", "", false, "Un meteorito que deja un cráter en la isla"],
 	["tornado", "Tornado", "", false, "Un tornado que levanta aldeanos por el aire"],
 	["rain", "Diluvio", "", false, "Una tormenta que inunda la orilla"],
@@ -82,6 +85,15 @@ var _gun_btn: Button
 var _gun_icon: Control
 var _gun_lock: Control
 var _gun_armed := false
+var _lightning_btn: Button
+var _lightning_icon: Control
+var _lightning_lock: Control
+var _lightning_armed := false
+var _slot_zap: StyleBoxFlat
+## Encima del mundo y debajo de la interfaz, sin el tinte de la noche.
+var overlay: Control
+var _flash_rect: ColorRect
+var _flash_amount := 0.0
 var _slot_idle: StyleBoxFlat
 var _slot_hover: StyleBoxFlat
 var _slot_active: StyleBoxFlat
@@ -147,6 +159,10 @@ func _process(delta: float) -> void:
 	_xp_bar.value = lerpf(_xp_bar.value, xp_target, k)
 	_energy_bar.value = lerpf(_energy_bar.value, energy, k)
 
+	if _flash_amount > 0.0:
+		_flash_amount = move_toward(_flash_amount, 0.0, 6.0 * delta)
+		_flash_rect.color.a = _flash_amount
+
 # ---- API para otros scripts ----
 func add_xp(amount: int) -> void:
 	if not _can_earn_points():
@@ -208,6 +224,15 @@ func set_gun_armed(on: bool) -> void:
 	_gun_armed = on
 	_refresh()
 
+func set_lightning_armed(on: bool) -> void:
+	_lightning_armed = on
+	_refresh()
+
+## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
+func flash_screen(amount: float) -> void:
+	_flash_amount = maxf(_flash_amount, amount)
+	_flash_rect.color.a = _flash_amount
+
 # ---- Ofrendas y tienda ----
 func add_offerings(amount: int) -> void:
 	offerings += amount
@@ -236,6 +261,14 @@ func unlock_gun() -> bool:
 		return false
 	Gun.unlocked = true
 	popup_text("¡Pistola desbloqueada! Sacala con G", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_GUN.lightened(0.3))
+	_refresh()
+	return true
+
+func unlock_lightning() -> bool:
+	if Lightning.unlocked or not spend_offerings(Lightning.PRICE):
+		return false
+	Lightning.unlocked = true
+	popup_text("¡Rayo desbloqueado! Sacalo con R", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_ZAP)
 	_refresh()
 	return true
 
@@ -304,6 +337,7 @@ func save_state() -> Dictionary:
 		"expansion_points": expansion_points,
 		"points_earned": _points_earned,
 		"gun": Gun.unlocked,
+		"lightning": Lightning.unlocked,
 		"blood_moon": Moon.blood_unlocked,
 		"shark_owned": shark_owned,
 		"shark_on": shark_on,
@@ -316,6 +350,7 @@ func load_state(d: Dictionary) -> void:
 	expansion_points = d.get("expansion_points", expansion_points)
 	_points_earned = d.get("points_earned", _points_earned)
 	Gun.unlocked = d.get("gun", false)
+	Lightning.unlocked = d.get("lightning", false)
 	Moon.blood_unlocked = d.get("blood_moon", false)
 	var owned: Array = d.get("shark_owned", [])
 	var on: Array = d.get("shark_on", [])
@@ -330,14 +365,14 @@ func load_state(d: Dictionary) -> void:
 	_refresh()
 
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
-## de decoraciones, la pistola ni el carnet, que la usan para cerrar/terminar/guardar).
+## de decoraciones, la pistola, el rayo ni el carnet, que la usan para cerrar/terminar/guardar).
 ## Tampoco con el click apretado: en pausa se perdería el soltado de lo que se está
 ## arrastrando (aldeano, tiburón, coco, sol o luna) y quedaría pegado al cursor.
 func esc_is_free() -> bool:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return false
-	return not (_shop and _shop.visible) and not _placing and not _gun_armed and _decor_edit != DecorPlacer.Edit.MOVING \
-			and not _card.visible
+	return not (_shop and _shop.visible) and not _placing and not _gun_armed and not _lightning_armed \
+			and _decor_edit != DecorPlacer.Edit.MOVING and not _card.visible
 
 ## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.
 func _on_locale_changed() -> void:
@@ -418,6 +453,12 @@ func _refresh() -> void:
 	_gun_icon.modulate = Color.WHITE if Gun.unlocked else Color(1, 1, 1, 0.45)
 	_gun_btn.tooltip_text = tr("Sacar o guardar la pistola [G]") if Gun.unlocked else tr("Desbloqueala en la tienda (%d ofrendas)") % Gun.PRICE
 
+	_lightning_btn.add_theme_stylebox_override("normal", _slot_zap if _lightning_armed else _slot_idle)
+	_lightning_btn.add_theme_stylebox_override("hover", _slot_zap if _lightning_armed else _slot_hover)
+	_lightning_lock.visible = not Lightning.unlocked
+	_lightning_icon.modulate = Color.WHITE if Lightning.unlocked else Color(1, 1, 1, 0.45)
+	_lightning_btn.tooltip_text = tr("Sacar o guardar el rayo [R]") if Lightning.unlocked else tr("Desbloquealo en la tienda (%d ofrendas)") % Lightning.PRICE
+
 	_drag_btn.add_theme_stylebox_override("normal", _slot_idle if select_mode else _slot_mode)
 	_drag_btn.add_theme_stylebox_override("hover", _slot_hover if select_mode else _slot_mode)
 	_select_btn.add_theme_stylebox_override("normal", _slot_mode if select_mode else _slot_idle)
@@ -427,6 +468,8 @@ func _refresh() -> void:
 		_hint.text = tr("Click en la isla para colocar · click derecho o Esc para terminar.")
 	elif _gun_armed:
 		_hint.text = tr("Click para disparar · click derecho, Esc o G para guardarla.")
+	elif _lightning_armed:
+		_hint.text = tr("Click para lanzar un rayo · click derecho, Esc o R para guardarlo.")
 	elif _decor_edit == DecorPlacer.Edit.MOVING:
 		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
 	elif _decor_edit == DecorPlacer.Edit.HOVER:
@@ -454,6 +497,17 @@ func _flash(c: Control) -> void:
 
 # ---- Construcción de la UI ----
 func _build_ui() -> void:
+	overlay = Control.new()
+	overlay.name = "Overlay"
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(overlay)
+	_flash_rect = ColorRect.new()
+	_flash_rect.color = Color(0.93, 0.96, 1.0, 0.0)
+	_flash_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(_flash_rect)
+
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -530,6 +584,7 @@ func _build_toolbar() -> void:
 	_slot_hover = make_box(Color(1, 1, 1, 0.13), 12, Color(1, 1, 1, 0.28), 1)
 	_slot_active = make_box(Color(C_GUN, 0.38), 12, C_GUN.lightened(0.3), 2)
 	_slot_mode = make_box(Color(C_DEVOTION, 0.30), 12, C_DEVOTION.lightened(0.2), 2)
+	_slot_zap = make_box(Color(C_ZAP, 0.32), 12, C_ZAP.lightened(0.3), 2)
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -569,6 +624,16 @@ func _build_toolbar() -> void:
 			_gun_btn.pressed.connect(func():
 				if Gun.unlocked:
 					gun_toggled.emit(not _gun_armed)
+				else:
+					open_shop())
+		elif t[0] == "lightning":
+			_lightning_btn = slot
+			_lightning_btn.add_theme_stylebox_override("pressed", _slot_zap)
+			_lightning_icon = slot.get_meta("icon")
+			_lightning_lock = _slot_badge(slot, "EN LA TIENDA", C_SHOP)
+			_lightning_btn.pressed.connect(func():
+				if Lightning.unlocked:
+					lightning_toggled.emit(not _lightning_armed)
 				else:
 					open_shop())
 

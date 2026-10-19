@@ -46,7 +46,7 @@ func _process(dt: float) -> void:
 		_label.reset_size()
 	_label.visible = full != ""
 	_label.add_theme_color_override("font_color", HUD.C_XP if _selected else HUD.C_TEXT)
-	modulate.a = villager.modulate.a   # Se desvanece con él (ahogado, cadáver)
+	modulate.a = villager.modulate.a * (1.0 - villager.ashes())   # Se desvanece con él (ahogado, cadáver, cenizas)
 
 	# Arriba de la cabeza en pantalla, gire como gire el aldeano
 	var head := villager.rig.head

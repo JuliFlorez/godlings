@@ -19,11 +19,12 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
   - 🪪 **Carnet**: en modo *Seleccionar*, un click sobre un aldeano abre su carnet con foto (parpadea, y si se muere pone ojos en X), número, género y campos para ponerle nombre y apellido. El nombre queda flotando arriba de su cabeza.
 - ☀️ **Sol Acosador / 🌙 Luna Acosadora**: Arrastrá el sol hasta el horizonte y se pone: el cielo pasa por el atardecer, cae la noche, salen las estrellas y sube la Luna Acosadora (que no les saca los ojos de encima a los aldeanos). Bajá la luna y vuelve el día.
   - 😱 **Modo Perturbador**: tocá el sol o la luna 5 veces seguidas y se transforman. El Sol Perturbador tiene tentáculos de fuego, cuencas vacías y una sonrisa llena de dientes; la Luna Perturbadora se pone roja, sus cráteres se abren como ojos y le gotea sangre de la boca. Otros 5 toques y vuelven a la normalidad.
-- 🦈 **Tiburón**: Una aleta patrulla el agua y va a por cualquier aldeano que esté flotando. Cada aldeano comido cuenta como sacrificio (+XP). Se lo puede agarrar de la aleta y sacar del agua: se sacude colgando, se lo puede tirar y, si cae en la isla, va saltando con la boca abierta y se come a los aldeanos que alcanza hasta volver al agua. Con la pistola se lo puede matar (queda panza arriba) y hay que volver a comprarlo en la tienda.
+- 🦈 **Tiburón**: Una aleta patrulla el agua y va a por cualquier aldeano que esté flotando. Cada aldeano comido cuenta como sacrificio (+XP). Se lo puede agarrar de la aleta y sacar del agua: se sacude colgando, se lo puede tirar y, si cae en la isla, va saltando con la boca abierta y se come a los aldeanos que alcanza hasta volver al agua. Con la pistola o el rayo se lo puede matar (queda panza arriba) y hay que volver a comprarlo en la tienda.
+- 🌩️ **Rayo**: sacalo con R y una nube de tormenta sigue al mouse; cada click descarga un rayo que ilumina todo (también de noche). El aldeano alcanzado se electrocuta: tiembla tieso con los brazos abiertos y en los destellos se le ve el esqueleto, queda carbonizado y humeando, y se deshace en cenizas de la cabeza a los pies (si estaba volando, cae carbonizado y se deshace al quedar tirado). El rayo salta a los que están cerca, y si cae en el agua la descarga fríe a todos los que flotan alrededor, tiburones incluidos. Deja una quemadura en la arena y un montoncito de cenizas.
 - 🏝️ **Isla Expandible**: La isla tiene 7 tamaños. Empieza chica (5 aldeanos como máximo) y cada expansión sube la capacidad (hasta 26).
 - 🛍️ **Tienda y Ofrendas**: cada sacrificio deja +5 ofrendas y cada aldeano vivo reza y deja +1 cada 10 segundos. En la Tienda se gastan en:
   - **Decoración**: palmeras, arbustos, flores, rocas y antorchas. Se colocan con un click sobre la isla (se cobran al colocarlas) y los aldeanos pasan por delante o por detrás según la profundidad.
-  - **Armas y poderes**: la pistola se desbloquea por 60 ofrendas; el resto viene pronto.
+  - **Armas y poderes**: la pistola se desbloquea por 60 ofrendas y el rayo por 100; el resto viene pronto.
 - ⚡ **Sistema de Fe / Devoción & XP**:
   - Cada sacrificio (ahogado o comido por el tiburón) da +1 XP.
   - Al llenar la barra de XP ganás un **punto de expansión**: aparecen orbes dorados "+" en los bordes de la isla. Tocá uno (o el botón "Expandir isla") y la isla crece.
@@ -52,7 +53,8 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - **Tocar el sol (o la luna) 5 veces seguidas**: Activa/desactiva su versión perturbadora.
 - **Botón "Invocar aldeano"**: Invoca un nuevo aldeano consumiendo 10 puntos de Devoción (si hay lugar en la isla).
 - **Orbe "+" en la isla / Botón "Expandir isla"**: Gasta un punto de expansión para agrandar la isla.
-- **Botón "Tienda"**: Comprar decoraciones (click en la isla para colocarlas, click derecho o Esc para terminar) y desbloquear la pistola.
+- **Botón "Tienda"**: Comprar decoraciones (click en la isla para colocarlas, click derecho o Esc para terminar) y desbloquear la pistola y el rayo.
 - **Click en la aleta del tiburón + Arrastrar**: Sacarlo del agua (soltalo en el agua, tiralo o dejalo en la isla).
 - **Tecla G / casilla "Pistola"**: Sacar o guardar la pistola (una vez desbloqueada en la tienda). Sirve para aldeanos y tiburones.
+- **Tecla R / botón "Rayo"**: Sacar o guardar el rayo (una vez desbloqueado en la tienda). Cada click lanza un rayo; click derecho o Esc lo guardan.
 - **Esc**: Menú de pausa (volumen, idioma, nueva partida y salir).

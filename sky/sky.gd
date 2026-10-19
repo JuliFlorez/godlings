@@ -2,7 +2,7 @@ extends CanvasLayer
 ## Ciclo día/noche: bajás el sol hasta el horizonte y sale la luna (y al revés).
 ## El color del cielo y el tinte del mundo dependen de qué tan bajo está el sol.
 ## Con la Luna de Sangre en el cielo todo se tiñe de rojo, y cuanto más se la
-## alimenta, más rojo.
+## alimenta, más rojo. Cada rayo ilumina todo un instante (ver flash).
 
 signal blood_moon_changed(active: bool)
 
@@ -11,6 +11,8 @@ signal blood_moon_changed(active: bool)
 
 const BLOOD_FADE := 0.5     # Por segundo: qué tan rápido entra/sale el rojo
 const LEVEL_FADE := 0.8     # Por segundo: qué tan rápido se enrojece al comer
+const FLASH_FADE := 14.0    # Por segundo: qué tan rápido se apaga el destello de un rayo
+const C_FLASH_SKY := Color(0.86, 0.9, 1.0)
 
 @onready var background: ColorRect = $Background
 @onready var stars: Node2D = $Stars
@@ -27,6 +29,7 @@ var _blood_sky := Gradient.new()
 var _blood_tint := Gradient.new()
 var _blood := 0.0   # 0 = cielo normal, 1 = teñido del todo
 var _level := 0.0   # Qué tan alimentada está la luna (suavizado)
+var _flash := 0.0   # Destello de un rayo: 1 = todo iluminado
 
 func _ready() -> void:
 	add_to_group("sky")   # Las antorchas leen `night` para saber cuándo prenderse
@@ -72,7 +75,12 @@ func start_at_night() -> void:
 	sun.hide_below()
 	moon.show_up()
 
+## Un rayo ilumina el cielo y la isla (también de noche). amount: 0..1.
+func flash(amount: float) -> void:
+	_flash = maxf(_flash, amount)
+
 func _process(dt: float) -> void:
+	_flash = move_toward(_flash, 0.0, FLASH_FADE * dt)
 	# Si el sol no está en el cielo, es de noche
 	night = sun.height_t() if sun.visible else 1.0
 
@@ -83,8 +91,8 @@ func _process(dt: float) -> void:
 	_blood = move_toward(_blood, 1.0 if active else 0.0, BLOOD_FADE * dt)
 	_level = move_toward(_level, moon.feed_t(), LEVEL_FADE * dt)
 
-	background.color = _sky.sample(night).lerp(_blood_sky.sample(_level), _blood)
+	background.color = _sky.sample(night).lerp(_blood_sky.sample(_level), _blood).lerp(C_FLASH_SKY, _flash * 0.65)
 	var star_red := 1.0 - 0.6 * _blood
 	stars.modulate = Color(1.0, star_red, star_red, smoothstep(0.65, 1.0, night))
 	if night_tint:
-		night_tint.color = _tint.sample(night).lerp(_blood_tint.sample(_level), _blood)
+		night_tint.color = _tint.sample(night).lerp(_blood_tint.sample(_level), _blood).lerp(Color.WHITE, _flash)

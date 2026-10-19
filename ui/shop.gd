@@ -1,13 +1,14 @@
 extends Control
 class_name Shop
 ## Tienda: se gastan ofrendas en decoraciones para la isla, el cielo (Luna de Sangre),
-## armas/poderes y tiburones.
+## armas/poderes (pistola y rayo) y tiburones.
 ## Las decoraciones se cobran recién al colocarlas (ver DecorPlacer).
 
 var hud: HUD
 var _balance: Label
 var _deco_buttons := {}       # kind -> Button
 var _gun_btn: Button
+var _lightning_btn: Button
 var _moon_btn: Button
 var _sharks: Array[Dictionary] = []   # Por tarjeta: {btn, icon, price, status}
 
@@ -113,6 +114,12 @@ func _ready() -> void:
 			_gun_btn.pressed.connect(func():
 				hud.unlock_gun()
 				_sync())
+		elif t[0] == "lightning":
+			_lightning_btn = _card(power_row, icon, t[1], Lightning.PRICE, "Desbloquear")
+			_lightning_btn.tooltip_text = "Fulmina aldeanos y salta a los que están cerca. En el agua fríe a todos los que flotan."
+			_lightning_btn.pressed.connect(func():
+				hud.unlock_lightning()
+				_sync())
 		else:
 			icon.modulate = Color(1, 1, 1, 0.45)
 			var b := _card(power_row, icon, t[1], -1, "Próximamente")
@@ -169,6 +176,12 @@ func _sync() -> void:
 	else:
 		_gun_btn.text = "Desbloquear"
 		_gun_btn.disabled = not hud.can_afford(Gun.PRICE)
+	if Lightning.unlocked:
+		_lightning_btn.text = "Desbloqueado"
+		_lightning_btn.disabled = true
+	else:
+		_lightning_btn.text = "Desbloquear"
+		_lightning_btn.disabled = not hud.can_afford(Lightning.PRICE)
 	if Moon.blood_unlocked:
 		_moon_btn.text = "Desbloqueada"
 		_moon_btn.disabled = true

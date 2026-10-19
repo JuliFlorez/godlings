@@ -5,11 +5,11 @@ class_name Shark
 ## Se lo puede agarrar de la aleta y sacar del agua: cuelga y se sacude, se lo puede tirar
 ## y, si cae en la isla, va saltando con la boca abierta (y se come a los aldeanos que alcanza)
 ## hasta volver a caerse al agua.
-## Con la pistola se lo puede matar: queda panza arriba y hay que volver a comprarlo.
+## Con la pistola o con el rayo se lo puede matar: queda panza arriba y hay que volver a comprarlo.
 ## El cuerpo es blando: el dibujo va en una malla que se dobla por la columna (cabeza y cola
 ## cuelgan, se quedan atrás con los tirones y rebotan al caer). Muerto queda todavía más flojo.
 
-## Lo mataron de un tiro (el HUD lo da por perdido: hay que volver a comprarlo).
+## Lo mataron de un tiro o de un rayo (el HUD lo da por perdido: hay que volver a comprarlo).
 signal killed
 
 const PRICE := 40
@@ -66,6 +66,8 @@ const DEAD_FLOAT_TIME := 2.5     # Flota un rato antes de hundirse
 const DEAD_SINK_TIME := 2.2
 const DEAD_LAND_TIME := 6.0      # Tirado en la isla antes de desvanecerse
 const C_BLOOD := Color(0.8, 0.05, 0.05)
+const C_SPARK := Color(1.0, 0.92, 0.55)
+const C_CHARRED := Color(0.3, 0.27, 0.25)   # Achicharrado por un rayo
 # Agujeros de bala: los mismos que en los aldeanos (VillagerRig.BulletMark), del mismo tamaño en
 # pantalla (villager.png se ve a 0.079 y shark.png a SPRITE_W / 512 = 0.293)
 const MARK_SCALE := 0.27
@@ -668,7 +670,7 @@ func _draw() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
 		return
-	if not active or state == State.HELD or Gun.armed or get_tree().paused:
+	if not active or state == State.HELD or Gun.armed or Lightning.armed or get_tree().paused:
 		return
 	if get_viewport().gui_get_hovered_control() != null:
 		return
@@ -919,7 +921,20 @@ func is_in_front_of(v: Villager) -> bool:
 func shoot(at: Vector2, shot_dir: Vector2) -> void:
 	_puff(at, C_BLOOD, 30, 260.0, shot_dir)
 	_add_bullet_mark(at)
-	var push := shot_dir.normalized() * SHOT_FORCE
+	_kill(shot_dir.normalized() * SHOT_FORCE)
+
+## Le cayó un rayo, o lo agarró la descarga en el agua (ver Lightning): se muere achicharrado.
+func zap(at: Vector2) -> void:
+	_puff(at, C_SPARK, 26, 300.0)
+	_sprite.modulate = C_CHARRED
+	_kill(Vector2.ZERO)
+
+## Si está nadando cerca de x (para la descarga del rayo en el agua).
+func swims_near(x: float, radius: float) -> bool:
+	return visible and active and not dead and state == State.SWIM and absf(global_position.x - x) <= radius
+
+## Se muere (si no lo estaba) y sale despedido según push.
+func _kill(push: Vector2) -> void:
 	var was_dead := dead
 	if not dead:
 		dead = true
@@ -1078,6 +1093,7 @@ func _revive() -> void:
 	_tex = TEXTURE
 	_marked = null
 	_marks = 0
+	_sprite.modulate = Color.WHITE
 
 # ---- De vuelta al agua ----
 func _back_to_water(splash: bool) -> void:

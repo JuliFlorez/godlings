@@ -81,6 +81,26 @@ var floor_y := 0.0            # Altura del "piso" donde cae el cadáver
 var corpse_timer := 0.0
 var fall_vx := 0.0            # Deriva horizontal al caer (cadáver empujado fuera de la isla)
 
+# --- Muerte por rayo (ver Lightning): se electrocuta (tieso, temblando y con el esqueleto a
+# la vista), queda carbonizado y humeando, y se desarma en cenizas de la cabeza a los pies.
+# Si le cayó en la isla se queda ahí; volando sigue cayendo y se deshace cuando queda tirado,
+# y en el agua se hunde.
+enum Zap { NONE, SHOCK, CHARRED, ASHES }
+const SHOCK_TIME := 1.1
+const CHAR_TIME := 0.8        # Carbonizado, todavía entero, antes de deshacerse
+const ASH_TIME := 1.2         # Lo que tarda en deshacerse
+const XRAY_HZ := 11.0         # Cuadros de rayos X por segundo
+const HEAD_TOP := -44.0       # Coronilla y planta de los pies (local)
+const FEET := 32.0
+const CRUMBLE_EDGE := 8.0     # Lo que sobresale el borde desgranado (ver waterline.gdshader)
+var zap_state := Zap.NONE
+var _zap_t := 0.0
+var _zap_pinned := false      # Le cayó en la isla: no se mueve de ahí
+var _xray_mat: ShaderMaterial # El esqueleto: con el recorte del agua, pero sin oscurecerse
+var _arcs: ZapArcs
+var _smoke: CPUParticles2D
+var _pile: AshPile
+
 # --- Espacio personal y empujones ---
 # Los aldeanos no chocan físicamente entre sí: se esquivan con una separación suave.
 # El que está agarrado sí empuja a los demás, y los puede tirar de la isla.
@@ -200,6 +220,10 @@ func _physics_process(dt: float) -> void:
 	if eaten:
 		return
 	if dragging:
+		velocity = Vector2.ZERO
+		return
+	if zap_pinned():
+		# Le cayó el rayo en la isla: se queda ahí hasta hacerse cenizas
 		velocity = Vector2.ZERO
 		return
 
@@ -522,7 +546,8 @@ func _corpse_physics(dt: float) -> void:
 				corpse_grounded = true
 				corpse_vel.y = 0.0
 				swing_vel = 0.0
-				_spawn_blood_pool()
+				if zap_state == Zap.NONE:   # Carbonizado ya no sangra
+					_spawn_blood_pool()
 		return
 
 	# Tirado en el piso: se arrastra un poco y queda acostado
@@ -569,6 +594,241 @@ class BloodPool extends Node2D:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.32))
 		draw_circle(Vector2.ZERO, radius, COLOR, true, -1.0, true)
 		draw_circle(Vector2(radius * 0.35, -radius * 0.2), radius * 0.55, COLOR.darkened(0.15), true, -1.0, true)
+
+# --- RAYO ---
+## Si le puede caer un rayo (vivo o cadáver; no si ya se está friendo).
+func can_zap() -> bool:
+	return not eaten and zap_state == Zap.NONE and not is_queued_for_deletion() and modulate.a > 0.2
+
+## Le cayó un rayo (ver Lightning): se electrocuta y muere.
+func zap() -> void:
+	if not can_zap():
+		return
+	zap_state = Zap.SHOCK
+	_zap_t = 0.0
+	_zap_pinned = not (dragging or falling or in_water) and (not dead or corpse_grounded)
+	_die()
+	_xray_mat = ShaderMaterial.new()
+	_xray_mat.shader = WATERLINE_SHADER
+	_arcs = ZapArcs.new()
+	add_child(_arcs)
+
+## Electrocutado o carbonizado en la isla: se queda quieto donde le cayó.
+func zap_pinned() -> bool:
+	return zap_state != Zap.NONE and _zap_pinned
+
+## 0..1: cuánto ya se hizo cenizas.
+func ashes() -> float:
+	return clampf(_zap_t / ASH_TIME, 0.0, 1.0) if zap_state == Zap.ASHES else 0.0
+
+## Distancia de p a la superficie del cuerpo (la cápsula): <= 0 si cae adentro.
+func body_distance(p: Vector2) -> float:
+	var seg := _body_segment()
+	return p.distance_to(Geometry2D.get_closest_point_to_segment(p, seg[0], seg[1])) - BODY_HALF_W
+
+func body_center() -> Vector2:
+	return to_global(BODY_COM)
+
+func _update_zap(dt: float) -> void:
+	if zap_state == Zap.NONE or eaten:
+		return
+	_zap_t += dt
+	match zap_state:
+		Zap.SHOCK:
+			if _zap_t >= SHOCK_TIME:
+				zap_state = Zap.CHARRED
+				_zap_t = 0.0
+				_arcs.queue_free()
+				_start_smoke()
+		Zap.CHARRED:
+			if in_water and not dragging:
+				drowning = true   # Carbonizado no flota: se hunde
+			elif _zap_t >= CHAR_TIME and not (dragging or falling) \
+					and (_zap_pinned or (corpse_grounded and corpse_timer > 0.4)):
+				_start_ashes()
+		Zap.ASHES:
+			_pile.amount = ashes()
+			if _zap_t >= ASH_TIME:
+				_pile.finish()
+				queue_free()
+	if _smoke:
+		_smoke.global_rotation = 0.0   # El humo sube aunque esté tirado
+		_smoke.emitting = zap_state == Zap.CHARRED and not in_water
+	_update_zap_fx()
+
+## Rayos X, carbonizado y desarmarse (ver waterline.gdshader).
+func _update_zap_fx() -> void:
+	if _waterline == null:
+		return
+	var xray := zap_state == Zap.SHOCK and fmod(_zap_t * XRAY_HZ, 1.0) < 0.5
+	_waterline.set_shader_parameter("xray", xray)
+	rig.set_xray(xray, _xray_mat)
+	var burnt := 1.0
+	var embers := 0.3
+	match zap_state:
+		Zap.SHOCK:
+			burnt = 0.6 * _zap_t / SHOCK_TIME   # Se va tostando mientras se electrocuta
+			embers = 0.0
+		Zap.CHARRED:
+			burnt = lerpf(0.6, 1.0, minf(1.0, _zap_t / 0.15))
+			embers = lerpf(1.0, 0.3, minf(1.0, _zap_t / CHAR_TIME))
+	_waterline.set_shader_parameter("burnt", burnt)
+	_waterline.set_shader_parameter("embers", embers)
+	if zap_state == Zap.ASHES:
+		var from := to_global(Vector2(0, HEAD_TOP))
+		var axis := (to_global(Vector2(0, FEET)) - from).normalized()
+		var reach := ashes() * (FEET - HEAD_TOP + CRUMBLE_EDGE)
+		_waterline.set_shader_parameter("crumble", reach)
+		_waterline.set_shader_parameter("crumble_from", from)
+		_waterline.set_shader_parameter("crumble_axis", axis)
+		# El polvo se desprende de donde se está deshaciendo (hasta que ya casi no queda nada)
+		_pile.dust.global_position = from + axis * minf(reach, FEET - HEAD_TOP)
+		_pile.dust.global_rotation = rotation
+		_pile.dust.emitting = ashes() < 0.85
+
+func _start_smoke() -> void:
+	_smoke = CPUParticles2D.new()
+	_smoke.amount = 14
+	_smoke.lifetime = 1.1
+	_smoke.local_coords = false
+	_smoke.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	_smoke.emission_rect_extents = Vector2(8, 20)
+	_smoke.direction = Vector2.UP
+	_smoke.spread = 20.0
+	_smoke.gravity = Vector2(0, -30)
+	_smoke.initial_velocity_min = 12.0
+	_smoke.initial_velocity_max = 30.0
+	_smoke.scale_amount_min = 2.5
+	_smoke.scale_amount_max = 5.0
+	_smoke.color_ramp = _fade_ramp(Color(0.22, 0.21, 0.21, 0.6), Color(0.5, 0.5, 0.5, 0.0))
+	_smoke.position = Vector2(0, -6)
+	add_child(_smoke)
+
+func _start_ashes() -> void:
+	zap_state = Zap.ASHES
+	_zap_t = 0.0
+	_zap_pinned = true
+	_pile = AshPile.new()
+	var lying := absf(sin(rotation))
+	_pile.width = lerpf(14.0, 24.0, lying)
+	var layer := get_tree().get_first_node_in_group("ground_layer")
+	(layer if layer else get_parent()).add_child(_pile)
+	# Al pie si está parado; tirado, debajo del cuerpo
+	var a := to_global(Vector2(0, HEAD_TOP))
+	var b := to_global(Vector2(0, FEET))
+	_pile.global_position = Vector2((a.x + b.x) * 0.5, maxf(a.y, b.y) + lying * 9.0 - 1.0)
+
+func _exit_tree() -> void:
+	# Si se va a mitad de hacerse cenizas (se lo comió el tiburón), el montoncito igual se apaga
+	if is_instance_valid(_pile) and _pile.is_inside_tree():
+		_pile.finish()
+
+static func _fade_ramp(from: Color, to: Color) -> Gradient:
+	var g := Gradient.new()
+	g.colors = PackedColorArray([from, to])
+	return g
+
+## Chispazos que le recorren el cuerpo mientras se electrocuta (coords del aldeano).
+class ZapArcs extends Node2D:
+	var _arcs: Array[PackedVector2Array] = []
+	var _t := 0.0
+
+	func _process(dt: float) -> void:
+		_t -= dt
+		if _t > 0.0:
+			return
+		_t = 0.05
+		_arcs.clear()
+		for i in randi_range(2, 3):
+			var a := Vector2(randf_range(-16.0, 16.0), randf_range(HEAD_TOP + 4.0, FEET - 4.0))
+			var b := a + Vector2.from_angle(randf() * TAU) * randf_range(10.0, 22.0)
+			_arcs.append(Lightning.jagged(a, b, 0.35, 3))
+		queue_redraw()
+
+	func _draw() -> void:
+		for a in _arcs:
+			Lightning.paint_bolt(self, a, 1.1, 1.0)
+
+## Montoncito de cenizas donde se deshizo (en la capa del piso). Mientras se deshace le cae
+## polvo encima (dust: el aldeano lo va poniendo donde se está deshaciendo) y las brasas se
+## apagan solas.
+class AshPile extends Node2D:
+	const ASH := Color(0.25, 0.24, 0.24)
+	const ASH_TOP := Color(0.42, 0.4, 0.39)
+	const SOOT := Color(0.08, 0.07, 0.07, 0.5)
+	const EMBER := Color(1.0, 0.45, 0.1)
+	var width := 12.0
+	var amount := 0.0:   # 0..1: cuánto ya cayó
+		set(v):
+			amount = v
+			queue_redraw()
+	var dust: CPUParticles2D
+	var done := false
+	var _glow := 1.0
+	var _specks: Array[Vector3] = []   # x, y (0..1 del montoncito), radio
+
+	func _ready() -> void:
+		for i in 8:
+			_specks.append(Vector3(randf_range(-0.75, 0.75), randf_range(0.2, 0.8), randf_range(0.8, 1.6)))
+		dust = CPUParticles2D.new()
+		dust.amount = 40
+		dust.lifetime = 0.6
+		dust.local_coords = false
+		dust.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+		dust.emission_rect_extents = Vector2(12, 1.5)
+		dust.direction = Vector2.DOWN
+		dust.spread = 180.0
+		dust.initial_velocity_min = 5.0
+		dust.initial_velocity_max = 25.0
+		dust.gravity = Vector2(0, 90)
+		dust.scale_amount_min = 1.2
+		dust.scale_amount_max = 2.6
+		dust.color_ramp = Villager._fade_ramp(Color(0.3, 0.29, 0.29), Color(0.5, 0.48, 0.47, 0.0))
+		add_child(dust)
+
+	func _process(_dt: float) -> void:
+		if _glow > 0.0:
+			queue_redraw()
+
+	func finish() -> void:
+		if done:
+			return
+		done = true
+		dust.emitting = false
+		var tw := create_tween()
+		tw.tween_property(self, "_glow", 0.0, 2.5)
+		tw.tween_interval(CORPSE_TIME)
+		tw.tween_property(self, "modulate:a", 0.0, 2.0)
+		tw.tween_callback(queue_free)
+
+	func _draw() -> void:
+		var w := width * (0.4 + 0.6 * amount)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.35))
+		draw_circle(Vector2.ZERO, w * 1.4, SOOT, true, -1.0, true)   # Hollín en la arena
+		draw_set_transform(Vector2.ZERO)
+		var h := 9.0 * amount
+		if h < 0.5:
+			return
+		draw_colored_polygon(_mound(w, h), ASH)
+		draw_set_transform(Vector2(-w * 0.12, -h * 0.2))
+		draw_colored_polygon(_mound(w * 0.65, h * 0.7), ASH_TOP)
+		draw_set_transform(Vector2.ZERO)
+		var t := Time.get_ticks_msec() / 1000.0
+		for i in _specks.size():
+			var s := _specks[i]
+			var p := Vector2(s.x * w, -s.y * h * pow(1.0 - s.x * s.x, 0.6))
+			if i < 3 and _glow > 0.0:   # Brasas
+				draw_circle(p, 1.2, Color(EMBER, _glow * (0.5 + 0.5 * sin(t * 8.0 + i * 2.0))), true, -1.0, true)
+			else:
+				draw_circle(p, s.z, ASH_TOP.lightened(0.15), true, -1.0, true)
+
+	## Lomita de ancho 2w y alto h, apoyada en y = 0.
+	static func _mound(w: float, h: float) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		for i in 17:
+			var u := lerpf(-1.0, 1.0, i / 16.0)
+			pts.append(Vector2(u * w, 1.5 - h * pow(maxf(0.0, 1.0 - u * u), 0.6)))
+		return pts
 
 # --- TIBURÓN ---
 ## En el agua se hunde. En la isla (mouth = la boca del tiburón) se lo chupa hacia la boca.
@@ -638,6 +898,7 @@ func _update_sprite_flip() -> void:
 func _process(dt: float) -> void:
 	if dragging:
 		_update_drag(dt)
+	_update_zap(dt)
 	_update_waterline()
 
 ## Flotando (o hundiéndose) lo que queda debajo de la superficie no se ve.
@@ -645,9 +906,12 @@ func _update_waterline() -> void:
 	if _waterline == null:
 		return
 	var cut := in_water and not dragging
-	_waterline.set_shader_parameter("cut", cut)
-	if cut:
-		_waterline.set_shader_parameter("water_y", water_surface_y + WATERLINE_DEPTH)
+	for m: ShaderMaterial in [_waterline, _xray_mat]:
+		if m == null:
+			continue
+		m.set_shader_parameter("cut", cut)
+		if cut:
+			m.set_shader_parameter("water_y", water_surface_y + WATERLINE_DEPTH)
 
 func _update_drag(dt: float) -> void:
 	var m := get_global_mouse_position()
@@ -673,7 +937,7 @@ func _update_drag(dt: float) -> void:
 
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed and not dragging and not eaten and not Gun.armed:
+		if event.pressed and not dragging and not eaten and not Gun.armed and not Lightning.armed:
 			# En modo seleccionar no se lo agarra: se abre su carnet
 			_ensure_hud()
 			if hud and hud.select_mode:
@@ -697,6 +961,7 @@ func _start_drag() -> void:
 	_throw_vel = Vector2.ZERO
 	swing_vel = 0.0
 	fall_vx = 0.0
+	_zap_pinned = false   # Carbonizado también se lo puede levantar: se deshace al volver a quedar tirado
 	set_physics_process(false)
 	z_index = 10
 	if not dead:

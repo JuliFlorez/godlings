@@ -54,8 +54,8 @@ func set_armed(on: bool) -> void:
 		return
 	armed = on
 	visible = on
+	armed_changed.emit(on)   # Antes del cursor: al sacarla se guarda el rayo, que lo deja en la flecha
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
-	armed_changed.emit(on)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:

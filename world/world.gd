@@ -43,6 +43,7 @@ var island_level := 0
 var island_poly_global: PackedVector2Array
 var hud: HUD
 var gun: Gun
+var lightning: Lightning
 var placer: DecorPlacer
 var sharks: Array[Shark] = []
 ## Aldeanos y decoraciones, ordenados por Y para que el de adelante tape al de atrás.
@@ -108,6 +109,8 @@ func _ready() -> void:
 	# Últimos hijos: reciben los clicks antes que el sol/luna y los aldeanos
 	gun = Gun.new()
 	add_child(gun)
+	lightning = Lightning.new()
+	add_child(lightning)
 	placer = DecorPlacer.new()
 	placer.hud = hud
 	placer.props = props
@@ -116,17 +119,27 @@ func _ready() -> void:
 	if hud:
 		hud.gun_toggled.connect(gun.set_armed)
 		gun.armed_changed.connect(hud.set_gun_armed)
+		hud.lightning_toggled.connect(lightning.set_armed)
+		lightning.armed_changed.connect(hud.set_lightning_armed)
 		hud.decoration_chosen.connect(func(k: String):
 			gun.set_armed(false)
+			lightning.set_armed(false)
 			placer.start(k))
 		# Al pasar a seleccionar, el click vuelve a ser para los aldeanos
 		hud.select_mode_changed.connect(func(on: bool):
 			if on:
 				gun.set_armed(false)
+				lightning.set_armed(false)
 				if placer.is_active():
 					placer.stop())
+	# La pistola y el rayo no van juntos
 	gun.armed_changed.connect(func(on: bool):
 		if on:
+			lightning.set_armed(false)
+			placer.stop())
+	lightning.armed_changed.connect(func(on: bool):
+		if on:
+			gun.set_armed(false)
 			placer.stop())
 
 	Villager.ids_issued = 0

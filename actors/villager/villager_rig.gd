@@ -6,6 +6,8 @@ class_name VillagerRig
 ## - Agarrado / cayendo / en el agua: ragdoll. Cada articulación es un péndulo
 ##   amortiguado que responde a la gravedad y a la aceleración del cuerpo.
 ## - Parpadea cada tantos segundos y los balazos dejan una marca en la parte alcanzada.
+## - Electrocutado por un rayo: tieso con brazos y piernas abiertos, temblando, y en los
+##   cuadros de rayos X se le ve el esqueleto (ver Villager.zap).
 
 const GRAVITY := 1400.0
 const MAX_ACC := 7000.0       # Tope de aceleración medida (evita latigazos absurdos)
@@ -40,6 +42,12 @@ const HIT_SPIN := 6.0         # Sacudida de todos los miembros
 const HIT_SPIN_NEAR := 24.0   # Extra para el miembro alcanzado
 const HIT_RADIUS := 25.0      # px (mundo) de alcance del "extra"
 
+# Electrocutado: pose tiesa (ángulo de cada articulación) y temblor
+const SHOCK_ARM := 0.3        # Brazos un poco levantados
+const SHOCK_LEG := 0.22       # Piernas abiertas
+const SHOCK_JITTER := 0.15    # Temblor de cada miembro (rad)
+const SHOCK_SHAKE := 22.0     # Temblor de la cadera (px de la imagen)
+
 class Joint:
 	var bone: Bone2D
 	var axis: Vector2         # Dirección pivote -> punta del miembro, en espacio del hueso
@@ -48,6 +56,7 @@ class Joint:
 	var min_a: float
 	var max_a: float
 	var target := 0.0         # Pose objetivo (caminado, o reposo en ragdoll)
+	var shock := 0.0          # Ángulo en la pose de electrocutado
 	var angle := 0.0
 	var vel := 0.0
 
@@ -87,6 +96,7 @@ var _dead_eyes: DeadEyes
 var _blink: Blink
 var _mouth: Mouth
 var _marks := 0
+var _xray: Array[XRay] = []
 
 const MAX_MARKS := 10
 ## Alfa de villager.png, para saber si un tiro cayó sobre el dibujo o en un hueco.
@@ -103,6 +113,10 @@ func _ready() -> void:
 	j_leg_l = Joint.new(leg_l, Vector2.DOWN,  10.0, 1.0, -1.3, 1.3)
 	j_leg_r = Joint.new(leg_r, Vector2.DOWN,  10.0, 1.0, -1.3, 1.3)
 	joints = [j_head, j_arm_l, j_arm_r, j_leg_l, j_leg_r]
+	j_arm_l.shock = SHOCK_ARM
+	j_arm_r.shock = -SHOCK_ARM
+	j_leg_l.shock = SHOCK_LEG
+	j_leg_r.shock = -SHOCK_LEG
 
 	# Arranca con los brazos abajo para no ver la pose T al aparecer
 	j_arm_l.angle = -ARM_DOWN
@@ -168,6 +182,23 @@ func set_dead() -> void:
 	_dead_eyes.visible = true
 	_blink.queue_free()
 
+## Rayos X: muestra o esconde el esqueleto (lo arma la primera vez). mat: con qué se dibuja
+## (el recorte del agua, pero sin oscurecerse como el cuerpo).
+func set_xray(on: bool, mat: Material) -> void:
+	if on and _xray.is_empty():
+		for part: Array in [[head, "head"], [hip, "torso"], [arm_l, "arm_l"], [arm_r, "arm_r"], [leg_l, "leg_l"], [leg_r, "leg_r"]]:
+			var bone: Bone2D = part[0]
+			var x := XRay.new()
+			x.part = part[1]
+			x.material = mat
+			bone.add_child(x)
+			# Justo encima de su dibujo: así los brazos y la cabeza siguen tapando al torso
+			if bone != head:
+				bone.move_child(x, bone.get_node("Sprite").get_index() + 1)
+			_xray.append(x)
+	for x in _xray:
+		x.visible = on
+
 ## Para la foto del carnet (un rig suelto, sin aldeano): pone la misma cara que el
 ## aldeano, con la boca de "¡wow!" y los ojos en X si está muerto.
 func copy_face(from: VillagerRig) -> void:
@@ -232,6 +263,8 @@ func _process(dt: float) -> void:
 	_prev_pos = pos
 	_prev_vel = vel
 	_acc = _acc.lerp(acc.limit_length(MAX_ACC), 0.3)
+	if _zap_pose():
+		return
 
 	var ragdoll := villager.dragging or villager.falling or villager.in_water or villager.eaten or villager.dead
 	rag = move_toward(rag, 1.0 if ragdoll else 0.0, BLEND_SPEED * dt)
@@ -319,6 +352,24 @@ func _process(dt: float) -> void:
 			j.vel = -absf(j.vel) * 0.25
 
 	_apply()
+
+## Electrocutándose: tieso con brazos y piernas abiertos, temblando y gritando. Carbonizado
+## en la isla se queda duro así hasta hacerse cenizas. true si ya se encargó de los huesos.
+func _zap_pose() -> bool:
+	if villager.zap_state == Villager.Zap.NONE:
+		return false
+	if villager.zap_state != Villager.Zap.SHOCK:
+		return villager.zap_pinned()
+	_mouth.target = randf_range(0.7, 1.0)
+	hip.position = hip_rest + Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * SHOCK_SHAKE
+	hip.rotation = randf_range(-0.05, 0.05)
+	for j in joints:
+		j.angle = j.shock + randf_range(-SHOCK_JITTER, SHOCK_JITTER)
+		j.vel = 0.0
+	rag = 1.0
+	_prev_rot = villager.global_rotation
+	_apply()
+	return true
 
 func _apply() -> void:
 	for j in joints:
@@ -467,3 +518,115 @@ class BulletMark extends Node2D:
 			blobs.append(Vector3(cos(a), sin(a), 0.0) * randf_range(BLOB_DIST.x, BLOB_DIST.y) \
 					+ Vector3(0, 0, randf_range(BLOB_RADIUS.x, BLOB_RADIUS.y)))
 		return blobs
+
+## Esqueleto que se le ve al electrocutarse, en los cuadros en que el cuerpo se pone oscuro
+## (ver waterline.gdshader). Uno por hueso, así cada parte sigue a su miembro; en px de
+## villager.png relativos al pivote de cada hueso.
+class XRay extends Node2D:
+	const BONE := Color(0.92, 0.97, 1.0)
+	const GLOW := Color(0.5, 0.78, 1.0, 0.45)
+	const HOLE := Color(0.05, 0.08, 0.22)   # Cuencas y huecos: el color de la silueta
+	const W := 30.0       # Grosor de los huesos
+	const HALO := 22.0    # Resplandor alrededor
+	var part := ""
+
+	var _lines: Array[PackedVector2Array] = []   # Huesos largos
+	var _widths: Array[float] = []
+	var _knobs: Array[Vector3] = []              # Articulaciones: x, y, radio
+	var _blobs: Array[PackedVector2Array] = []   # Partes rellenas (cráneo, pelvis)
+	var _holes: Array[PackedVector2Array] = []   # Huecos encima de lo relleno
+	var _cuts: Array[PackedVector2Array] = []    # Rayitas de hueco (dientes, vértebras)
+
+	func _ready() -> void:
+		match part:
+			"head": _skull()
+			"torso": _torso()
+			"arm_l": _arm(-1.0, 138.0, 228.0)
+			"arm_r": _arm(1.0, 152.0, 232.0)
+			"leg_l": _leg(-1.0)
+			"leg_r": _leg(1.0)
+
+	func _draw() -> void:
+		for b in _blobs:
+			var halo := Geometry2D.offset_polygon(b, HALO)
+			if not halo.is_empty():
+				draw_colored_polygon(halo[0], GLOW)
+		for i in _lines.size():
+			draw_polyline(_lines[i], GLOW, _widths[i] + HALO * 2.0, true)
+		for k in _knobs:
+			draw_circle(Vector2(k.x, k.y), k.z + HALO, GLOW, true, -1.0, true)
+		for b in _blobs:
+			draw_colored_polygon(b, BONE)
+		for i in _lines.size():
+			draw_polyline(_lines[i], BONE, _widths[i], true)
+		for k in _knobs:
+			draw_circle(Vector2(k.x, k.y), k.z, BONE, true, -1.0, true)
+		for h in _holes:
+			draw_colored_polygon(h, HOLE)
+		for c in _cuts:
+			draw_polyline(c, HOLE, 9.0, true)
+
+	func _line(pts: Array, w := W) -> void:
+		_lines.append(PackedVector2Array(pts))
+		_widths.append(w)
+
+	func _skull() -> void:
+		var cranium := _ellipse(Vector2(0, -250), Vector2(225, 200))
+		var jaw := PackedVector2Array([Vector2(-150, -140), Vector2(150, -140), Vector2(132, -32),
+				Vector2(60, -6), Vector2(-60, -6), Vector2(-132, -32)])
+		var merged := Geometry2D.merge_polygons(cranium, jaw)
+		_blobs.append(merged[0] if not merged.is_empty() else cranium)
+		_holes.append(_ellipse(Vector2(-139, -185), Vector2(68, 62)))   # Cuencas de los ojos
+		_holes.append(_ellipse(Vector2(154, -193), Vector2(64, 62)))
+		_holes.append(PackedVector2Array([Vector2(8, -152), Vector2(-20, -106), Vector2(36, -106)]))   # Nariz
+		_cuts.append(PackedVector2Array([Vector2(-105, -66), Vector2(115, -66)]))   # Dientes
+		for x in range(-90, 111, 33):
+			_cuts.append(PackedVector2Array([Vector2(x, -92), Vector2(x, -42)]))
+
+	func _torso() -> void:
+		_line([Vector2(0, -262), Vector2(0, 30)], W * 1.1)   # Columna
+		for i in 9:
+			var y := -238.0 + i * 32.0
+			_cuts.append(PackedVector2Array([Vector2(-14, y), Vector2(14, y)]))
+		for side: float in [-1.0, 1.0]:
+			_line([Vector2(side * 10, -246), Vector2(side * 100, -226)], W * 0.8)   # Clavícula
+			for i in 4:   # Costillas: salen de la columna, se abren y vuelven hacia adelante
+				var y0 := -196.0 + i * 38.0
+				var rx := 128.0 - i * 12.0
+				var rib := []
+				for s in 9:
+					var a := lerpf(-PI * 0.5, PI * 0.32, s / 8.0)
+					rib.append(Vector2(side * rx * cos(a), y0 + 30.0 * sin(a)))
+				_line(rib, W * 0.75)
+			# Pelvis
+			_blobs.append(_ellipse(Vector2(side * 60, 15), Vector2(62, 42)))
+			_holes.append(_ellipse(Vector2(side * 58, 22), Vector2(20, 16)))
+		_blobs.append(PackedVector2Array([Vector2(-26, -12), Vector2(26, -12), Vector2(0, 42)]))   # Sacro
+
+	## side: -1 el brazo izquierdo (va hacia -x), 1 el derecho. wrist / tip: x de la muñeca y
+	## de la punta de los dedos (la mano se angosta hacia los dedos, ver HAND_SQUASH).
+	func _arm(side: float, wrist: float, tip: float) -> void:
+		var elbow := wrist * 0.52
+		_line([Vector2(side * 8, 0), Vector2(side * elbow, 2)])   # Húmero
+		_line([Vector2(side * elbow, -6), Vector2(side * (wrist - 6), -8)], W * 0.6)   # Antebrazo
+		_line([Vector2(side * elbow, 8), Vector2(side * (wrist - 6), 9)], W * 0.6)
+		_knobs.append(Vector3(side * 8, 0, 19))
+		_knobs.append(Vector3(side * elbow, 1, 16))
+		_knobs.append(Vector3(side * wrist, 0, 15))
+		for f: float in [-1.0, -0.35, 0.35, 1.0]:   # Dedos
+			_line([Vector2(side * (wrist + 8), f * 12), Vector2(side * tip, f * 22)], W * 0.4)
+		_line([Vector2(side * (wrist + 10), -12), Vector2(side * (wrist + 40), -30)], W * 0.4)   # Pulgar
+
+	func _leg(side: float) -> void:
+		_line([Vector2(-side * 2, 4), Vector2(side * 4, 62)])    # Fémur
+		_line([Vector2(side * 4, 66), Vector2(side * 2, 112)], W * 0.8)   # Tibia
+		_knobs.append(Vector3(side * 4, 64, 17))
+		_knobs.append(Vector3(side * 2, 116, 15))
+		_line([Vector2(side * 5, 122), Vector2(side * 68, 130)], W * 0.6)   # Pie
+
+	static func _ellipse(c: Vector2, r: Vector2) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		for i in 24:
+			var a := TAU * i / 24.0
+			pts.append(c + Vector2(cos(a) * r.x, sin(a) * r.y))
+		return pts
