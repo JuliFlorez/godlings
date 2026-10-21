@@ -1,4 +1,8 @@
 extends Node2D
+class_name World
+## El juego arranca con la cámara allá arriba, en el cielo, con el menú de inicio (ver
+## TitleMenu); al elegir una partida la carga y la cámara baja atravesando las nubes hasta
+## la isla (ver lift). Recién ahí empieza a correr el juego (playing).
 
 @onready var isle: Polygon2D = $isle
 @onready var isle_sprite: Sprite2D = $SpriteIsle
@@ -60,12 +64,41 @@ var _pivot: Vector2
 var _expanding := false
 var _markers: Array[ExpandMarker] = []
 
-## Partida guardada. Va aparte de las opciones (user://settings.cfg), así "Nueva partida"
-## la borra sin tocar el volumen ni el idioma. Se guarda sola cada tanto y al salir.
-const SAVE_PATH := "user://save.cfg"
+## Partida guardada, en su ranura (ver SaveSlots). Va aparte de las opciones
+## (user://settings.cfg), así borrar una partida no toca el volumen ni el idioma.
+## Se guarda sola cada tanto, al salir y al volver al menú.
 const AUTOSAVE_INTERVAL := 20.0
 var _autosave_t := 0.0
-var _saving := true   # Se apaga al empezar de cero, para no volver a guardar lo que se borró
+## La partida que se está jugando (1..SaveSlots.COUNT); 0 = ninguna todavía (menú de inicio).
+var slot := 0
+## Ya llegó la cámara a la isla: corren los rezos, el tiempo de juego y el guardado.
+var playing := false
+var _play_time := 0.0   # Segundos jugados en esta partida (se guarda con ella)
+
+## Menú de inicio: la cámara arranca INTRO_HEIGHT px más arriba, con el colchón de nubes
+## (ver CloudBank) abajo de la pantalla. Al elegir partida baja: primero acelerando hasta
+## salir de las nubes (CLOUDS_EXIT) y después frenando hasta la isla.
+const INTRO_HEIGHT := 1860.0
+const CLOUDS_EXIT := 600.0
+const DIVE_TIME := 2.6
+const LAND_TIME := 2.4
+const SKIP_SPEED := 5.0        # Un click o una tecla mientras baja la apura
+## Partida de noche: el sol se pone mientras la cámara se mete en las nubes, y termina
+## antes de salir de ellas (si no, se lo vería bajando en el cielo ya de noche).
+const SUNSET_TIME := 1.8
+const HUD_FADE := 0.6
+const MENU_FADE := 0.6         # Fundido a negro al volver al menú desde la pausa
+var title: TitleMenu
+var _descent: Tween
+## Cuánto subió la cámara (px): 0 jugando, INTRO_HEIGHT en el menú de inicio. Corre el
+## lienzo del mundo (la isla y todo lo que está encima) y el cielo, que se mueve a su
+## manera (ver Sky.lift). El temblor del meteorito también corre el lienzo, pero solo se
+## da jugando, con la cámara abajo.
+var lift := 0.0:
+	set(v):
+		lift = v
+		get_viewport().canvas_transform = Transform2D(0.0, Vector2(0.0, lift))
+		$Sky.lift = lift
 
 func _ready() -> void:
 	# Capas sobre la isla y el tiburón: primero el piso, después lo que tiene altura
@@ -106,7 +139,7 @@ func _ready() -> void:
 		hud.shark_changed.connect(func(i: int, on: bool): sharks[i].set_active(on))
 		for i in sharks.size():
 			sharks[i].killed.connect(hud.lose_shark.bind(i))
-		hud.new_game_requested.connect(_new_game)
+		hud.menu_requested.connect(_to_title)
 
 	# Últimos hijos: reciben los clicks antes que el sol/luna y los aldeanos
 	gun = Gun.new()
@@ -144,9 +177,21 @@ func _ready() -> void:
 				placer.stop())
 
 	Villager.ids_issued = 0
-	if not _load_game():
-		_spawn_villagers(mini(starting_villagers, capacity()))
 	_start_music()
+
+	# Arranca en el cielo, con el menú de inicio; la partida se carga al elegirla
+	SaveSlots.migrate()
+	if hud:
+		hud.visible = false   # Aparece al llegar a la isla (ver _on_landed)
+	title = TitleMenu.new()
+	title.world = self
+	title.slot_chosen.connect(_start_slot)
+	title.skip_requested.connect(func():
+		if _descent and _descent.is_running():
+			_descent.set_speed_scale(SKIP_SPEED))
+	add_child(title)   # Último de todos: le llegan las teclas antes que al resto del juego
+	lift = INTRO_HEIGHT
+	title.open()
 
 func _weapons() -> Array[Node]:
 	return [gun, lightning, meteor]
@@ -197,6 +242,8 @@ func _on_blood_moon_changed(active: bool) -> void:
 			_blood_music.stop())
 
 func _process(dt: float) -> void:
+	if not playing:
+		return
 	if hud:
 		hud.set_population(alive_villagers(), capacity())
 		_worship_t += dt
@@ -206,6 +253,7 @@ func _process(dt: float) -> void:
 			if n > 0:
 				hud.add_offerings(n)
 
+	_play_time += dt
 	_autosave_t += dt
 	if _autosave_t >= AUTOSAVE_INTERVAL:
 		_autosave_t = 0.0
@@ -282,9 +330,20 @@ func _on_spawn_btn_pressed() -> void:
 		_spawn_villagers(1)
 
 # ---- Tamaño de la isla ----
-func _apply_island_width(w: float) -> void:
+## Cuánto se estira la isla (respecto al dibujo original) con ese ancho.
+func _island_scale(w: float) -> Vector2:
 	var t := inverse_lerp(ISLAND_LEVELS[0].width, ISLAND_LEVELS[max_level()].width, w)
-	var k := Vector2(w, lerpf(HEIGHT_MIN, HEIGHT_MAX, t))
+	return Vector2(w, lerpf(HEIGHT_MIN, HEIGHT_MAX, t))
+
+## Dónde queda el dibujo de la isla en la pantalla con ese tamaño (para las miniaturas
+## de las partidas en el menú de inicio).
+func island_rect(level: int) -> Rect2:
+	var k := _island_scale(ISLAND_LEVELS[clampi(level, 0, max_level())].width)
+	var size := isle_sprite.texture.get_size() * _base_sprite_scale * k
+	return Rect2(_pivot - size * 0.5, size)
+
+func _apply_island_width(w: float) -> void:
+	var k := _island_scale(w)
 
 	var global_pts := PackedVector2Array()
 	var local_pts := PackedVector2Array()
@@ -385,8 +444,10 @@ func debug_spawn_villagers(n: int) -> void:
 ## de la isla, los aldeanos con su carnet, las decoraciones y cómo está el cielo.
 ## Lo que pasa en el momento no (cadáveres, cocos sueltos, aldeanos volando o en el
 ## agua): los vivos que no estaban parados en la isla aparecen en ella al cargar.
+## Solo jugando: en el menú de inicio no hay partida, y mientras la cámara baja ya está
+## guardada tal cual se cargó.
 func save_game() -> void:
-	if not _saving or hud == null:
+	if not playing or hud == null:
 		return
 	var villagers := []
 	for node in get_tree().get_nodes_in_group("villager"):
@@ -414,17 +475,20 @@ func save_game() -> void:
 	cfg.set_value("island", "villagers", villagers)
 	cfg.set_value("island", "next_id", Villager.ids_issued)
 	cfg.set_value("island", "decorations", decorations)
-	cfg.set_value("sky", "night", sky.moon.visible)
+	cfg.set_value("sky", "night", sky.is_night)
 	cfg.set_value("sky", "sun_creepy", sky.sun.creepy)
 	cfg.set_value("sky", "moon_creepy", sky.moon.creepy)
 	cfg.set_value("sky", "moon_fed", sky.moon.feed_level)
-	cfg.save(SAVE_PATH)
+	cfg.set_value("meta", "saved_at", Time.get_unix_time_from_system())   # Para el menú de inicio
+	cfg.set_value("meta", "play_time", _play_time)
+	cfg.save(SaveSlots.path(slot))
 
-## Sigue la partida guardada. false si no había ninguna (arranca una nueva).
+## Sigue la partida guardada en la ranura. false si estaba vacía (arranca una nueva).
 func _load_game() -> bool:
 	var cfg := ConfigFile.new()
-	if hud == null or cfg.load(SAVE_PATH) != OK:
+	if hud == null or cfg.load(SaveSlots.path(slot)) != OK:
 		return false
+	_play_time = cfg.get_value("meta", "play_time", 0.0)
 	hud.load_state(cfg.get_value("game", "hud", {}))
 	set_island_level(cfg.get_value("island", "level", island_level))
 	for d: Dictionary in cfg.get_value("island", "decorations", []):
@@ -445,7 +509,7 @@ func _load_game() -> bool:
 
 	var sky := $Sky
 	if cfg.get_value("sky", "night", false):
-		sky.start_at_night()
+		sky.start_at_night(SUNSET_TIME)
 	if cfg.get_value("sky", "sun_creepy", false):
 		sky.sun.set_creepy(true)
 	if cfg.get_value("sky", "moon_creepy", false):
@@ -453,13 +517,39 @@ func _load_game() -> bool:
 		sky.moon.feed_level = cfg.get_value("sky", "moon_fed", 0)
 	return true
 
-## "Nueva partida" (menú de pausa): borra lo guardado y arranca de cero.
-func _new_game() -> void:
-	_saving = false
-	DirAccess.remove_absolute(SAVE_PATH)
-	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
-	get_tree().paused = false
-	get_tree().reload_current_scene()
+# ---- Menú de inicio ----
+## Partida elegida en el menú de inicio: la carga (o arranca una nueva) y la cámara baja
+## atravesando las nubes hasta la isla.
+func _start_slot(s: int) -> void:
+	slot = s
+	if not _load_game():
+		_spawn_villagers(mini(starting_villagers, capacity()))
+	_descent = create_tween()
+	_descent.tween_property(self, "lift", CLOUDS_EXIT, DIVE_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	_descent.tween_property(self, "lift", 0.0, LAND_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_descent.tween_callback(_on_landed)
+
+func _on_landed() -> void:
+	playing = true
+	title.landed()
+	if hud:
+		hud.reveal(HUD_FADE)
+
+## "Menú principal" (menú de pausa): guarda, funde a negro y vuelve a cargar el mundo,
+## que arranca otra vez en el cielo con el menú de inicio.
+func _to_title() -> void:
+	save_game()
+	playing = false
+	# Todo con el juego en pausa (el menú de pausa sigue abierto mientras se oscurece)
+	if _music_tween:
+		_music_tween.kill()
+	_music_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS).set_parallel()
+	for p in [_music, _blood_music]:
+		_music_tween.tween_property(p, "volume_db", SILENT_DB, MENU_FADE)
+	title.fade_out(MENU_FADE).tween_callback(func():
+		Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+		get_tree().paused = false
+		get_tree().reload_current_scene())
 
 func _sand_burst(at: Vector2) -> void:
 	var p := CPUParticles2D.new()

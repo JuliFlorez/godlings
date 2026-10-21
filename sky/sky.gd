@@ -3,6 +3,8 @@ extends CanvasLayer
 ## El color del cielo, el de las nubes y el tinte del mundo dependen de qué tan bajo está el sol.
 ## Con la Luna de Sangre en el cielo todo se tiñe de rojo, y cuanto más se la
 ## alimenta, más rojo. Cada rayo ilumina todo un instante (ver flash).
+## Con la cámara en el cielo (menú de inicio, ver lift) se ve el colchón de nubes de allá
+## arriba (CloudBank) y el cielo de arriba es más oscuro.
 
 signal blood_moon_changed(active: bool)
 
@@ -13,16 +15,36 @@ const BLOOD_FADE := 0.5     # Por segundo: qué tan rápido entra/sale el rojo
 const LEVEL_FADE := 0.8     # Por segundo: qué tan rápido se enrojece al comer
 const FLASH_FADE := 14.0    # Por segundo: qué tan rápido se apaga el destello de un rayo
 const C_FLASH_SKY := Color(0.86, 0.9, 1.0)
+const BIRDS_PARALLAX := 0.7 # Cuánto se mueven las gaviotas con la cámara (1 = igual que la isla)
+## Cielo de altura: desde HIGH_FROM px de cámara arriba se va oscureciendo, hasta
+## HIGH_DARK en HIGH_FULL (arriba de la pantalla; abajo, cerca de las nubes, no).
+const HIGH_FROM := 300.0
+const HIGH_FULL := 1500.0
+const HIGH_DARK := 0.5
 
 @onready var background: ColorRect = $Background
 @onready var stars: Node2D = $Stars
 @onready var clouds: Clouds = $Clouds
+@onready var birds: Birds = $Birds
 @onready var sun: Celestial = $Sun
 @onready var moon: Moon = $Moon
 @onready var night_tint: CanvasModulate = get_node_or_null(night_tint_path)
 
 var night := 0.0   # 0 = mediodía, 1 = noche cerrada
+## Si la partida está de noche (lo que se guarda): desde que se termina de poner el sol
+## hasta que se termina de poner la luna, o desde que se carga una partida de noche.
+var is_night := false
 var blood_moon := false
+var bank: CloudBank
+## Cuánto subió la cámara (ver World.lift). Lo lejano se mueve menos: el sol, la luna y
+## las estrellas nada; las nubes y las gaviotas menos que la isla; el colchón de nubes,
+## igual que la isla.
+var lift := 0.0:
+	set(v):
+		lift = v
+		clouds.camera_lift = v
+		birds.position.y = v * BIRDS_PARALLAX
+		bank.position.y = v
 
 var _sky := Gradient.new()
 var _tint := Gradient.new()
@@ -71,11 +93,23 @@ func _ready() -> void:
 
 	sun.has_set.connect(moon.rise)
 	moon.has_set.connect(sun.rise)
+	sun.has_set.connect(func(): is_night = true)
+	moon.has_set.connect(func(): is_night = false)
 
-## Partida guardada de noche: arranca con la luna arriba y el sol escondido.
-func start_at_night() -> void:
-	sun.hide_below()
-	moon.show_up()
+	# Encima de todo lo del cielo: al atravesarlo tapa también al sol y a la luna
+	bank = CloudBank.new()
+	add_child(bank)
+	# El cielo de altura, sobre el fondo y debajo de todo lo demás
+	var high := HUD.Painter.new()
+	high.paint = _paint_high
+	add_child(high)
+	move_child(high, background.get_index() + 1)
+
+## Partida guardada de noche: mientras la cámara baja a la isla, el sol se pone (en
+## sunset segundos) y después sale la luna.
+func start_at_night(sunset: float) -> void:
+	is_night = true
+	sun.sink(sunset)
 
 ## Un rayo ilumina el cielo y la isla (también de noche). amount: 0..1.
 func flash(amount: float) -> void:
@@ -97,5 +131,17 @@ func _process(dt: float) -> void:
 	var star_red := 1.0 - 0.6 * _blood
 	stars.modulate = Color(1.0, star_red, star_red, smoothstep(0.65, 1.0, night))
 	clouds.set_light(night, _blood, _flash, background.color)
+	bank.set_light(night, _blood, _flash, background.color)
 	if night_tint:
 		night_tint.color = _tint.sample(night).lerp(_blood_tint.sample(_level), _blood).lerp(Color.WHITE, _flash)
+
+## Cielo de altura: degradé del color del cielo, más oscuro arriba, a transparente abajo.
+func _paint_high(ci: CanvasItem) -> void:
+	var dark := smoothstep(HIGH_FROM, HIGH_FULL, lift) * HIGH_DARK
+	if dark <= 0.0:
+		return
+	var size := ci.get_viewport_rect().size
+	var top := Color(background.color.darkened(0.55), dark)
+	var clear := Color(top, 0.0)
+	ci.draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(size.x, 0.0), size, Vector2(0.0, size.y)]),
+			PackedColorArray([top, top, clear, clear]))

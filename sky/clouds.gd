@@ -6,16 +6,20 @@ class_name Clouds
 ## otra nueva por el otro.
 ## El cielo les pasa la luz (set_light): blancas de día, rosadas y naranjas al atardecer,
 ## azul oscuro de noche, bordó con la Luna de Sangre, y cada rayo las ilumina.
+## Con la cámara en el cielo (menú de inicio, ver camera_lift) bajan en pantalla, las lejanas menos.
 
 @export var count := 6
 @export var wind := 16.0          # px/s de las más cercanas (positivo: hacia la derecha)
 var max_y := 350.0                # La panza de las más lejanas (lo pone el cielo)
+var camera_lift := 0.0            # Cuánto subió la cámara (lo pone el cielo, ver World.lift)
 
 const MIN_Y := 70.0               # La panza de las más cercanas
 const MARGIN := 40.0              # Salen de la pantalla del todo antes de volver a entrar
 const FAR_SCALE := 0.45           # Tamaño de las más lejanas (1 = las más cercanas)
 const FAR_SPEED := 0.35
 const FAR_HAZE := 0.35            # Cuánto se pierden en el cielo las más lejanas
+const NEAR_PARALLAX := 0.8        # Cuánto se mueven con la cámara (1 = igual que la isla)
+const FAR_PARALLAX := 0.45
 
 # Luz según la hora (mismos puntos que el degradé del cielo, ver Sky)
 const LIGHT_OFFSETS: Array[float] = [0.0, 0.3, 0.45, 0.6, 0.8, 1.0]
@@ -110,7 +114,7 @@ func _process(dt: float) -> void:
 func _draw() -> void:
 	for c in _clouds:
 		var haze: float = c.far * FAR_HAZE
-		var pos: Vector2 = c.pos
+		var pos: Vector2 = c.pos + Vector2(0.0, camera_lift * lerpf(NEAR_PARALLAX, FAR_PARALLAX, c.far))
 		var half_w: float = c.half_w
 		var base_r: float = c.base_r
 		var lift := base_r * 0.4   # Cuánto asoma la panza oscura por debajo

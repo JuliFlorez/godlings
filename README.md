@@ -8,6 +8,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 
 ## ✨ Características
 
+- 🌥️ **Menú de inicio en el cielo**: el juego arranca allá arriba, sobre un colchón de nubes, con el logo, **Jugar**, **Configuración** y **Salir**. En Jugar hay 3 partidas, cada una con una miniatura de su isla (del tamaño que tiene, de día o de noche), sus aldeanos, ofrendas, cuándo se jugó y cuánto tiempo; las vacías dicen "Nueva partida" y las otras se pueden borrar (pregunta antes). Al elegir una, la cámara baja atravesando las nubes hasta la isla (un click o una tecla la apura); si la partida estaba de noche, el sol se pone mientras baja y sale la luna al llegar.
 - 🏝️ **Isla Procedural / Poligonal**: Detección de límites orgánicos mediante polígonos 2D.
 - 🌊 **Mar vivo** (`water.gdshader`): olas en perspectiva (chiquitas en el horizonte) con crestas de espuma que avanzan y cambian de forma, el reflejo del sol o la luna (largo y naranja al atardecer, rojo con la Luna de Sangre) y destellos sueltos. De lejos refleja el color del cielo. Alrededor de la isla hay una laguna turquesa con espuma en la orilla y olitas que salen (sigue la forma de la isla cuando crece), y lo que cae al agua (aldeanos, cocos, el tiburón, el meteorito) deja anillos.
 - ☁️ **Nubes y gaviotas**: nubes que pasan despacio (las lejanas, más chicas y lentas) y cambian de color con la hora: blancas de día, rosadas al atardecer, azul oscuro de noche y bordó con la Luna de Sangre; cada rayo las ilumina. De día, cada tanto cruza una bandadita de gaviotas.
@@ -31,7 +32,8 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
   - Cada sacrificio (ahogado o comido por el tiburón) da +1 XP.
   - Al llenar la barra de XP ganás un **punto de expansión**: aparecen orbes dorados "+" en los bordes de la isla. Tocá uno (o el botón "Expandir isla") y la isla crece.
   - La invocación de aldeanos consume Devoción, la cual se recarga progresivamente con el tiempo. No se puede invocar si la isla está llena.
-- 💾 **Partida guardada**: se guarda sola cada 20 segundos y al salir (en `user://save.cfg`), y al abrir el juego se sigue donde quedó: progreso, ofrendas, compras, tamaño de la isla, aldeanos con su nombre y número de carnet, decoraciones, y si era de día o de noche (con la Luna de Sangre incluida). Los aldeanos que estaban volando o en el agua aparecen en la isla; los cadáveres y los cocos sueltos no se guardan. "Nueva partida" en el menú de pausa borra todo y empieza de cero.
+- 💾 **Partidas guardadas**: hay 3 (en `user://save_1.cfg`, `save_2.cfg` y `save_3.cfg`; la partida de antes, `user://save.cfg`, pasa a ser la 1). Cada una se guarda sola cada 20 segundos, al salir y al volver al menú, y al elegirla se sigue donde quedó: progreso, ofrendas, compras, tamaño de la isla, aldeanos con su nombre y número de carnet, decoraciones, y si era de día o de noche (con la Luna de Sangre incluida). Los aldeanos que estaban volando o en el agua aparecen en la isla; los cadáveres y los cocos sueltos no se guardan. "Menú principal" en el menú de pausa guarda y vuelve al cielo, a elegir partida.
+- ⚙️ **Configuración** (en el menú de inicio y en el de pausa): volumen general, música, idioma (español o inglés) y pantalla completa. Se guarda aparte de las partidas (`user://settings.cfg`).
 - 🎨 **Arte 2D**: Sprites y texturas originales.
 
 ---
@@ -60,4 +62,5 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - **Tecla G / casilla "Pistola"**: Sacar o guardar la pistola (una vez desbloqueada en la tienda). Sirve para aldeanos y tiburones.
 - **Tecla R / botón "Rayo"**: Sacar o guardar el rayo (una vez desbloqueado en la tienda). Cada click lanza un rayo; click derecho o Esc lo guardan.
 - **Tecla M / botón "Meteorito"**: Sacar o guardar el meteorito (una vez desbloqueado en la tienda). Click en la isla o en el agua para tirarlo; click derecho o Esc lo guardan.
-- **Esc**: Menú de pausa (volumen, idioma, nueva partida y salir).
+- **Click o cualquier tecla mientras baja la cámara**: La apura hasta la isla.
+- **Esc**: Menú de pausa (volumen, idioma, pantalla completa, menú principal y salir). En el menú de inicio vuelve a la pantalla principal.

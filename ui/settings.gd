@@ -1,6 +1,6 @@
 extends RefCounted
 class_name Settings
-## Opciones del jugador: volumen (general y música) e idioma.
+## Opciones del jugador: volumen (general y música), idioma y pantalla completa.
 ## Se guardan en user://settings.cfg y se aplican al arrancar.
 ## Los textos del juego están escritos en español y se usan como claves de traducción
 ## (ver I18n); los Label/Button se traducen solos, y los textos con formato usan tr().
@@ -13,6 +13,7 @@ const LOCALES := [["es", "Español"], ["en", "English"]]
 static var master := 1.0     # 0..1
 static var music := 1.0      # 0..1
 static var locale := "es"
+static var fullscreen := false
 static var _initialized := false
 
 ## Prepara buses, traducciones y opciones guardadas. Se puede llamar varias veces.
@@ -32,7 +33,10 @@ static func init() -> void:
 		master = clampf(cfg.get_value("audio", "master", master), 0.0, 1.0)
 		music = clampf(cfg.get_value("audio", "music", music), 0.0, 1.0)
 		locale = cfg.get_value("general", "locale", locale)
+		fullscreen = cfg.get_value("display", "fullscreen", fullscreen)
 	_apply()
+	if fullscreen:   # En ventana no se toca: queda como la abra el sistema
+		_apply_window()
 
 static func set_master(v: float) -> void:
 	master = clampf(v, 0.0, 1.0)
@@ -49,17 +53,26 @@ static func set_locale(code: String) -> void:
 	_apply()
 	save()
 
+static func set_fullscreen(on: bool) -> void:
+	fullscreen = on
+	_apply_window()
+	save()
+
 static func save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "master", master)
 	cfg.set_value("audio", "music", music)
 	cfg.set_value("general", "locale", locale)
+	cfg.set_value("display", "fullscreen", fullscreen)
 	cfg.save(PATH)
 
 static func _apply() -> void:
 	_set_bus(AudioServer.get_bus_index("Master"), master)
 	_set_bus(AudioServer.get_bus_index(MUSIC_BUS), music)
 	TranslationServer.set_locale(locale)
+
+static func _apply_window() -> void:
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
 
 static func _set_bus(i: int, v: float) -> void:
 	if i < 0:

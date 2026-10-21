@@ -132,10 +132,11 @@ func _pop(from_scale: float, duration: float) -> void:
 func height_t() -> float:
 	return clampf(inverse_lerp(rest_pos.y, horizon_y + 40.0, position.y), 0.0, 1.0)
 
-func sink() -> void:
+## duration: lo que tarda en esconderse (más lento al cargar una partida de noche, ver Sky).
+func sink(duration := 1.2) -> void:
 	is_up = false
 	_restart_tween()
-	_tween.tween_property(self, "position:y", horizon_y + HIDDEN_DEPTH, 1.2) \
+	_tween.tween_property(self, "position:y", horizon_y + HIDDEN_DEPTH, duration) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	_tween.tween_callback(func():
 		hide()

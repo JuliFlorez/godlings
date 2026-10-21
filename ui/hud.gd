@@ -16,7 +16,7 @@ signal meteor_toggled(on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
-signal new_game_requested
+signal menu_requested
 
 @export var energy_max: float = 100.0
 @export var energy_refill_minutes: float = 5.0  # 5 min para llenarse de 0 a 100
@@ -232,6 +232,12 @@ func set_lightning_armed(on: bool) -> void:
 func set_meteor_armed(on: bool) -> void:
 	_meteor_armed = on
 	_refresh()
+
+## Aparece de a poco (al llegar la cámara a la isla desde el menú de inicio, ver World).
+func reveal(duration: float) -> void:
+	visible = true
+	_root.modulate.a = 0.0
+	create_tween().tween_property(_root, "modulate:a", 1.0, duration)
 
 ## Si hay un arma o poder afuera: el click es para eso (no para agarrar aldeanos, el
 ## tiburón, cocos ni decoraciones).
@@ -793,6 +799,18 @@ static func make_label(text: String, size: int, color: Color) -> Label:
 	l.add_theme_color_override("font_color", color)
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	return l
+
+## Botón de los menús (pausa, opciones, inicio).
+static func make_button(text: String, color: Color) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 38)
+	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_stylebox_override("normal", make_box(color, 8, color.lightened(0.25), 1))
+	b.add_theme_stylebox_override("hover", make_box(color.lightened(0.15), 8, color.lightened(0.45), 1))
+	b.add_theme_stylebox_override("pressed", make_box(color.darkened(0.15), 8, color.darkened(0.3), 1))
+	return b
 
 static func make_box(bg: Color, radius: int, border := Color(0, 0, 0, 0), border_w := 0, pad := Vector4.ZERO) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
