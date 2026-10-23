@@ -7,7 +7,7 @@ class_name VillagerRig
 ##   hacia adelante), el cuerpo baja al apoyar y sube al pasar la pierna, el peso se corre
 ##   sobre la pierna apoyada y los brazos van al revés que las piernas, un poco atrasados.
 ##   Parado respira y mira para los costados. Al darse vuelta se achata y se espeja.
-## - Agarrado / cayendo / en el agua: ragdoll. Cada articulación es un péndulo
+## - Agarrado / cayendo / en el agua / en un tornado: ragdoll. Cada articulación es un péndulo
 ##   amortiguado que responde a la gravedad y a la aceleración del cuerpo.
 ## - Parpadea cada tantos segundos y los balazos dejan una marca en la parte alcanzada.
 ## - Electrocutado por un rayo: tieso con brazos y piernas abiertos, temblando, y en los
@@ -348,14 +348,15 @@ func _process(dt: float) -> void:
 	if _zap_pose():
 		return
 
-	var ragdoll := villager.dragging or villager.falling or villager.in_water or villager.eaten or villager.dead
+	var ragdoll := villager.dragging or villager.falling or villager.in_water or villager.eaten or villager.dead \
+			or villager.tornado != null
 	rag = move_toward(rag, 1.0 if ragdoll else 0.0, BLEND_SPEED * dt)
 
-	# Boca: "¡wow!" mientras lo tienen agarrado, va volando, ve venir un meteorito o se quema;
-	# masticando cuando come
+	# Boca: "¡wow!" mientras lo tienen agarrado, va volando (o girando en un tornado), ve venir
+	# un meteorito o se quema; masticando cuando come
 	if villager.dead:
 		_mouth.target = 0.0
-	elif villager.dragging or villager.falling or villager.is_scared() or villager.on_fire:
+	elif villager.dragging or villager.falling or villager.tornado != null or villager.is_scared() or villager.on_fire:
 		_mouth.target = 1.0
 	elif villager.food and villager._eat_t > 0.0:
 		_mouth.target = absf(sin(villager._eat_t * 12.0)) * 0.45
@@ -367,7 +368,7 @@ func _process(dt: float) -> void:
 	var damping := 2.5
 	if villager.dragging:
 		pass
-	elif villager.falling:
+	elif villager.falling or villager.tornado != null:
 		g_world -= vel * AIR_DRAG
 	elif villager.in_water:
 		# Casi sin peso y con mucha resistencia: flotan perezosos

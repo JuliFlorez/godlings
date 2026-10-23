@@ -4,7 +4,7 @@ class_name Shark
 ## Arranca apagado: se compran en la tienda (hasta MAX) y se pueden apagar y prender.
 ## Se lo puede agarrar de la aleta y sacar del agua: cuelga y se sacude, se lo puede tirar
 ## y, si cae en la isla, va saltando con la boca abierta (y se come a los aldeanos que alcanza)
-## hasta volver a caerse al agua.
+## hasta volver a caerse al agua. Un tornado también lo saca volando del agua (ver fling).
 ## Con la pistola, el rayo o el meteorito se lo puede matar: queda panza arriba y hay que volver a comprarlo.
 ## El cuerpo es blando: el dibujo va en una malla que se dobla por la columna (cabeza y cola
 ## cuelgan, se quedan atrás con los tirones y rebotan al caer). Muerto queda todavía más flojo.
@@ -629,8 +629,8 @@ func _find_prey() -> Villager:
 	var best_d := INF
 	for v in get_tree().get_nodes_in_group("villager"):
 		var villager := v as Villager
-		if villager == null or not villager.in_water or villager.drowning or villager.dragging or villager.eaten:
-			continue
+		if villager == null or not villager.in_water or villager.flooded or villager.drowning or villager.dragging or villager.eaten:
+			continue   # (Los que flotan en la isla inundada no están en el mar)
 		var d := absf(villager.global_position.x - global_position.x)
 		if d < best_d:
 			best_d = d
@@ -765,6 +765,28 @@ func _release() -> void:
 	_spin = clampf(_swing_vel + _vel.x * 0.004, -10.0, 10.0)
 	_launch_y = global_position.y
 	_left_island = not _on_island(global_position)
+
+## Lo levantó un tornado (ver Tornado): sale del agua volando con vel. Si cae en la isla va
+## saltando y comiéndose a los que alcanza, como si lo hubieran tirado.
+func fling(vel: Vector2) -> void:
+	if dead or not active or state != State.SWIM:
+		return
+	if _tween:
+		_tween.kill()
+	# Sale del agua: el nodo pasa a estar en el centro del cuerpo (como al agarrarlo)
+	global_position.y += _swim_offset()
+	_dive = 0.0
+	rotation = 0.0
+	_splash(Vector2(global_position.x, water_rect.position.y), 26)
+	_set_on_land_layer(false)
+	_prey = null
+	state = State.FLYING
+	_place_sprite()
+	_vel = vel
+	_spin = clampf(vel.x * 0.02, -10.0, 10.0) + randf_range(-3.0, 3.0)
+	_launch_y = global_position.y
+	_left_island = true
+	z_index = 10
 
 # ---- Volando ----
 func _fly(dt: float) -> void:

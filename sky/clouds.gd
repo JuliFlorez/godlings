@@ -33,6 +33,9 @@ const BLOOD_BODY := Color(0.48, 0.08, 0.09)
 const BLOOD_SHADE := Color(0.24, 0.03, 0.05)
 const BLOOD_SHINE := Color(0.72, 0.16, 0.13)
 const FLASH := Color(0.92, 0.94, 1.0)
+const STORM_BODY := Color(0.5, 0.53, 0.58)
+const STORM_SHADE := Color(0.33, 0.35, 0.41)
+const STORM_SHINE := Color(0.62, 0.65, 0.7)
 
 var _clouds: Array[Dictionary] = []   # {pos, far (0 = cerca, 1 = lejos), speed, puffs, half_w, base_r}
 var _body := Gradient.new()
@@ -62,11 +65,13 @@ func _spawn_all() -> void:
 	_sort()
 
 ## night: 0 = mediodía, 1 = noche. blood: cuánto se tiñó todo de rojo. flash: destello
-## de un rayo. sky: color del cielo, en el que se pierden las nubes lejanas.
-func set_light(night: float, blood: float, flash: float, sky: Color) -> void:
-	_c_body = _body.sample(night).lerp(BLOOD_BODY, blood).lerp(FLASH, flash * 0.8)
-	_c_shade = _shade.sample(night).lerp(BLOOD_SHADE, blood).lerp(FLASH.darkened(0.15), flash * 0.8)
-	_c_shine = _shine.sample(night).lerp(BLOOD_SHINE, blood).lerp(Color.WHITE, flash * 0.8)
+## de un rayo. sky: color del cielo, en el que se pierden las nubes lejanas. storm: cuánto
+## llueve (ver Storm): se ponen grises, de tormenta.
+func set_light(night: float, blood: float, flash: float, sky: Color, storm := 0.0) -> void:
+	var dark := 1.0 - 0.55 * night   # De noche la tormenta también es más oscura
+	_c_body = _body.sample(night).lerp(BLOOD_BODY, blood).lerp(STORM_BODY * dark, storm * 0.85).lerp(FLASH, flash * 0.8)
+	_c_shade = _shade.sample(night).lerp(BLOOD_SHADE, blood).lerp(STORM_SHADE * dark, storm * 0.85).lerp(FLASH.darkened(0.15), flash * 0.8)
+	_c_shine = _shine.sample(night).lerp(BLOOD_SHINE, blood).lerp(STORM_SHINE * dark, storm * 0.85).lerp(Color.WHITE, flash * 0.8)
 	_haze = sky
 
 func _new_cloud() -> Dictionary:

@@ -67,6 +67,18 @@ func grab() -> void:
 	_prev_mouse = get_global_mouse_position()
 	_throw_vel = Vector2.ZERO
 
+## Lo levantó un tornado (ver Tornado): sale volando con v (y si le cae a alguien, ¡bonk!).
+func fling(v: Vector2) -> void:
+	release_eater()
+	hovered = false
+	state = State.FLYING
+	floor_y = INF
+	vel = v
+	spin = randf_range(-18.0, 18.0)
+	_launch_y = point().y
+	_left_island = false
+	z_index = 10
+
 func _input(event: InputEvent) -> void:
 	# Atrapa el soltado del click izquierdo en cualquier parte de la pantalla
 	if state == State.HELD and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:

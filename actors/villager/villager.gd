@@ -129,6 +129,20 @@ var _flames: Flames
 var _sparks: CPUParticles2D
 var _fire_light: PointLight2D
 
+# --- Tornado (ver Tornado): lo chupa, lo hace girar alrededor del embudo y al rato lo revolea ---
+const TORNADO_COOL := 1.2        # Recién revoleado, un ratito sin que lo vuelva a chupar
+var tornado: Tornado             # El que lo tiene girando (null: ninguno)
+var _tornado_cool := 0.0
+
+# --- Diluvio (ver Storm): si el agua de la inundación lo alcanza se lo lleva flotando ---
+const FLOOD_DEPTH := 6.0         # Flotando en la orilla inundada, el agua le tapa las piernas
+const FLOOD_FLEE := 0.07         # Si el agua está así de cerca (en rel, ver Storm.shore_rel)...
+const FLOOD_FLEE_TIME := 1.2     # ...se escapa corriendo un rato para el medio de la isla
+const FLOOD_FLEE_SPEED := 2.0
+var flooded := false             # Flota en la isla inundada (no en el mar)
+var _flee := 0.0
+var _flee_bias := 0.0            # Cada uno se escapa para un lado un poco distinto
+
 # --- Espacio personal y empujones ---
 # Los aldeanos no chocan físicamente entre sí: se esquivan con una separación suave.
 # El que está agarrado sí empuja a los demás, y los puede tirar de la isla.
@@ -228,6 +242,8 @@ func full_name() -> String:
 
 func enter_water(surface_y: float) -> void:
 	touching_water = true
+	if flooded:
+		return   # Flota en la isla inundada: lo maneja la inundación, no el mar
 	water_surface_y = surface_y
 	# Caminando por la orilla el cuerpo roza el agua, pero sigue en tierra
 	if falling or dragging:
@@ -236,6 +252,7 @@ func enter_water(surface_y: float) -> void:
 
 func _start_floating() -> void:
 	in_water = true
+	flooded = false
 	falling = false
 	drowning = false
 	drown_elapsed = 0.0
@@ -250,7 +267,8 @@ func _start_floating() -> void:
 func exit_water() -> void:
 	touching_water = false
 	# Ahogándose se hunde por debajo del área de agua: sigue hasta desaparecer
-	if drowning and not dragging:
+	# (y el que flota en la isla inundada no estaba en el mar)
+	if (drowning and not dragging) or flooded:
 		return
 	var was_floating := in_water
 	in_water = false
@@ -269,6 +287,13 @@ func _physics_process(dt: float) -> void:
 	if dragging:
 		velocity = Vector2.ZERO
 		return
+	if tornado:
+		# Girando en el tornado: lo mueve él (ver Tornado)
+		velocity = Vector2.ZERO
+		if not is_instance_valid(tornado):
+			tornado = null
+			_start_fall()
+		return
 	if zap_pinned():
 		# Le cayó el rayo en la isla: se queda ahí hasta hacerse cenizas
 		velocity = Vector2.ZERO
@@ -277,6 +302,16 @@ func _physics_process(dt: float) -> void:
 	# --- Agua: flotar o ahogarse ---
 	if in_water:
 		bob_t += dt
+
+		# En la isla inundada: si bajó el agua queda en tierra; si no, la corriente se lo lleva
+		if flooded and not drowning:
+			var feet := ground_point()
+			if not Storm.flooded_at(feet):
+				_flood_dry()
+				return
+			var drift := Storm.current_at(feet)
+			global_position += drift * dt
+			water_surface_y += drift.y * dt
 
 		# Temporizador de ahogo
 		if not drowning:
@@ -342,6 +377,22 @@ func _physics_process(dt: float) -> void:
 		return
 
 	# --- IA normal caminando en la isla ---
+	var gp := ground_point()
+	if Storm.flooded_at(gp):
+		_swept_by_flood()   # Lo alcanzó el agua
+		return
+	_flee = maxf(0.0, _flee - dt)
+	if Storm.water_near(gp, FLOOD_FLEE):
+		# Se le viene el agua encima: se escapa corriendo para el medio de la isla
+		if _flee <= 0.0:
+			_flee_bias = randf_range(-0.4, 0.4)
+		_flee = FLOOD_FLEE_TIME
+		dir = (island_center - global_position).normalized().rotated(_flee_bias)
+		_update_sprite_flip()
+		_resting = false
+		wander_timer = maxf(wander_timer, FLOOD_FLEE_TIME)
+		if food != null:
+			food.release_eater()
 	rotation = lerp_angle(rotation, 0.0, 10.0 * dt)
 	shove_vel = shove_vel.move_toward(Vector2.ZERO, SHOVE_FRICTION * dt)
 	shove_timer = maxf(0.0, shove_timer - dt)
@@ -350,22 +401,29 @@ func _physics_process(dt: float) -> void:
 		food.release_eater()   # Prendido fuego no se queda comiendo
 	if food != null and _food_ai(dt):
 		return
-	# Asustado (ve venir un meteorito) se queda quieto mirándolo; prendido fuego corre sin parar
-	var stop := (_resting or is_scared()) and not on_fire
-	_walk = move_toward(_walk, 0.0 if stop else 1.0, WALK_ACCEL * dt * (4.0 if on_fire else 1.0))
+	# Asustado (ve venir un meteorito) se queda quieto mirándolo; prendido fuego (o escapándose
+	# del agua) corre sin parar
+	var hurry := on_fire or _flee > 0.0
+	var stop := (_resting or is_scared()) and not hurry
+	_walk = move_toward(_walk, 0.0 if stop else 1.0, WALK_ACCEL * dt * (4.0 if hurry else 1.0))
 	# Al doblar va más despacio (y si vuelve para atrás, frena y arranca de nuevo)
-	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * (2.0 if on_fire else 1.0) * dt))
-	var pace := speed * (PANIC_SPEED if on_fire else 1.0)
+	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * (2.0 if hurry else 1.0) * dt))
+	var pace := speed * (PANIC_SPEED if on_fire else (FLOOD_FLEE_SPEED if _flee > 0.0 else 1.0))
 	velocity = _heading * pace * smoothstep(0.0, 1.0, _walk) + _separation() + shove_vel
 	var prev_pos := global_position
 	move_and_slide()
 
-	# Si cruza el borde del polígono de la isla, retroceder y girar hacia el centro.
-	# Si ya estaba afuera no se retrocede: así vuelve caminando.
-	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
+	# Si cruza el borde del polígono de la isla (o se iba a meter en el agua de la
+	# inundación), retroceder y girar hacia el centro. Si ya estaba afuera no se retrocede:
+	# así vuelve caminando.
+	var into_flood := Storm.flooded_at(ground_point())
+	if into_flood or (island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly)):
 		if shove_timer > 0.0:
-			# Lo empujaron fuera de la isla: se cae
-			_fall_from_shove()
+			# Lo empujaron fuera de la isla: se cae (o al agua de la inundación: se lo lleva)
+			if into_flood and Geometry2D.is_point_in_polygon(global_position, island_poly):
+				_swept_by_flood()
+			else:
+				_fall_from_shove()
 			return
 		if Geometry2D.is_point_in_polygon(prev_pos, island_poly):
 			global_position = prev_pos
@@ -397,9 +455,9 @@ func _physics_process(dt: float) -> void:
 				wander_timer = randf_range(2.0, 5.0)
 
 # --- COMIDA ---
-## Parado o caminando en la isla (no agarrado, volando, en el agua ni muerto).
+## Parado o caminando en la isla (no agarrado, volando, en el agua, en un tornado ni muerto).
 func is_idle() -> bool:
-	return not (dragging or falling or in_water or eaten or dead)
+	return not (dragging or falling or in_water or eaten or dead or tornado)
 
 func wants_food() -> bool:
 	return food == null and is_idle() and not on_fire and _food_cooldown <= 0.0
@@ -471,7 +529,7 @@ func _separation() -> Vector2:
 	var push := Vector2.ZERO
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten:
+		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten or o.tornado:
 			continue
 		var d := global_position - o.global_position
 		var dist := d.length()
@@ -495,7 +553,7 @@ func _shove_others() -> void:
 	var mine := _body_segment()
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten:
+		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten or o.tornado:
 			continue
 		var theirs := o._body_segment()
 		var pts := Geometry2D.get_closest_points_between_segments(mine[0], mine[1], theirs[0], theirs[1])
@@ -621,6 +679,11 @@ func _corpse_physics(dt: float) -> void:
 				swing_vel = 0.0
 				if zap_state == Zap.NONE:   # Carbonizado ya no sangra
 					_spawn_blood_pool()
+		return
+
+	# Tirado donde llega el agua de la inundación: se lo lleva flotando
+	if zap_state == Zap.NONE and Storm.flooded_at(ground_point()):
+		_swept_by_flood()
 		return
 
 	# Tirado en el piso: se arrastra un poco y queda acostado
@@ -944,7 +1007,7 @@ func _update_fire(dt: float) -> void:
 	if eaten or zap_state != Zap.NONE or is_queued_for_deletion():
 		return
 	if on_fire:
-		if in_water:
+		if in_water or Storm.wet():   # El agua (o la lluvia del diluvio) lo apaga
 			_put_out(true)
 			return
 		_burn_t += dt
@@ -979,9 +1042,9 @@ func _update_fire(dt: float) -> void:
 		_heat = maxf(0.0, _heat - HEAT_COOL * dt)
 
 ## En la llama de una antorcha (solo agarrado o volando: caminando pasa por delante o por
-## detrás), o pegado a otro aldeano que se está quemando.
+## detrás), o pegado a otro aldeano que se está quemando. Con la lluvia no se prende.
 func _touching_fire() -> bool:
-	if in_water or modulate.a < 0.2:
+	if in_water or modulate.a < 0.2 or Storm.wet():
 		return false
 	if dragging or falling:
 		for t in get_tree().get_nodes_in_group("torch"):
@@ -1150,6 +1213,79 @@ func _spawn_steam() -> void:
 	p.emitting = true
 	p.finished.connect(p.queue_free)
 
+## Punto del piso debajo de él (para la inundación y el tornado): sus pies, o la superficie
+## del mar si está flotando ahí.
+func ground_point() -> Vector2:
+	if in_water and not flooded:
+		return global_position + Vector2(0, WATERLINE_DEPTH)
+	if dead and corpse_grounded and not in_water:
+		return global_position + Vector2(0, FEET - 2.0 - FEET_DROP)   # Acostado
+	return global_position + Vector2(0, FEET - 2.0)
+
+# --- TORNADO ---
+## Si un tornado lo puede chupar (vivo o cadáver; no si se está friendo por un rayo, ni
+## recién revoleado).
+func can_be_lifted() -> bool:
+	return can_blast() and not dragging and _tornado_cool <= 0.0 and modulate.a > 0.3
+
+## Lo chupó un tornado: deja lo que estaba haciendo y desde ahora lo mueve él (ver Tornado).
+func enter_tornado(t: Tornado) -> void:
+	tornado = t
+	if food:
+		food.release_eater()
+	falling = false
+	in_water = false
+	flooded = false
+	drowning = false
+	drown_elapsed = 0.0
+	modulate.a = 1.0
+	corpse_grounded = false
+	velocity = Vector2.ZERO
+	shove_vel = Vector2.ZERO
+	shove_timer = 0.0
+	if not dead:
+		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
+		_voice.play()
+
+## El tornado lo suelta revoleado con vel: sale volando (y cae donde caiga).
+func exit_tornado(vel: Vector2) -> void:
+	tornado = null
+	_tornado_cool = TORNADO_COOL
+	_launch(vel, false)
+	swing_vel = clampf(swing_vel + randf_range(-9.0, 9.0), -12.0, 12.0)   # Sale dando vueltas
+
+# --- DILUVIO ---
+## Lo alcanzó el agua de la inundación (ver Storm): queda flotando donde está y la corriente
+## se lo lleva hacia la orilla. Como en el mar, si no lo rescatan se ahoga (si el agua baja
+## antes, se salva).
+func _swept_by_flood() -> void:
+	if food:
+		food.release_eater()
+	_start_floating()
+	flooded = true
+	water_surface_y = global_position.y + FLOOD_DEPTH
+	z_index = 0
+	velocity = Vector2.ZERO
+	shove_vel = Vector2.ZERO
+	shove_timer = 0.0
+	if not dead:
+		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
+		_voice.play()
+
+## Bajó el agua: queda en tierra donde estaba (vivo sigue caminando).
+func _flood_dry() -> void:
+	flooded = false
+	in_water = false
+	drowning = false
+	drown_elapsed = 0.0
+	modulate.a = 1.0
+	if dead:
+		corpse_grounded = true
+		floor_y = global_position.y
+		corpse_vel = Vector2.ZERO
+		return
+	_land_on_island()
+
 # --- TIBURÓN ---
 ## En el agua se hunde. En la isla (mouth = la boca del tiburón) se lo chupa hacia la boca.
 func get_eaten(mouth := Vector2.INF) -> void:
@@ -1222,6 +1358,7 @@ func _process(dt: float) -> void:
 	_update_zap(dt)
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)
+	_tornado_cool = maxf(0.0, _tornado_cool - dt)
 
 ## Flotando (o hundiéndose) lo que queda debajo de la superficie no se ve.
 func _update_waterline() -> void:
@@ -1295,6 +1432,12 @@ func _start_drag() -> void:
 	# Si estaba medio desvanecido al ser rescatado, restaurar visibilidad parcial
 	if drowning:
 		modulate.a = max(modulate.a, 0.7)
+	# Sacado del agua de la inundación: ya no flota (soltado en el agua, vuelve a flotar)
+	if flooded:
+		flooded = false
+		in_water = false
+		drowning = false
+		drown_elapsed = 0.0
 
 func _stop_drag() -> void:
 	dragging = false
@@ -1339,6 +1482,7 @@ func _start_fall() -> void:
 ## Soltado con impulso: sale volando con la velocidad del mouse, incluso desde el agua.
 func _launch(vel: Vector2, from_island: bool) -> void:
 	in_water = false
+	flooded = false
 	drowning = false
 	drown_elapsed = 0.0
 	modulate.a = 1.0

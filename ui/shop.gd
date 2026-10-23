@@ -1,7 +1,7 @@
 extends Control
 class_name Shop
 ## Tienda: se gastan ofrendas en decoraciones para la isla, el cielo (Luna de Sangre),
-## armas/poderes (pistola, rayo y meteorito) y tiburones.
+## armas/poderes (pistola, rayo, meteorito, tornado y diluvio) y tiburones.
 ## Las decoraciones se cobran recién al colocarlas (ver DecorPlacer).
 
 var hud: HUD
@@ -10,6 +10,8 @@ var _deco_buttons := {}       # kind -> Button
 var _gun_btn: Button
 var _lightning_btn: Button
 var _meteor_btn: Button
+var _tornado_btn: Button
+var _storm_btn: Button
 var _moon_btn: Button
 var _sharks: Array[Dictionary] = []   # Por tarjeta: {btn, icon, price, status}
 
@@ -116,6 +118,12 @@ func _ready() -> void:
 			"meteor":
 				_meteor_btn = _unlock_card(power_row, icon, t[1], Meteor.PRICE,
 						"Explota y deja un cráter: mata a los que están cerca y hace volar a los demás.", hud.unlock_meteor)
+			"tornado":
+				_tornado_btn = _unlock_card(power_row, icon, t[1], Tornado.PRICE,
+						"Mantené el click y llevalo con el mouse: levanta aldeanos, cocos y tiburones, los hace girar y los revolea.", hud.unlock_tornado)
+			"rain":
+				_storm_btn = _unlock_card(power_row, icon, t[1], Storm.PRICE,
+						"Una tormenta que inunda la orilla: el agua se lleva a los que alcanza. La lluvia apaga el fuego.", hud.unlock_storm)
 			_:
 				icon.modulate = Color(1, 1, 1, 0.45)
 				var b := _card(power_row, icon, t[1], -1, "Próximamente")
@@ -169,6 +177,8 @@ func _sync() -> void:
 	_sync_unlock(_gun_btn, Gun.unlocked, Gun.PRICE, "Desbloqueada")
 	_sync_unlock(_lightning_btn, Lightning.unlocked, Lightning.PRICE, "Desbloqueado")
 	_sync_unlock(_meteor_btn, Meteor.unlocked, Meteor.PRICE, "Desbloqueado")
+	_sync_unlock(_tornado_btn, Tornado.unlocked, Tornado.PRICE, "Desbloqueado")
+	_sync_unlock(_storm_btn, Storm.unlocked, Storm.PRICE, "Desbloqueado")
 	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada")
 	var next := hud.shark_owned.find(false)   # Se compran en orden: el primero que falta
 	for i in _sharks.size():

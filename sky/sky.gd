@@ -2,7 +2,8 @@ extends CanvasLayer
 ## Ciclo día/noche: bajás el sol hasta el horizonte y sale la luna (y al revés).
 ## El color del cielo, el de las nubes y el tinte del mundo dependen de qué tan bajo está el sol.
 ## Con la Luna de Sangre en el cielo todo se tiñe de rojo, y cuanto más se la
-## alimenta, más rojo. Cada rayo ilumina todo un instante (ver flash).
+## alimenta, más rojo. Cada rayo ilumina todo un instante (ver flash). Con el diluvio
+## (ver storm) se pone gris y oscuro, y las nubes tapan al sol y a la luna.
 ## Con la cámara en el cielo (menú de inicio, ver lift) se ve el colchón de nubes de allá
 ## arriba (CloudBank) y el cielo de arriba es más oscuro.
 
@@ -21,6 +22,10 @@ const BIRDS_PARALLAX := 0.7 # Cuánto se mueven las gaviotas con la cámara (1 =
 const HIGH_FROM := 300.0
 const HIGH_FULL := 1500.0
 const HIGH_DARK := 0.5
+## Diluvio (ver Storm): con la tormenta el cielo se pone gris y todo se oscurece.
+const C_STORM_SKY := Color(0.33, 0.38, 0.45)
+const C_STORM_TINT := Color(0.62, 0.66, 0.74)   # Multiplica el tinte de ahora (de día y de noche)
+const STORM_HIDE := 0.8          # Cuánto tapan las nubes de tormenta al sol y a la luna
 
 @onready var background: ColorRect = $Background
 @onready var stars: Node2D = $Stars
@@ -35,6 +40,8 @@ var night := 0.0   # 0 = mediodía, 1 = noche cerrada
 ## hasta que se termina de poner la luna, o desde que se carga una partida de noche.
 var is_night := false
 var blood_moon := false
+## Cuánto llueve (lo pone Storm): 0 despejado, 1 tormenta cerrada.
+var storm := 0.0
 var bank: CloudBank
 ## Cuánto subió la cámara (ver World.lift). Lo lejano se mueve menos: el sol, la luna y
 ## las estrellas nada; las nubes y las gaviotas menos que la isla; el colchón de nubes,
@@ -127,13 +134,20 @@ func _process(dt: float) -> void:
 	_blood = move_toward(_blood, 1.0 if active else 0.0, BLOOD_FADE * dt)
 	_level = move_toward(_level, moon.feed_t(), LEVEL_FADE * dt)
 
-	background.color = _sky.sample(night).lerp(_blood_sky.sample(_level), _blood).lerp(C_FLASH_SKY, _flash * 0.65)
+	var storm_sky := C_STORM_SKY.darkened(night * 0.7)
+	background.color = _sky.sample(night).lerp(_blood_sky.sample(_level), _blood).lerp(storm_sky, storm * 0.8) \
+			.lerp(C_FLASH_SKY, _flash * 0.65)
 	var star_red := 1.0 - 0.6 * _blood
-	stars.modulate = Color(1.0, star_red, star_red, smoothstep(0.65, 1.0, night))
-	clouds.set_light(night, _blood, _flash, background.color)
+	stars.modulate = Color(1.0, star_red, star_red, smoothstep(0.65, 1.0, night) * (1.0 - storm))
+	# Con la tormenta el sol y la luna casi no se ven, detrás de las nubes
+	var behind := Color(1.0, 1.0, 1.0, 1.0 - STORM_HIDE * storm)
+	sun.modulate = behind
+	moon.modulate = behind
+	clouds.set_light(night, _blood, _flash, background.color, storm)
 	bank.set_light(night, _blood, _flash, background.color)
 	if night_tint:
-		night_tint.color = _tint.sample(night).lerp(_blood_tint.sample(_level), _blood).lerp(Color.WHITE, _flash)
+		var tint := _tint.sample(night).lerp(_blood_tint.sample(_level), _blood)
+		night_tint.color = tint.lerp(tint * C_STORM_TINT, storm).lerp(Color.WHITE, _flash)
 
 ## Cielo de altura: degradé del color del cielo, más oscuro arriba, a transparente abajo.
 func _paint_high(ci: CanvasItem) -> void:

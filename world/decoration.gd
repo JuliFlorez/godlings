@@ -1,7 +1,8 @@
 extends Node2D
 class_name Decoration
 ## Decoración de la isla (palmera, arbusto, flores, roca, antorcha), dibujada por código.
-## De noche las antorchas iluminan la isla alrededor (PointLight2D).
+## De noche las antorchas iluminan la isla alrededor (PointLight2D); la lluvia del diluvio las
+## apaga hasta que para (ver Storm).
 ## El origen del nodo queda LIFT px arriba de la base, igual que el centro de un aldeano,
 ## para que el orden por Y (quién tapa a quién) sea parejo entre ambos.
 
@@ -71,6 +72,7 @@ var _grow_t := 0.0
 
 var _light: PointLight2D
 var _sky: Node
+var _lit := 1.0             # Antorcha: 1 prendida, 0 apagada por la lluvia del diluvio (ver Storm)
 
 func _ready() -> void:
 	if not ghost:
@@ -96,9 +98,9 @@ func _tint() -> void:
 		modulate = Color.WHITE
 
 ## Antorcha: si el cuerpo del aldeano está en la llama o en el calor que sube de ella.
-## (Mientras la mueven de lugar no quema.)
+## (Mientras la mueven de lugar no quema, ni apagada por la lluvia.)
 func burns(v: Villager) -> bool:
-	if moving:
+	if moving or _lit < 0.5:
 		return false
 	var flame := global_position + Vector2(0, LIFT) + TORCH_FLAME
 	for h in FLAME_HEAT:
@@ -137,13 +139,15 @@ func _process(dt: float) -> void:
 	if kind == "palm" and not ghost:
 		_grow_coconuts(dt)
 	if _light:
+		# La lluvia la apaga enseguida; cuando para, se vuelve a prender de a poco
+		_lit = move_toward(_lit, 0.0 if Storm.wet() else 1.0, dt * (2.0 if Storm.wet() else 0.6))
 		# Se prende a medida que oscurece; de día no ilumina nada
 		var night: float = _sky.night if _sky else 0.0
 		var dark := smoothstep(0.55, 0.95, night)
 		var t := Time.get_ticks_msec() / 1000.0 + variant * 10.0
 		var flick := 1.0 + sin(t * 17.0) * 0.06 + sin(t * 29.0) * 0.04
-		_light.energy = TORCH_LIGHT_ENERGY * dark * flick
-		_light.enabled = dark > 0.01
+		_light.energy = TORCH_LIGHT_ENERGY * dark * flick * _lit
+		_light.enabled = dark > 0.01 and _lit > 0.01
 
 ## Halo radial compartido por todas las antorchas: blanco al centro, se apaga hacia afuera.
 static func _torch_light_texture() -> GradientTexture2D:
@@ -176,7 +180,7 @@ func _grow_coconuts(dt: float) -> void:
 
 func _draw() -> void:
 	draw_set_transform(Vector2(0, LIFT))
-	paint(self, kind, variant, Time.get_ticks_msec() / 1000.0, ALL_COCONUTS if ghost else _nut_size)
+	paint(self, kind, variant, Time.get_ticks_msec() / 1000.0, ALL_COCONUTS if ghost else _nut_size, _lit)
 	if hover_coconut >= 0:
 		var c := palm_top(variant) + COCONUT_SLOTS[hover_coconut]
 		draw_arc(c, COCONUT_R + 2.5, 0.0, TAU, 20, Color(1.0, 0.95, 0.6, 0.9), 1.5, true)
@@ -189,15 +193,15 @@ static func palm_top(v: float) -> Vector2:
 	return Vector2(lerpf(-16.0, 16.0, v), -lerpf(92.0, 116.0, fposmod(v * 7.3, 1.0)))
 
 ## Dibuja la decoración con la base en el origen (hacia arriba es -y).
-## "nuts" es el tamaño (0..1) de cada coco de la palmera.
-static func paint(ci: CanvasItem, k: String, v: float, t: float, nuts: Array[float] = ALL_COCONUTS) -> void:
+## "nuts" es el tamaño (0..1) de cada coco de la palmera; "lit", cuánto está prendida la antorcha.
+static func paint(ci: CanvasItem, k: String, v: float, t: float, nuts: Array[float] = ALL_COCONUTS, lit := 1.0) -> void:
 	ci.draw_colored_polygon(_ellipse(Vector2(0, 2), 20 if k == "palm" else 14, 5), Color(0, 0, 0, 0.18))
 	match k:
 		"palm": _paint_palm(ci, v, t, nuts)
 		"bush": _paint_bush(ci, v)
 		"flowers": _paint_flowers(ci, v)
 		"rock": _paint_rock(ci, v)
-		"torch": _paint_torch(ci, t)
+		"torch": _paint_torch(ci, t, lit)
 
 static func _paint_palm(ci: CanvasItem, v: float, t: float, nuts: Array[float]) -> void:
 	var top := palm_top(v)
@@ -269,15 +273,20 @@ static func _paint_rock(ci: CanvasItem, v: float) -> void:
 	ci.draw_colored_polygon(_ellipse(Vector2(-5, -13), 6, 3), Color(0.72, 0.72, 0.76))
 	ci.draw_circle(Vector2(16, -3), 4.0, Color(0.5, 0.5, 0.54), true, -1.0, true)
 
-static func _paint_torch(ci: CanvasItem, t: float) -> void:
+## lit: 1 prendida, 0 apagada (la llama se achica hacia la copa y quedan las brasas).
+static func _paint_torch(ci: CanvasItem, t: float, lit := 1.0) -> void:
 	var flick := 1.0 + sin(t * 17.0) * 0.08 + sin(t * 29.0) * 0.05
-	ci.draw_circle(Vector2(0, -66), 26.0 * flick, Color(1.0, 0.6, 0.2, 0.14), true, -1.0, true)
+	if lit > 0.05:
+		ci.draw_circle(Vector2(0, -66), 26.0 * flick, Color(1.0, 0.6, 0.2, 0.14 * lit), true, -1.0, true)
 	ci.draw_line(Vector2(0, 0), Vector2(0, -50), Color(0.5, 0.32, 0.17), 4.0, true)
 	for y in [-14.0, -30.0]:
 		ci.draw_line(Vector2(-2.5, y), Vector2(2.5, y - 2), Color(0.35, 0.22, 0.1), 2.0, true)
 	ci.draw_colored_polygon(PackedVector2Array([Vector2(-7, -50), Vector2(7, -50), Vector2(9, -58), Vector2(-9, -58)]), Color(0.4, 0.26, 0.12))
-	ci.draw_colored_polygon(_ellipse(Vector2(0, -66), 6.5 * flick, 10.0 * flick), Color(1.0, 0.5, 0.12))
-	ci.draw_colored_polygon(_ellipse(Vector2(0, -63), 3.2, 5.5 * flick), Color(1.0, 0.92, 0.55))
+	if lit < 1.0:
+		ci.draw_colored_polygon(_ellipse(Vector2(0, -58), 7.0, 2.2), Color(0.32, 0.09, 0.04))   # Brasas mojadas
+	if lit > 0.05:   # Al apagarse la llama se achica hacia la copa
+		ci.draw_colored_polygon(_ellipse(Vector2(0, -58.0 - 8.0 * lit), 6.5 * flick * lit, 10.0 * flick * lit), Color(1.0, 0.5, 0.12))
+		ci.draw_colored_polygon(_ellipse(Vector2(0, -58.0 - 5.0 * lit), 3.2 * lit, 5.5 * flick * lit), Color(1.0, 0.92, 0.55))
 
 static func _ellipse(c: Vector2, rx: float, ry: float, n := 16) -> PackedVector2Array:
 	var pts := PackedVector2Array()

@@ -23,6 +23,10 @@ var _profile := PackedFloat32Array()   # px de textura, desde el centro de la is
 var _tex_center := Vector2.ZERO        # Centro de la isla en el dibujo (respecto al centro de la textura)
 var _ripples: Array[Vector4] = []      # xy = centro, z = edad, w = tamaño
 var _glint := 0.0
+## La orilla de la isla, como se la pasa al shader (centro y radio en px de piso, ver
+## fit_island). La inundación del diluvio usa la misma (ver Storm).
+var shore_center := Vector2.ZERO
+var shore_radii := PackedFloat32Array()
 
 func _ready() -> void:
 	add_to_group("sea")
@@ -57,7 +61,9 @@ func fit_island(sprite: Sprite2D) -> void:
 		var phi := -PI + TAU * i / BINS
 		var theta := Vector2(cos(phi) / k.x, sin(phi) / k.y).angle()   # La misma dirección en el dibujo
 		radii[i] = _radius_at(theta) * (Vector2.from_angle(theta) * k).length()
-	_mat.set_shader_parameter("isle_center", sprite.global_position + _tex_center * sprite.global_scale)
+	shore_center = sprite.global_position + _tex_center * sprite.global_scale
+	shore_radii = radii
+	_mat.set_shader_parameter("isle_center", shore_center)
 	_mat.set_shader_parameter("isle_r", radii)
 
 ## Mide desde el centro de la isla hasta dónde llega el dibujo en cada dirección.

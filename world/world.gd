@@ -50,6 +50,8 @@ var hud: HUD
 var gun: Gun
 var lightning: Lightning
 var meteor: Meteor
+var tornado: Tornado
+var storm: Storm
 var placer: DecorPlacer
 var sharks: Array[Shark] = []
 ## Aldeanos y decoraciones, ordenados por Y para que el de adelante tape al de atrás.
@@ -148,6 +150,10 @@ func _ready() -> void:
 	add_child(lightning)
 	meteor = Meteor.new()
 	add_child(meteor)
+	tornado = Tornado.new()
+	add_child(tornado)
+	storm = Storm.new()
+	add_child(storm)
 	placer = DecorPlacer.new()
 	placer.hud = hud
 	placer.props = props
@@ -160,6 +166,11 @@ func _ready() -> void:
 		lightning.armed_changed.connect(hud.set_lightning_armed)
 		hud.meteor_toggled.connect(meteor.set_armed)
 		meteor.armed_changed.connect(hud.set_meteor_armed)
+		hud.tornado_toggled.connect(tornado.set_armed)
+		tornado.armed_changed.connect(hud.set_tornado_armed)
+		# El diluvio no se apunta: no guarda las armas ni ellas a él
+		hud.storm_toggled.connect(storm.set_active)
+		storm.active_changed.connect(hud.set_raining)
 		hud.decoration_chosen.connect(func(k: String):
 			_disarm()
 			placer.start(k))
@@ -194,7 +205,7 @@ func _ready() -> void:
 	title.open()
 
 func _weapons() -> Array[Node]:
-	return [gun, lightning, meteor]
+	return [gun, lightning, meteor, tornado]
 
 ## Guarda las armas y poderes (menos keep).
 func _disarm(keep: Node = null) -> void:

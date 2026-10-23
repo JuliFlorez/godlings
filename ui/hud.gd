@@ -13,6 +13,8 @@ signal expansion_points_changed(points: int)
 signal gun_toggled(on: bool)
 signal lightning_toggled(on: bool)
 signal meteor_toggled(on: bool)
+signal tornado_toggled(on: bool)
+signal storm_toggled(on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
@@ -59,6 +61,8 @@ const C_EXPAND := Color(0.98, 0.78, 0.22)
 const C_GUN := Color(0.9, 0.36, 0.32)
 const C_ZAP := Color(1.0, 0.86, 0.3)
 const C_METEOR := Color(1.0, 0.55, 0.22)
+const C_TORNADO := Color(0.78, 0.82, 0.9)
+const C_RAIN := Color(0.42, 0.62, 1.0)
 const C_SOON := Color(1.0, 0.8, 0.3)
 const C_OFFERING := Color(1.0, 0.84, 0.34)
 const C_SHOP := Color(0.46, 0.84, 0.52)
@@ -68,8 +72,8 @@ const TOOLS := [
 	["gun", "Pistola", "G", true, "Sacar o guardar la pistola [G]"],
 	["lightning", "Rayo", "R", true, "Sacar o guardar el rayo [R]"],
 	["meteor", "Meteorito", "M", true, "Sacar o guardar el meteorito [M]"],
-	["tornado", "Tornado", "", false, "Un tornado que levanta aldeanos por el aire"],
-	["rain", "Diluvio", "", false, "Una tormenta que inunda la orilla"],
+	["tornado", "Tornado", "T", true, "Sacar o guardar el tornado [T]"],
+	["rain", "Diluvio", "D", true, "Desatar o calmar el diluvio [D]"],
 ]
 const SLOT_SIZE := Vector2(76, 62)
 
@@ -89,8 +93,15 @@ var _lightning_btn: Button
 var _lightning_armed := false
 var _meteor_btn: Button
 var _meteor_armed := false
+var _tornado_btn: Button
+var _tornado_armed := false
+var _rain_btn: Button
+var _raining := false
+var _rain_charge: ColorRect   # Barrita de abajo del slot: se llena mientras el diluvio se recarga
 var _slot_zap: StyleBoxFlat
 var _slot_meteor: StyleBoxFlat
+var _slot_tornado: StyleBoxFlat
+var _slot_rain: StyleBoxFlat
 ## Encima del mundo y debajo de la interfaz, sin el tinte de la noche.
 var overlay: Control
 var _flash_rect: ColorRect
@@ -164,6 +175,14 @@ func _process(delta: float) -> void:
 		_flash_amount = move_toward(_flash_amount, 0.0, 6.0 * delta)
 		_flash_rect.color.a = _flash_amount
 
+	# Diluvio recargándose: la barrita se va llenando (y el ícono, apagado)
+	var charging := Storm.unlocked and Storm.charge < 1.0 and not _raining
+	_rain_charge.visible = charging
+	if charging:
+		_rain_charge.size.x = (SLOT_SIZE.x - 16.0) * Storm.charge
+	if Storm.unlocked:
+		_rain_btn.get_meta("icon").modulate = Color(1, 1, 1, 0.45) if charging else Color.WHITE
+
 # ---- API para otros scripts ----
 func add_xp(amount: int) -> void:
 	if not _can_earn_points():
@@ -233,6 +252,14 @@ func set_meteor_armed(on: bool) -> void:
 	_meteor_armed = on
 	_refresh()
 
+func set_tornado_armed(on: bool) -> void:
+	_tornado_armed = on
+	_refresh()
+
+func set_raining(on: bool) -> void:
+	_raining = on
+	_refresh()
+
 ## Aparece de a poco (al llegar la cámara a la isla desde el menú de inicio, ver World).
 func reveal(duration: float) -> void:
 	visible = true
@@ -242,7 +269,7 @@ func reveal(duration: float) -> void:
 ## Si hay un arma o poder afuera: el click es para eso (no para agarrar aldeanos, el
 ## tiburón, cocos ni decoraciones).
 static func aiming() -> bool:
-	return Gun.armed or Lightning.armed or Meteor.armed
+	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed
 
 ## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
 func flash_screen(amount: float) -> void:
@@ -293,6 +320,22 @@ func unlock_meteor() -> bool:
 		return false
 	Meteor.unlocked = true
 	popup_text("¡Meteorito desbloqueado! Sacalo con M", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_METEOR)
+	_refresh()
+	return true
+
+func unlock_tornado() -> bool:
+	if Tornado.unlocked or not spend_offerings(Tornado.PRICE):
+		return false
+	Tornado.unlocked = true
+	popup_text("¡Tornado desbloqueado! Sacalo con T", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_TORNADO)
+	_refresh()
+	return true
+
+func unlock_storm() -> bool:
+	if Storm.unlocked or not spend_offerings(Storm.PRICE):
+		return false
+	Storm.unlocked = true
+	popup_text("¡Diluvio desbloqueado! Desatalo con D", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_RAIN)
 	_refresh()
 	return true
 
@@ -363,6 +406,8 @@ func save_state() -> Dictionary:
 		"gun": Gun.unlocked,
 		"lightning": Lightning.unlocked,
 		"meteor": Meteor.unlocked,
+		"tornado": Tornado.unlocked,
+		"storm": Storm.unlocked,
 		"blood_moon": Moon.blood_unlocked,
 		"shark_owned": shark_owned,
 		"shark_on": shark_on,
@@ -377,6 +422,8 @@ func load_state(d: Dictionary) -> void:
 	Gun.unlocked = d.get("gun", false)
 	Lightning.unlocked = d.get("lightning", false)
 	Meteor.unlocked = d.get("meteor", false)
+	Tornado.unlocked = d.get("tornado", false)
+	Storm.unlocked = d.get("storm", false)
 	Moon.blood_unlocked = d.get("blood_moon", false)
 	var owned: Array = d.get("shark_owned", [])
 	var on: Array = d.get("shark_on", [])
@@ -392,6 +439,7 @@ func load_state(d: Dictionary) -> void:
 
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
 ## de decoraciones, las armas y poderes ni el carnet, que la usan para cerrar/terminar/guardar).
+## (El diluvio no: se calma con D.)
 ## Tampoco con el click apretado: en pausa se perdería el soltado de lo que se está
 ## arrastrando (aldeano, tiburón, coco, sol o luna) y quedaría pegado al cursor.
 func esc_is_free() -> bool:
@@ -479,6 +527,10 @@ func _refresh() -> void:
 			"Sacar o guardar el rayo [R]", "Desbloquealo en la tienda (%d ofrendas)", Lightning.PRICE)
 	_sync_weapon(_meteor_btn, Meteor.unlocked, _meteor_armed, _slot_meteor,
 			"Sacar o guardar el meteorito [M]", "Desbloquealo en la tienda (%d ofrendas)", Meteor.PRICE)
+	_sync_weapon(_tornado_btn, Tornado.unlocked, _tornado_armed, _slot_tornado,
+			"Sacar o guardar el tornado [T]", "Desbloquealo en la tienda (%d ofrendas)", Tornado.PRICE)
+	_sync_weapon(_rain_btn, Storm.unlocked, _raining, _slot_rain,
+			"Desatar o calmar el diluvio [D]", "Desbloquealo en la tienda (%d ofrendas)", Storm.PRICE)
 
 	_drag_btn.add_theme_stylebox_override("normal", _slot_idle if select_mode else _slot_mode)
 	_drag_btn.add_theme_stylebox_override("hover", _slot_hover if select_mode else _slot_mode)
@@ -493,6 +545,8 @@ func _refresh() -> void:
 		_hint.text = tr("Click para lanzar un rayo · click derecho, Esc o R para guardarlo.")
 	elif _meteor_armed:
 		_hint.text = tr("Click en la isla o el agua para tirar un meteorito · click derecho, Esc o M para guardarlo.")
+	elif _tornado_armed:
+		_hint.text = tr("Mantené apretado el click en la isla o el agua para que baje el tornado, y llevalo con el mouse · click derecho, Esc o T para guardarlo.")
 	elif _decor_edit == DecorPlacer.Edit.MOVING:
 		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
 	elif _decor_edit == DecorPlacer.Edit.HOVER:
@@ -503,6 +557,8 @@ func _refresh() -> void:
 		_hint.text = tr("Soltalo encima de un aldeano para partirlo.")
 	elif select_mode:
 		_hint.text = tr("Click en un aldeano para ver su carnet y ponerle nombre · S para volver a arrastrar.")
+	elif _raining:
+		_hint.text = tr("¡Diluvio! Rescatá a los que se lleva el agua: arrastralos a lo seco · D para calmarlo.")
 	elif full and not island_maxed:
 		_hint.text = tr("Isla llena: sacrificá aldeanos para ganar puntos y expandirla.")
 	elif not has_energy:
@@ -618,6 +674,8 @@ func _build_toolbar() -> void:
 	_slot_mode = make_box(Color(C_DEVOTION, 0.30), 12, C_DEVOTION.lightened(0.2), 2)
 	_slot_zap = make_box(Color(C_ZAP, 0.32), 12, C_ZAP.lightened(0.3), 2)
 	_slot_meteor = make_box(Color(C_METEOR, 0.34), 12, C_METEOR.lightened(0.3), 2)
+	_slot_tornado = make_box(Color(C_TORNADO, 0.3), 12, C_TORNADO.lightened(0.3), 2)
+	_slot_rain = make_box(Color(C_RAIN, 0.34), 12, C_RAIN.lightened(0.3), 2)
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -659,6 +717,19 @@ func _build_toolbar() -> void:
 			"meteor":
 				_meteor_btn = _weapon_slot(slot, _slot_meteor, func(): return Meteor.unlocked,
 						func(): meteor_toggled.emit(not _meteor_armed))
+			"tornado":
+				_tornado_btn = _weapon_slot(slot, _slot_tornado, func(): return Tornado.unlocked,
+						func(): tornado_toggled.emit(not _tornado_armed))
+			"rain":
+				_rain_btn = _weapon_slot(slot, _slot_rain, func(): return Storm.unlocked,
+						func(): storm_toggled.emit(not _raining))
+				_rain_charge = ColorRect.new()
+				_rain_charge.color = C_RAIN
+				_rain_charge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				_rain_charge.position = Vector2(8.0, SLOT_SIZE.y - 6.0)
+				_rain_charge.size = Vector2(0.0, 3.0)
+				_rain_charge.visible = false
+				slot.add_child(_rain_charge)
 
 ## Arma o poder que se compra en la tienda: lo saca o lo guarda, y bloqueado lleva a la tienda.
 func _weapon_slot(slot: Button, active: StyleBoxFlat, unlocked: Callable, toggle: Callable) -> Button:
