@@ -1,6 +1,7 @@
 extends VBoxContainer
 class_name SettingsPanel
-## Las opciones (ver Settings): volumen general y de música, idioma y pantalla completa.
+## Las opciones (ver Settings): volumen general y de música, idioma, pantalla completa y
+## fotogramas por segundo.
 ## Va en el menú de pausa y en el de inicio; cada cambio se aplica y se guarda al toque.
 
 signal locale_changed
@@ -11,9 +12,10 @@ var _master_slider: HSlider
 var _music_slider: HSlider
 var _lang_buttons := {}       # código -> Button
 var _window_buttons := {}     # pantalla completa (bool) -> Button
+var _fps_buttons := {}        # mostrar (bool) -> Button
 
 func _ready() -> void:
-	add_theme_constant_override("separation", 12)
+	add_theme_constant_override("separation", 8)
 
 	var m := _slider_row("Volumen general", Settings.master, Settings.set_master)
 	_master_slider = m[0]
@@ -40,6 +42,15 @@ func _ready() -> void:
 			Settings.set_fullscreen(full)
 			sync())
 		_window_buttons[full] = b
+
+	# En una sola línea, para que el panel siga entrando debajo del logo en el menú de inicio
+	var fps := _choice_row("Fotogramas (FPS)", true)
+	for on: bool in [false, true]:
+		var b := _choice(fps, "Mostrar" if on else "Ocultar")
+		b.pressed.connect(func():
+			Settings.set_show_fps(on)
+			sync())
+		_fps_buttons[on] = b
 	sync()
 
 ## Muestra los valores de ahora (al abrir el menú).
@@ -52,6 +63,8 @@ func sync() -> void:
 		_mark(_lang_buttons[code], code == Settings.locale)
 	for full: bool in _window_buttons:
 		_mark(_window_buttons[full], full == Settings.fullscreen)
+	for on: bool in _fps_buttons:
+		_mark(_fps_buttons[on], on == Settings.show_fps)
 
 func _mark(b: Button, on: bool) -> void:
 	b.add_theme_stylebox_override("normal", HUD.make_box(Color(HUD.C_DEVOTION, 0.35) if on else Color(1, 1, 1, 0.08), 8, HUD.C_DEVOTION if on else Color(1, 1, 1, 0.12), 1))
@@ -84,10 +97,15 @@ func _slider_row(title: String, value: float, setter: Callable) -> Array:
 	return [s, value_l]
 
 ## Título y una fila de botones para elegir uno de ellos (devuelve la fila).
-func _choice_row(title: String) -> HBoxContainer:
-	add_child(HUD.make_label(title, 14, HUD.C_TEXT))
+## inline: el título va a la izquierda, en la misma fila que los botones.
+func _choice_row(title: String, inline := false) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
+	var label := HUD.make_label(title, 14, HUD.C_TEXT)
+	if inline:
+		row.add_child(label)
+	else:
+		add_child(label)
 	add_child(row)
 	return row
 

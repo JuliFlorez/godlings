@@ -34,7 +34,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
   - Al llenar la barra de XP ganás un **punto de expansión**: aparecen orbes dorados "+" en los bordes de la isla. Tocá uno (o el botón "Expandir isla") y la isla crece.
   - La invocación de aldeanos consume Devoción, la cual se recarga progresivamente con el tiempo. No se puede invocar si la isla está llena.
 - 💾 **Partidas guardadas**: hay 3 (en `user://save_1.cfg`, `save_2.cfg` y `save_3.cfg`; la partida de antes, `user://save.cfg`, pasa a ser la 1). Cada una se guarda sola cada 20 segundos, al salir y al volver al menú, y al elegirla se sigue donde quedó: progreso, ofrendas, compras, tamaño de la isla, aldeanos con su nombre y número de carnet, decoraciones, y si era de día o de noche (con la Luna de Sangre incluida). Los aldeanos que estaban volando o en el agua aparecen en la isla; los cadáveres y los cocos sueltos no se guardan. "Menú principal" en el menú de pausa guarda y vuelve al cielo, a elegir partida.
-- ⚙️ **Configuración** (en el menú de inicio y en el de pausa): volumen general, música, idioma (español o inglés) y pantalla completa. Se guarda aparte de las partidas (`user://settings.cfg`).
+- ⚙️ **Configuración** (en el menú de inicio y en el de pausa): volumen general, música, idioma (español o inglés), pantalla completa y un contador de fotogramas por segundo (FPS) en la esquina de abajo a la derecha. Se guarda aparte de las partidas (`user://settings.cfg`).
 - 🎨 **Arte 2D**: Sprites y texturas originales.
 
 ---
