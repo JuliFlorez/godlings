@@ -351,11 +351,11 @@ func _process(dt: float) -> void:
 	var ragdoll := villager.dragging or villager.falling or villager.in_water or villager.eaten or villager.dead
 	rag = move_toward(rag, 1.0 if ragdoll else 0.0, BLEND_SPEED * dt)
 
-	# Boca: "¡wow!" mientras lo tienen agarrado, va volando o ve venir un meteorito;
+	# Boca: "¡wow!" mientras lo tienen agarrado, va volando, ve venir un meteorito o se quema;
 	# masticando cuando come
 	if villager.dead:
 		_mouth.target = 0.0
-	elif villager.dragging or villager.falling or villager.is_scared():
+	elif villager.dragging or villager.falling or villager.is_scared() or villager.on_fire:
 		_mouth.target = 1.0
 	elif villager.food and villager._eat_t > 0.0:
 		_mouth.target = absf(sin(villager._eat_t * 12.0)) * 0.45

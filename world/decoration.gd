@@ -26,6 +26,9 @@ const TORCH_FLAME := Vector2(0, -66)          # Centro de la llama, relativo a l
 const TORCH_LIGHT_COLOR := Color(1.0, 0.62, 0.28)
 const TORCH_LIGHT_SIZE := 320                 # Diámetro del halo (px)
 const TORCH_LIGHT_ENERGY := 1.15
+## Hasta dónde quema: la llama y el calor que sube (px arriba de su centro)
+const FLAME_HEAT: Array[float] = [0.0, 10.0, 20.0]
+const FLAME_REACH := 5.0
 static var _light_tex: GradientTexture2D
 
 var kind := "palm"
@@ -75,6 +78,7 @@ func _ready() -> void:
 		_grow_t = randf_range(COCONUT_GROW_MIN, COCONUT_GROW_MAX)
 	valid = valid
 	if kind == "torch" and not ghost:
+		add_to_group("torch")   # Los aldeanos la buscan para saber si los tienen arriba del fuego
 		_sky = get_tree().get_first_node_in_group("sky")
 		_light = PointLight2D.new()
 		_light.texture = _torch_light_texture()
@@ -90,6 +94,17 @@ func _tint() -> void:
 		modulate = Color(1.3, 1.25, 1.1)
 	else:
 		modulate = Color.WHITE
+
+## Antorcha: si el cuerpo del aldeano está en la llama o en el calor que sube de ella.
+## (Mientras la mueven de lugar no quema.)
+func burns(v: Villager) -> bool:
+	if moving:
+		return false
+	var flame := global_position + Vector2(0, LIFT) + TORCH_FLAME
+	for h in FLAME_HEAT:
+		if v.body_distance(flame + Vector2(0, -h)) <= FLAME_REACH:
+			return true
+	return false
 
 func hit_test(global_point: Vector2) -> bool:
 	var r: Rect2 = HIT_RECTS.get(kind, HIT_RECTS.flowers)

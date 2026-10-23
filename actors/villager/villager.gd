@@ -104,6 +104,31 @@ var _pile: AshPile
 # --- Meteorito (ver Meteor): lo mira venir con la boca abierta y la explosión lo hace volar ---
 var _scared := 0.0
 
+# --- Fuego: agarrado (o cayendo) arriba de la llama de una antorcha se calienta y se prende.
+# Prendido fuego grita y corre desesperado por la isla, y contagia a los que toca. Tirándolo al
+# agua se apaga (queda tiznado un rato); si no, se va tostando y muere carbonizado, y se hace
+# cenizas como con el rayo. Un cadáver también se quema, y más rápido.
+const IGNITE_TIME := 0.5         # Segundos en el fuego hasta prenderse
+const HEAT_COOL := 1.5           # Lo que se enfría por segundo lejos del fuego
+const BURN_TIME := 5.0           # Prendido fuego, hasta morir carbonizado
+const CORPSE_BURN_TIME := 2.0
+const BURN_SOOT := 0.6           # Lo tostado que llega a quedar antes de morir (ver waterline.gdshader)
+const SOOT_FADE := 0.04          # Apagado, lo que se le va el tizne por segundo
+const SPREAD_DIST := 16.0        # Distancia (entre centros) a la que contagia el fuego
+const PANIC_SPEED := 2.6         # Veces speed corriendo prendido fuego
+const PANIC_TURN := Vector2(0.25, 0.6)   # Segundos entre volantazos
+const PANIC_SWERVE := 1.1        # Cuánto dobla en cada volantazo (rad)
+const SCREAM_EVERY := Vector2(0.6, 1.0)
+const FIRE_LIGHT_ENERGY := 0.8   # De noche ilumina alrededor, como una antorcha
+var on_fire := false
+var _heat := 0.0
+var _burn_t := 0.0
+var _soot := 0.0
+var _scream_t := 0.0
+var _flames: Flames
+var _sparks: CPUParticles2D
+var _fire_light: PointLight2D
+
 # --- Espacio personal y empujones ---
 # Los aldeanos no chocan físicamente entre sí: se esquivan con una separación suave.
 # El que está agarrado sí empuja a los demás, y los puede tirar de la isla.
@@ -321,13 +346,17 @@ func _physics_process(dt: float) -> void:
 	shove_vel = shove_vel.move_toward(Vector2.ZERO, SHOVE_FRICTION * dt)
 	shove_timer = maxf(0.0, shove_timer - dt)
 	_food_cooldown = maxf(0.0, _food_cooldown - dt)
+	if on_fire and food != null:
+		food.release_eater()   # Prendido fuego no se queda comiendo
 	if food != null and _food_ai(dt):
 		return
-	# Asustado (ve venir un meteorito) se queda quieto mirándolo
-	_walk = move_toward(_walk, 0.0 if _resting or is_scared() else 1.0, WALK_ACCEL * dt)
+	# Asustado (ve venir un meteorito) se queda quieto mirándolo; prendido fuego corre sin parar
+	var stop := (_resting or is_scared()) and not on_fire
+	_walk = move_toward(_walk, 0.0 if stop else 1.0, WALK_ACCEL * dt * (4.0 if on_fire else 1.0))
 	# Al doblar va más despacio (y si vuelve para atrás, frena y arranca de nuevo)
-	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * dt))
-	velocity = _heading * speed * smoothstep(0.0, 1.0, _walk) + _separation() + shove_vel
+	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * (2.0 if on_fire else 1.0) * dt))
+	var pace := speed * (PANIC_SPEED if on_fire else 1.0)
+	velocity = _heading * pace * smoothstep(0.0, 1.0, _walk) + _separation() + shove_vel
 	var prev_pos := global_position
 	move_and_slide()
 
@@ -348,7 +377,17 @@ func _physics_process(dt: float) -> void:
 		wander_timer = randf_range(1.5, 3.5)
 	else:
 		wander_timer -= dt
-		if wander_timer <= 0.0:
+		if on_fire:
+			# Corre para cualquier lado, en zigzag (casi sin darse vuelta del todo)
+			if wander_timer <= 0.0 or wander_timer > PANIC_TURN.y:
+				_resting = false
+				if dir == Vector2.ZERO:
+					_pick_dir()
+				else:
+					dir = dir.rotated(randf_range(-PANIC_SWERVE, PANIC_SWERVE))
+					_update_sprite_flip()
+				wander_timer = randf_range(PANIC_TURN.x, PANIC_TURN.y)
+		elif wander_timer <= 0.0:
 			if not _resting and randf() < REST_CHANCE:
 				_resting = true
 				wander_timer = randf_range(REST_TIME.x, REST_TIME.y)
@@ -363,7 +402,7 @@ func is_idle() -> bool:
 	return not (dragging or falling or in_water or eaten or dead)
 
 func wants_food() -> bool:
-	return food == null and is_idle() and _food_cooldown <= 0.0
+	return food == null and is_idle() and not on_fire and _food_cooldown <= 0.0
 
 func go_eat(c: Coconut) -> void:
 	food = c
@@ -638,6 +677,7 @@ func can_zap() -> bool:
 func zap() -> void:
 	if not can_zap():
 		return
+	_put_out()   # El rayo se encarga de carbonizarlo
 	zap_state = Zap.SHOCK
 	_zap_t = 0.0
 	_zap_pinned = not (dragging or falling or in_water) and (not dead or corpse_grounded)
@@ -899,6 +939,217 @@ func blast(push: Vector2, lethal: bool) -> void:
 	_launch(push, island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly))
 	swing_vel = clampf(swing_vel + randf_range(-6.0, 6.0), -12.0, 12.0)   # Que dé vueltas en el aire
 
+# --- FUEGO ---
+func _update_fire(dt: float) -> void:
+	if eaten or zap_state != Zap.NONE or is_queued_for_deletion():
+		return
+	if on_fire:
+		if in_water:
+			_put_out(true)
+			return
+		_burn_t += dt
+		var burn_time := CORPSE_BURN_TIME if dead else BURN_TIME
+		_soot = maxf(_soot, BURN_SOOT * minf(1.0, _burn_t / burn_time))
+		_waterline.set_shader_parameter("burnt", _soot)
+		_waterline.set_shader_parameter("embers", 0.5 + 0.3 * sin(_burn_t * 9.0))
+		_sparks.global_rotation = 0.0   # Suben aunque esté tirado o colgando
+		_smoke.global_rotation = 0.0
+		_update_fire_light()
+		if not dead:
+			_scream_t -= dt
+			if _scream_t <= 0.0:
+				_scream_t = randf_range(SCREAM_EVERY.x, SCREAM_EVERY.y)
+				_voice.pitch_scale = _voice_pitch * randf_range(1.05, 1.2)
+				_voice.play()
+		if _burn_t >= burn_time:
+			_burn_out()
+		return
+
+	# Apagado: el tizne se le va de a poco
+	if _soot > 0.0 and not dead:
+		_soot = maxf(0.0, _soot - SOOT_FADE * dt)
+		_waterline.set_shader_parameter("burnt", _soot)
+		_waterline.set_shader_parameter("embers", 0.0)
+
+	if _touching_fire():
+		_heat += dt
+		if _heat >= IGNITE_TIME:
+			ignite()
+	else:
+		_heat = maxf(0.0, _heat - HEAT_COOL * dt)
+
+## En la llama de una antorcha (solo agarrado o volando: caminando pasa por delante o por
+## detrás), o pegado a otro aldeano que se está quemando.
+func _touching_fire() -> bool:
+	if in_water or modulate.a < 0.2:
+		return false
+	if dragging or falling:
+		for t in get_tree().get_nodes_in_group("torch"):
+			if (t as Decoration).burns(self):
+				return true
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o and o != self and o.on_fire and o.global_position.distance_to(global_position) < SPREAD_DIST:
+			return true
+	return false
+
+## Se prende fuego.
+func ignite() -> void:
+	if on_fire or eaten or zap_state != Zap.NONE:
+		return
+	on_fire = true
+	_burn_t = 0.0
+	_scream_t = 0.0
+	_resting = false
+	wander_timer = 0.0
+	if _flames == null:
+		_flames = Flames.new()
+		add_child(_flames)   # Después del Rig: las llamas van por delante del cuerpo
+		_sparks = _make_sparks()
+		add_child(_sparks)
+	_flames.on = true
+	_sparks.emitting = true
+	if _smoke == null:
+		_start_smoke()
+	_smoke.emitting = true
+	if _fire_light == null:
+		_fire_light = PointLight2D.new()
+		_fire_light.texture = Decoration._torch_light_texture()
+		_fire_light.color = Decoration.TORCH_LIGHT_COLOR
+		_fire_light.enabled = false
+		add_child(_fire_light)
+	_ensure_hud()
+	if hud and not dead:
+		hud.popup_text("¡Se prendió fuego!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)
+
+## Se apaga. steam: cayó al agua (sale vapor).
+func _put_out(steam := false) -> void:
+	if not on_fire:
+		return
+	on_fire = false
+	_heat = 0.0
+	_flames.on = false
+	_sparks.emitting = false
+	_smoke.emitting = false
+	_fire_light.enabled = false
+	_waterline.set_shader_parameter("embers", 0.0)
+	if steam:
+		_spawn_steam()
+		_ensure_hud()
+		if hud and not dead:
+			hud.popup_text("¡Fiuuu!", get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_TEXT)
+
+## Se terminó de quemar: muere carbonizado y después se hace cenizas (ver _update_zap).
+func _burn_out() -> void:
+	var pinned := not (dragging or falling or in_water) and (not dead or corpse_grounded)
+	_put_out()
+	_die()
+	zap_state = Zap.CHARRED
+	_zap_t = 0.0
+	_zap_pinned = pinned
+	_soot = 1.0
+
+func _update_fire_light() -> void:
+	var sky := get_tree().get_first_node_in_group("sky")
+	var night: float = sky.night if sky else 0.0
+	var dark := smoothstep(0.55, 0.95, night)
+	_fire_light.enabled = dark > 0.01
+	_fire_light.energy = FIRE_LIGHT_ENERGY * dark * (1.0 + sin(_burn_t * 19.0) * 0.08 + sin(_burn_t * 31.0) * 0.05)
+
+## Chispas que se desprenden y suben (en coords del mundo: si lo mueven, dejan estela).
+func _make_sparks() -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	p.amount = 18
+	p.lifetime = 0.8
+	p.local_coords = false
+	p.position = Vector2(0, -6)
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.emission_rect_extents = Vector2(9, 22)
+	p.direction = Vector2.UP
+	p.spread = 35.0
+	p.gravity = Vector2(0, -70)
+	p.initial_velocity_min = 20.0
+	p.initial_velocity_max = 55.0
+	p.scale_amount_min = 1.5
+	p.scale_amount_max = 2.5
+	p.color_ramp = _fade_ramp(Color(1.0, 0.85, 0.35), Color(0.9, 0.25, 0.05, 0.0))
+	return p
+
+## Lenguas de fuego por todo el cuerpo (coords del aldeano) que siempre apuntan para arriba,
+## aunque esté tirado o colgando. Se prenden y se apagan de a poco (on).
+class Flames extends Node2D:
+	const GLOW := Color(1.0, 0.6, 0.2, 0.16)
+	const LAYERS := [[1.0, Color(0.92, 0.25, 0.05, 0.92)], [0.68, Color(1.0, 0.55, 0.1)], [0.38, Color(1.0, 0.92, 0.5)]]
+	const TONGUES := 13
+	const SIZE := Vector2(7.0, 22.0)   # Medio ancho y alto de una lengua a pleno
+	const NECK := -8.0                 # Más arriba está la cabeza, que es más ancha que el cuerpo
+	const GROW := 4.0                  # Prenderse / apagarse del todo tarda 1/esto segundos
+	var on := true
+	var amount := 0.0
+	var _tongues: Array[Vector4] = []  # x, y de la base, tamaño, fase
+
+	func _ready() -> void:
+		for i in TONGUES:
+			var y := lerpf(FEET - 6.0, HEAD_TOP + 8.0, float(i) / (TONGUES - 1))
+			var half := 19.0 if y < NECK else 11.0
+			_tongues.append(Vector4(randf_range(-half, half), y, randf_range(0.7, 1.2), randf() * TAU))
+
+	func _process(dt: float) -> void:
+		amount = move_toward(amount, 1.0 if on else 0.0, GROW * dt)
+		visible = amount > 0.0
+		if visible:
+			queue_redraw()
+
+	func _draw() -> void:
+		var t := Time.get_ticks_msec() / 1000.0
+		var up: float = -(get_parent() as Node2D).global_rotation
+		draw_circle(Vector2(0, -6), 34.0 * amount, GLOW, true, -1.0, true)
+		for tg in _tongues:
+			var h := SIZE.y * tg.z * amount * (1.0 + 0.25 * sin(t * 13.0 + tg.w) + 0.12 * sin(t * 23.0 + tg.w * 2.0))
+			var w := SIZE.x * tg.z * amount
+			var sway := 3.0 * sin(t * 7.0 + tg.w)
+			draw_set_transform(Vector2(tg.x, tg.y), up)
+			for layer: Array in LAYERS:
+				var k: float = layer[0]
+				draw_colored_polygon(_tongue(w * k, h * k, sway * k), layer[1])
+		draw_set_transform(Vector2.ZERO)
+
+	## Lengua de fuego apoyada en (0, 0): abajo redonda, arriba en punta (que se mece con sway).
+	static func _tongue(w: float, h: float, sway: float) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		for i in 7:
+			var a := PI * i / 6.0
+			pts.append(Vector2(cos(a) * w, sin(a) * w * 0.8))
+		for i in range(1, 8):
+			var u := i / 7.0
+			pts.append(Vector2(-w * pow(1.0 - u, 1.3) + sway * u * u, -h * u))
+		for i in range(6, 0, -1):
+			var u := i / 7.0
+			pts.append(Vector2(w * pow(1.0 - u, 1.3) + sway * u * u, -h * u))
+		return pts
+
+## Bocanada de vapor al apagarse en el agua.
+func _spawn_steam() -> void:
+	var p := CPUParticles2D.new()
+	p.one_shot = true
+	p.explosiveness = 0.8
+	p.amount = 24
+	p.lifetime = 1.0
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.emission_rect_extents = Vector2(10, 6)
+	p.direction = Vector2.UP
+	p.spread = 30.0
+	p.gravity = Vector2(0, -60)
+	p.initial_velocity_min = 25.0
+	p.initial_velocity_max = 60.0
+	p.scale_amount_min = 3.0
+	p.scale_amount_max = 6.0
+	p.color_ramp = _fade_ramp(Color(0.95, 0.97, 1.0, 0.8), Color(0.85, 0.9, 0.95, 0.0))
+	get_parent().add_child(p)
+	p.global_position = global_position + Vector2(0, -10)
+	p.emitting = true
+	p.finished.connect(p.queue_free)
+
 # --- TIBURÓN ---
 ## En el agua se hunde. En la isla (mouth = la boca del tiburón) se lo chupa hacia la boca.
 func get_eaten(mouth := Vector2.INF) -> void:
@@ -967,6 +1218,7 @@ func _update_sprite_flip() -> void:
 func _process(dt: float) -> void:
 	if dragging:
 		_update_drag(dt)
+	_update_fire(dt)
 	_update_zap(dt)
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)

@@ -31,6 +31,8 @@ const EN := {
 	"Agarrá el coco y tiráselo en la cabeza a un aldeano.": "Grab the coconut and drop it on a villager's head.",
 	"Soltalo encima de un aldeano para partirlo.": "Drop it on a villager to crack it open.",
 	"¡Bonk!": "Bonk!",
+	"¡Se prendió fuego!": "It caught fire!",
+	"¡Fiuuu!": "Phew!",
 	"Isla llena: sacrificá aldeanos para ganar puntos y expandirla.": "Island full: sacrifice villagers to earn points and expand it.",
 	"Devoción insuficiente: se recarga con el tiempo.": "Not enough devotion: it refills over time.",
 	"¡Tocá un orbe + en la isla para expandirla!": "Tap a + orb on the island to expand it!",
