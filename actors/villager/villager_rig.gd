@@ -65,6 +65,14 @@ const SHOCK_LEG := 0.22       # Piernas abiertas
 const SHOCK_JITTER := 0.15    # Temblor de cada miembro (rad)
 const SHOCK_SHAKE := 22.0     # Temblor de la cadera (px de la imagen)
 
+# Aldeana: el mismo dibujo con pelo largo, trenzas y top de hojas, alineado con villager.png
+# (mismos huesos y recortes). La cabeza va en una textura aparte porque las trenzas cuelgan
+# por delante de las manos: su polígono llega más abajo y lo que no es cabeza es transparente.
+const MALE_TEX := preload("res://actors/villager/villager.png")
+const FEMALE_BODY := preload("res://actors/villager/villager_female.png")
+const FEMALE_HEAD := preload("res://actors/villager/villager_female_head.png")
+const FEMALE_HEAD_RECT := Rect2(146, 6, 698, 570)   # px del dibujo
+
 class Joint:
 	var bone: Bone2D
 	var axis: Vector2         # Dirección pivote -> punta del miembro, en espacio del hueso
@@ -123,10 +131,13 @@ var _t := 0.0
 var _look := 0.0
 var _look_target := 0.0
 var _look_t := 0.0
+var _female := false
+var _male_head_poly := PackedVector2Array()
+var _male_head_uv := PackedVector2Array()
 
 const MAX_MARKS := 10
-## Alfa de villager.png, para saber si un tiro cayó sobre el dibujo o en un hueco.
-static var _alpha: Image
+## Alfa de cada textura del dibujo, para saber si un tiro cayó sobre el dibujo o en un hueco.
+static var _alpha := {}
 
 func _ready() -> void:
 	villager = get_parent() as Villager
@@ -203,6 +214,35 @@ func _turn_hand(arm: Bone2D, area: Rect2, wrist_x: float) -> void:
 	arm.add_child(hand)
 	arm.move_child(hand, 0)  # Detrás del brazo, así la pulsera tapa la unión
 
+## Varón o aldeana: cambia las texturas (sirve antes o después de _ready).
+func set_female(on: bool) -> void:
+	if on == _female:
+		return
+	_female = on
+	var head_sprite: Polygon2D = $Skeleton2D/Hip/Head/Sprite
+	if _male_head_poly.is_empty():
+		_male_head_poly = head_sprite.polygon
+		_male_head_uv = head_sprite.uv
+	var body := FEMALE_BODY if on else MALE_TEX
+	for path in ["Hip", "Hip/LegL", "Hip/LegR", "Hip/ArmL", "Hip/ArmR"]:
+		var bone := get_node("Skeleton2D/" + path)
+		bone.get_node("Sprite").texture = body
+		if bone.has_node("Hand"):
+			bone.get_node("Hand").texture = body
+	head_sprite.texture = FEMALE_HEAD if on else MALE_TEX
+	if on:
+		var to_uv := _male_head_uv[0] - _male_head_poly[0]
+		var r := FEMALE_HEAD_RECT
+		var uv := PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
+		var poly := PackedVector2Array()
+		for p in uv:
+			poly.append(p - to_uv)
+		head_sprite.polygon = poly
+		head_sprite.uv = uv
+	else:
+		head_sprite.polygon = _male_head_poly
+		head_sprite.uv = _male_head_uv
+
 ## Todo el rig se dibuja con el material del Rig (el recorte de la línea del agua).
 func _share_material(n: Node) -> void:
 	for c in n.get_children():
@@ -248,10 +288,6 @@ func add_bullet_mark(point: Vector2) -> void:
 	var sprites: Array[Polygon2D] = []
 	for b: Node in [head, arm_r, arm_l, hip, leg_r, leg_l]:  # Del que se dibuja arriba al de abajo
 		sprites.append(b.get_node("Sprite"))
-	if _alpha == null:
-		_alpha = sprites[0].texture.get_image()
-		if _alpha.is_compressed():
-			_alpha.decompress()
 	var center := villager.to_global(Villager.BODY_COM) if villager else global_position
 	for step in 11:
 		var p := point.lerp(center, step / 10.0)
@@ -259,8 +295,9 @@ func add_bullet_mark(point: Vector2) -> void:
 			var local := s.to_local(p)
 			if not Geometry2D.is_point_in_polygon(local, s.polygon):
 				continue
+			var alpha := _alpha_of(s.texture)
 			var px := Vector2i(local + s.uv[0] - s.polygon[0])
-			if Rect2i(Vector2i.ZERO, _alpha.get_size()).has_point(px) and _alpha.get_pixelv(px).a > 0.5:
+			if Rect2i(Vector2i.ZERO, alpha.get_size()).has_point(px) and alpha.get_pixelv(px).a > 0.5:
 				var mark := BulletMark.new()
 				mark.position = local
 				mark.rotation = randf() * TAU
@@ -268,6 +305,15 @@ func add_bullet_mark(point: Vector2) -> void:
 				s.add_child(mark)
 				_marks += 1
 				return
+
+static func _alpha_of(tex: Texture2D) -> Image:
+	var key := tex.resource_path   # Por la ruta: guardar la textura en un static da "leaked at exit"
+	if not _alpha.has(key):
+		var img := tex.get_image()
+		if img.is_compressed():
+			img.decompress()
+		_alpha[key] = img
+	return _alpha[key]
 
 ## Sacude los miembros según dónde y hacia dónde pegó el tiro (coords globales).
 func hit(point: Vector2, dir: Vector2, strength := 1.0) -> void:

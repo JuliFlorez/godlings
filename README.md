@@ -13,6 +13,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - 🌊 **Mar vivo** (`water.gdshader`): olas en perspectiva (chiquitas en el horizonte) con crestas de espuma que avanzan y cambian de forma, el reflejo del sol o la luna (largo y naranja al atardecer, rojo con la Luna de Sangre) y destellos sueltos. De lejos refleja el color del cielo. Alrededor de la isla hay una laguna turquesa con espuma en la orilla y olitas que salen (sigue la forma de la isla cuando crece), y lo que cae al agua (aldeanos, cocos, el tiburón, el meteorito) deja anillos.
 - ☁️ **Nubes y gaviotas**: nubes que pasan despacio (las lejanas, más chicas y lentas) y cambian de color con la hora: blancas de día, rosadas al atardecer, azul oscuro de noche y bordó con la Luna de Sangre; cada rayo las ilumina. De día, cada tanto cruza una bandadita de gaviotas.
 - 👥 **Aldeanos Interactivos**:
+  - Varones y mujeres: cada aldeano invocado sale de uno u otro al azar. Las aldeanas tienen pelo largo con trenzas y cuentas (las trenzas cuelgan por delante de las manos), una pluma con flor en el pelo, top de hojas y voz más aguda. Comparten el mismo esqueleto y animaciones.
   - IA de vagabundeo aleatorio con giro hacia el centro de la isla en los bordes.
   - Mecánica de arrastrar y soltar (*drag & drop*) con el cursor.
   - Física de caída libre al soltarlos al vacío.

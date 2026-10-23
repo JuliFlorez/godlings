@@ -136,11 +136,19 @@ static var ids_issued := 0       # Números de carnet repartidos (se guarda con 
 var id_number := 0
 var first_name := ""
 var last_name := ""
-var gender := Gender.MALE        # Por ahora son todos varones
+const FEMALE_CHANCE := 0.5      # Al aparecer (las partidas guardadas traen el suyo)
+var gender := Gender.MALE:
+	set(g):
+		gender = g
+		if rig:
+			rig.set_female(g == Gender.FEMALE)
+		var pitch: Vector2 = VOICE_PITCH[g]
+		_voice_pitch = randf_range(pitch.x, pitch.y)
 
 # --- Voz: "¡wow!" al agarrarlo. Cada aldeano tiene su propio tono ---
 const WOW := preload("res://audio/wow.wav")
 const VOICE_DB := -4.0
+const VOICE_PITCH := { Gender.MALE: Vector2(0.9, 1.25), Gender.FEMALE: Vector2(1.2, 1.5) }
 var _voice: AudioStreamPlayer
 var _voice_pitch := 1.0
 
@@ -176,8 +184,8 @@ func _ready() -> void:
 	_voice = AudioStreamPlayer.new()
 	_voice.stream = WOW
 	_voice.volume_db = VOICE_DB
-	_voice_pitch = randf_range(0.9, 1.25)
 	add_child(_voice)
+	gender = Gender.FEMALE if randf() < FEMALE_CHANCE else Gender.MALE   # También elige el tono
 
 	ids_issued += 1
 	id_number = ids_issued
