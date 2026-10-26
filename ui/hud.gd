@@ -15,6 +15,8 @@ signal lightning_toggled(on: bool)
 signal meteor_toggled(on: bool)
 signal tornado_toggled(on: bool)
 signal storm_toggled(on: bool)
+signal plague_toggled(on: bool)
+signal cure_toggled(on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
@@ -66,15 +68,23 @@ const C_RAIN := Color(0.42, 0.62, 1.0)
 const C_SOON := Color(1.0, 0.8, 0.3)
 const C_OFFERING := Color(1.0, 0.84, 0.34)
 const C_SHOP := Color(0.46, 0.84, 0.52)
+const C_PLAGUE := Color(0.55, 0.85, 0.3)
+const C_CURE := Color(1.0, 0.88, 0.45)
 
-## Menú inferior de armas y poderes: [ícono, nombre, tecla, disponible, descripción]
+## Menú inferior de armas y poderes: [ícono, nombre, tecla, disponible, descripción, bueno]
+## Van en dos pestañas: los malos (la carita con cuernos) y los buenos (la de la aureola).
 const TOOLS := [
-	["gun", "Pistola", "G", true, "Sacar o guardar la pistola [G]"],
-	["lightning", "Rayo", "R", true, "Sacar o guardar el rayo [R]"],
-	["meteor", "Meteorito", "M", true, "Sacar o guardar el meteorito [M]"],
-	["tornado", "Tornado", "T", true, "Sacar o guardar el tornado [T]"],
-	["rain", "Diluvio", "D", true, "Desatar o calmar el diluvio [D]"],
+	["gun", "Pistola", "G", true, "Sacar o guardar la pistola [G]", false],
+	["lightning", "Rayo", "R", true, "Sacar o guardar el rayo [R]", false],
+	["meteor", "Meteorito", "M", true, "Sacar o guardar el meteorito [M]", false],
+	["tornado", "Tornado", "T", true, "Sacar o guardar el tornado [T]", false],
+	["rain", "Diluvio", "D", true, "Desatar o calmar el diluvio [D]", false],
+	["plague", "Peste", "P", true, "Sacar o guardar la peste [P]", false],
+	["cure", "Curar", "C", true, "Sacar o guardar curar [C]", true],
 ]
+const C_EVIL := Color(0.92, 0.3, 0.26)
+const C_HOLY := Color(1.0, 0.86, 0.4)
+const TAB_SIZE := 38.0
 const SLOT_SIZE := Vector2(76, 62)
 
 var _root: Control
@@ -98,6 +108,17 @@ var _tornado_armed := false
 var _rain_btn: Button
 var _raining := false
 var _rain_charge: ColorRect   # Barrita de abajo del slot: se llena mientras el diluvio se recarga
+var _plague_btn: Button
+var _plague_armed := false
+var _cure_btn: Button
+var _cure_armed := false
+var _slot_plague: StyleBoxFlat
+var _slot_cure: StyleBoxFlat
+## Pestañas de la barra de poderes: qué slots van en cada una y cuál se ve.
+var _good_tab := false
+var _tab_evil: Button
+var _tab_holy: Button
+var _tool_slots := {}         # Button -> bueno (bool)
 var _slot_zap: StyleBoxFlat
 var _slot_meteor: StyleBoxFlat
 var _slot_tornado: StyleBoxFlat
@@ -242,22 +263,36 @@ func set_spawn_cost(cost: float) -> void:
 
 func set_gun_armed(on: bool) -> void:
 	_gun_armed = on
-	_refresh()
+	_armed_changed(_gun_btn, on)
 
 func set_lightning_armed(on: bool) -> void:
 	_lightning_armed = on
-	_refresh()
+	_armed_changed(_lightning_btn, on)
 
 func set_meteor_armed(on: bool) -> void:
 	_meteor_armed = on
-	_refresh()
+	_armed_changed(_meteor_btn, on)
 
 func set_tornado_armed(on: bool) -> void:
 	_tornado_armed = on
-	_refresh()
+	_armed_changed(_tornado_btn, on)
 
 func set_raining(on: bool) -> void:
 	_raining = on
+	_refresh()
+
+func set_plague_armed(on: bool) -> void:
+	_plague_armed = on
+	_armed_changed(_plague_btn, on)
+
+func set_cure_armed(on: bool) -> void:
+	_cure_armed = on
+	_armed_changed(_cure_btn, on)
+
+## Sacado con su tecla desde la otra pestaña: la barra pasa a la suya, así se ve resaltado.
+func _armed_changed(btn: Button, on: bool) -> void:
+	if on:
+		_show_tool(btn)
 	_refresh()
 
 ## Aparece de a poco (al llegar la cámara a la isla desde el menú de inicio, ver World).
@@ -269,7 +304,7 @@ func reveal(duration: float) -> void:
 ## Si hay un arma o poder afuera: el click es para eso (no para agarrar aldeanos, el
 ## tiburón, cocos ni decoraciones).
 static func aiming() -> bool:
-	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed
+	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed or Plague.armed or Cure.armed
 
 ## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
 func flash_screen(amount: float) -> void:
@@ -336,6 +371,22 @@ func unlock_storm() -> bool:
 		return false
 	Storm.unlocked = true
 	popup_text("¡Diluvio desbloqueado! Desatalo con D", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_RAIN)
+	_refresh()
+	return true
+
+func unlock_plague() -> bool:
+	if Plague.unlocked or not spend_offerings(Plague.PRICE):
+		return false
+	Plague.unlocked = true
+	popup_text("¡Peste desbloqueada! Sacala con P", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_PLAGUE)
+	_refresh()
+	return true
+
+func unlock_cure() -> bool:
+	if Cure.unlocked or not spend_offerings(Cure.PRICE):
+		return false
+	Cure.unlocked = true
+	popup_text("¡Curar desbloqueado! Sacalo con C", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_CURE)
 	_refresh()
 	return true
 
@@ -408,6 +459,8 @@ func save_state() -> Dictionary:
 		"meteor": Meteor.unlocked,
 		"tornado": Tornado.unlocked,
 		"storm": Storm.unlocked,
+		"plague": Plague.unlocked,
+		"cure": Cure.unlocked,
 		"blood_moon": Moon.blood_unlocked,
 		"shark_owned": shark_owned,
 		"shark_on": shark_on,
@@ -424,6 +477,8 @@ func load_state(d: Dictionary) -> void:
 	Meteor.unlocked = d.get("meteor", false)
 	Tornado.unlocked = d.get("tornado", false)
 	Storm.unlocked = d.get("storm", false)
+	Plague.unlocked = d.get("plague", false)
+	Cure.unlocked = d.get("cure", false)
 	Moon.blood_unlocked = d.get("blood_moon", false)
 	var owned: Array = d.get("shark_owned", [])
 	var on: Array = d.get("shark_on", [])
@@ -531,6 +586,10 @@ func _refresh() -> void:
 			"Sacar o guardar el tornado [T]", "Desbloquealo en la tienda (%d ofrendas)", Tornado.PRICE)
 	_sync_weapon(_rain_btn, Storm.unlocked, _raining, _slot_rain,
 			"Desatar o calmar el diluvio [D]", "Desbloquealo en la tienda (%d ofrendas)", Storm.PRICE)
+	_sync_weapon(_plague_btn, Plague.unlocked, _plague_armed, _slot_plague,
+			"Sacar o guardar la peste [P]", "Desbloqueala en la tienda (%d ofrendas)", Plague.PRICE)
+	_sync_weapon(_cure_btn, Cure.unlocked, _cure_armed, _slot_cure,
+			"Sacar o guardar curar [C]", "Desbloquealo en la tienda (%d ofrendas)", Cure.PRICE)
 
 	_drag_btn.add_theme_stylebox_override("normal", _slot_idle if select_mode else _slot_mode)
 	_drag_btn.add_theme_stylebox_override("hover", _slot_hover if select_mode else _slot_mode)
@@ -547,6 +606,10 @@ func _refresh() -> void:
 		_hint.text = tr("Click en la isla o el agua para tirar un meteorito · click derecho, Esc o M para guardarlo.")
 	elif _tornado_armed:
 		_hint.text = tr("Mantené apretado el click en la isla o el agua para que baje el tornado, y llevalo con el mouse · click derecho, Esc o T para guardarlo.")
+	elif _plague_armed:
+		_hint.text = tr("Click sobre los aldeanos para enfermarlos de gripe · click derecho, Esc o P para guardarla.")
+	elif _cure_armed:
+		_hint.text = tr("Click sobre un aldeano para curarlo de la gripe o de las quemaduras · click derecho, Esc o C para guardarlo.")
 	elif _decor_edit == DecorPlacer.Edit.MOVING:
 		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
 	elif _decor_edit == DecorPlacer.Edit.HOVER:
@@ -676,6 +739,8 @@ func _build_toolbar() -> void:
 	_slot_meteor = make_box(Color(C_METEOR, 0.34), 12, C_METEOR.lightened(0.3), 2)
 	_slot_tornado = make_box(Color(C_TORNADO, 0.3), 12, C_TORNADO.lightened(0.3), 2)
 	_slot_rain = make_box(Color(C_RAIN, 0.34), 12, C_RAIN.lightened(0.3), 2)
+	_slot_plague = make_box(Color(C_PLAGUE, 0.3), 12, C_PLAGUE.lightened(0.3), 2)
+	_slot_cure = make_box(Color(C_CURE, 0.3), 12, C_CURE.lightened(0.3), 2)
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -702,11 +767,30 @@ func _build_toolbar() -> void:
 	_drag_btn.pressed.connect(set_select_mode.bind(false))
 	_select_btn = _tool_slot(mode_row, "select", "Seleccionar", "S", true, "Click en un aldeano para ver su carnet [S]")
 	_select_btn.pressed.connect(set_select_mode.bind(true))
+	mode_row.get_parent().size_flags_vertical = Control.SIZE_SHRINK_END   # Abajo, a la par de los poderes
 
-	var row := _toolbar_panel(bars)
+	# Poderes: arriba las pestañas (malos / buenos) y abajo los de la pestaña elegida
+	var tools_col := VBoxContainer.new()
+	tools_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tools_col.add_theme_constant_override("separation", 4)
+	bars.add_child(tools_col)
+	var tabs := HBoxContainer.new()
+	tabs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tabs.add_theme_constant_override("separation", 6)
+	tools_col.add_child(tabs)
+	var tab_gap := Control.new()
+	tab_gap.custom_minimum_size = Vector2(6, 0)
+	tab_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tabs.add_child(tab_gap)
+	_tab_evil = _tab_button(tabs, "evil", "Poderes malos")
+	_tab_evil.pressed.connect(_set_tab.bind(false))
+	_tab_holy = _tab_button(tabs, "holy", "Poderes buenos")
+	_tab_holy.pressed.connect(_set_tab.bind(true))
+	var row := _toolbar_panel(tools_col)
 
 	for t in TOOLS:
 		var slot := _tool_slot(row, t[0], t[1], t[2], t[3], t[4])
+		_tool_slots[slot] = t[5]
 		match t[0]:
 			"gun":
 				_gun_btn = _weapon_slot(slot, _slot_active, func(): return Gun.unlocked,
@@ -730,6 +814,53 @@ func _build_toolbar() -> void:
 				_rain_charge.size = Vector2(0.0, 3.0)
 				_rain_charge.visible = false
 				slot.add_child(_rain_charge)
+			"plague":
+				_plague_btn = _weapon_slot(slot, _slot_plague, func(): return Plague.unlocked,
+						func(): plague_toggled.emit(not _plague_armed))
+			"cure":
+				_cure_btn = _weapon_slot(slot, _slot_cure, func(): return Cure.unlocked,
+						func(): cure_toggled.emit(not _cure_armed))
+	# Del ancho de la pestaña más llena: así la barra no salta al cambiar de pestaña
+	var most := 0
+	for good: bool in [false, true]:
+		most = maxi(most, _tool_slots.values().count(good))
+	row.custom_minimum_size.x = most * SLOT_SIZE.x + (most - 1) * row.get_theme_constant("separation")
+	_set_tab(false)
+
+## Muestra los poderes malos o los buenos.
+func _set_tab(good: bool) -> void:
+	_good_tab = good
+	for slot: Button in _tool_slots:
+		slot.visible = _tool_slots[slot] == good
+	for tab: Button in [_tab_evil, _tab_holy]:
+		var on := (tab == _tab_holy) == good
+		var col := C_HOLY if tab == _tab_holy else C_EVIL
+		var r := int(TAB_SIZE * 0.5)
+		var box := make_box(Color(col, 0.32), r, col.lightened(0.25), 2) if on \
+				else make_box(Color(C_PANEL, 0.9), r, Color(1, 1, 1, 0.14), 1)
+		var hover := box if on else make_box(Color(col, 0.18), r, Color(col, 0.6), 1)
+		tab.add_theme_stylebox_override("normal", box)
+		tab.add_theme_stylebox_override("hover", hover)
+		tab.add_theme_stylebox_override("pressed", hover)
+		tab.get_meta("icon").modulate = Color.WHITE if on else Color(1, 1, 1, 0.55)
+
+## Al sacar un poder con su tecla, que se vea en la barra (pasa a su pestaña).
+func _show_tool(btn: Button) -> void:
+	if _tool_slots.has(btn) and _tool_slots[btn] != _good_tab:
+		_set_tab(_tool_slots[btn])
+
+## Pestaña redonda con un ícono (la carita con cuernos o con aureola).
+func _tab_button(parent: Control, kind: String, tip: String) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(TAB_SIZE, TAB_SIZE)
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = tip
+	parent.add_child(b)
+	var icon := HudIcon.make(kind, int(TAB_SIZE) - 8)
+	icon.position = Vector2(4, 4)
+	b.add_child(icon)
+	b.set_meta("icon", icon)
+	return b
 
 ## Arma o poder que se compra en la tienda: lo saca o lo guarda, y bloqueado lleva a la tienda.
 func _weapon_slot(slot: Button, active: StyleBoxFlat, unlocked: Callable, toggle: Callable) -> Button:
@@ -1020,6 +1151,50 @@ class HudIcon extends Control:
 				for i in 3:
 					var x := s * (0.3 + i * 0.2)
 					draw_line(Vector2(x, s * 0.72), Vector2(x - s * 0.08, s * 0.96), HUD.C_DEVOTION, 2.5, true)
+			"plague":
+				# Calavera en una nube verde
+				var green := HUD.C_PLAGUE
+				for p: Vector3 in [Vector3(0.28, 0.62, 0.2), Vector3(0.72, 0.62, 0.2), Vector3(0.5, 0.7, 0.22)]:
+					draw_circle(Vector2(p.x, p.y) * s, p.z * s, Color(green, 0.45), true, -1.0, true)
+				var bone := Color(0.92, 0.95, 0.85)
+				draw_circle(Vector2(0.5, 0.4) * s, s * 0.26, bone, true, -1.0, true)
+				draw_rect(Rect2(Vector2(0.36, 0.52) * s, Vector2(0.28, 0.18) * s), bone)
+				for side: float in [-1.0, 1.0]:
+					draw_circle(Vector2(0.5 + side * 0.1, 0.42) * s, s * 0.07, Color(0.2, 0.32, 0.1), true, -1.0, true)
+				draw_line(Vector2(0.45, 0.6) * s, Vector2(0.45, 0.7) * s, Color(0.2, 0.32, 0.1), maxf(1.0, s * 0.04), true)
+				draw_line(Vector2(0.55, 0.6) * s, Vector2(0.55, 0.7) * s, Color(0.2, 0.32, 0.1), maxf(1.0, s * 0.04), true)
+			"evil":
+				# Carita roja con cuernitos (la pestaña de los poderes malos)
+				var face := Vector2(0.5, 0.58) * s
+				var horn := HUD.C_EVIL.darkened(0.35)
+				for side: float in [-1.0, 1.0]:
+					draw_colored_polygon(_pts([0.5 + side * 0.14, 0.34, 0.5 + side * 0.32, 0.4,
+							0.5 + side * 0.36, 0.04]), horn)
+				draw_circle(face, s * 0.36, HUD.C_EVIL, true, -1.0, true)
+				var ink := Color(0.25, 0.03, 0.03)
+				for side: float in [-1.0, 1.0]:
+					# Cejas en V y ojitos
+					draw_line(face + Vector2(side * 0.24, -0.14) * s, face + Vector2(side * 0.06, -0.06) * s, ink, maxf(1.5, s * 0.06), true)
+					draw_circle(face + Vector2(side * 0.13, 0.0) * s, s * 0.045, ink, true, -1.0, true)
+				draw_arc(face + Vector2(0, 0.06) * s, s * 0.16, 0.15 * PI, 0.85 * PI, 8, ink, maxf(1.5, s * 0.06), true)
+			"holy":
+				# Carita clarita con aureola (la pestaña de los poderes buenos)
+				var face := Vector2(0.5, 0.6) * s
+				draw_circle(face, s * 0.34, Color(1.0, 0.96, 0.86), true, -1.0, true)
+				draw_set_transform(Vector2(0.5, 0.15) * s, 0.0, Vector2(1.0, 0.38))
+				draw_arc(Vector2.ZERO, s * 0.3, 0.0, TAU, 24, HUD.C_HOLY, maxf(2.0, s * 0.16), true)
+				draw_set_transform(Vector2.ZERO)
+				var ink := Color(0.35, 0.26, 0.12)
+				for side: float in [-1.0, 1.0]:
+					# Ojitos cerrados, contentos
+					draw_arc(face + Vector2(side * 0.13, -0.02) * s, s * 0.06, PI, TAU, 6, ink, maxf(1.2, s * 0.05), true)
+				draw_arc(face + Vector2(0, 0.06) * s, s * 0.13, 0.15 * PI, 0.85 * PI, 8, ink, maxf(1.2, s * 0.05), true)
+			"cure":
+				# Cruz dorada con brillo
+				draw_circle(c, s * 0.46, Color(HUD.C_CURE, 0.25), true, -1.0, true)
+				draw_rect(Rect2(Vector2(0.39, 0.14) * s, Vector2(0.22, 0.72) * s), HUD.C_CURE)
+				draw_rect(Rect2(Vector2(0.14, 0.39) * s, Vector2(0.72, 0.22) * s), HUD.C_CURE)
+				draw_rect(Rect2(Vector2(0.44, 0.19) * s, Vector2(0.06, 0.62) * s), Color(1, 1, 0.92, 0.7))
 
 	## Polígono a partir de coordenadas normalizadas (0..1) del ícono.
 	func _pts(xy: Array) -> PackedVector2Array:

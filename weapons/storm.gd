@@ -33,9 +33,17 @@ const RISE_TIME := 6.0           # Lo que tarda el agua en subir del todo...
 const RECEDE_TIME := 5.0         # ...y en bajar
 ## Hasta dónde sube el agua, en rel: arranca afuera del dibujo (adelante, los que están
 ## parados en el borde tienen los pies más allá de la arena) y llega hasta tapar el 36% de
-## afuera de la isla.
+## afuera de la isla (salvo en la cresta, que la tapa entera).
 const DRY := 1.25
 const FLOOD_LINE := 0.64
+## En lo más fuerte del diluvio el agua tapa la isla entera un rato (la cresta) y después
+## vuelve a FLOOD_LINE: los que se quedaron flotando se pueden rescatar al medio seco (o
+## tenerlos agarrados mientras pasa). Un poco por debajo de 0 para que la ondulación de la
+## orilla del agua no deje un puntito seco en el centro.
+const CREST_LINE := -0.1
+const CREST_AT := 9.5            # Segundos de diluvio hasta que empieza a subir la cresta...
+const CREST_HOLD := 2.0          # ...lo que la isla queda tapada del todo...
+const CREST_RAMP := 1.2          # ...y lo que tarda en subir y en bajar
 ## Cada tanto entra una ola: el agua avanza de golpe un poco más y se lleva a los que se
 ## quedaron cerca de la orilla (los aldeanos se apartan del agua, pero no ven venir las olas).
 const SURGE := 0.11
@@ -60,7 +68,8 @@ const C_CLOUD_BACK := Color(0.42, 0.44, 0.5)
 var active := false
 var _time_left := 0.0
 var _cooldown := 0.0
-var _level := 0.0                # 0 seca .. 1 inundada del todo
+var _level := 0.0                # 0 seca .. 1 inundada hasta FLOOD_LINE
+var _crest := 0.0                # 0 nada .. 1 la isla tapada entera (ver CREST_LINE)
 var _t := 0.0
 var _drops := PackedVector4Array()   # x, y, velocidad, largo
 var _stop_y := PackedFloat32Array()  # Donde termina cada gota (en el piso o en el agua)
@@ -143,7 +152,10 @@ func _process(dt: float) -> void:
 	charge = 1.0 - _cooldown / COOLDOWN
 	rain = move_toward(rain, 1.0 if active else 0.0, dt / (RAIN_IN if active else RAIN_OUT))
 	_level = move_toward(_level, 1.0 if active and rain > 0.5 else 0.0, dt / (RISE_TIME if active else RECEDE_TIME))
-	_line = lerpf(DRY, FLOOD_LINE, smoothstep(0.0, 1.0, _level))
+	var elapsed := DURATION - _time_left
+	var cresting := active and _level >= 1.0 and elapsed >= CREST_AT and elapsed < CREST_AT + CREST_RAMP + CREST_HOLD
+	_crest = move_toward(_crest, 1.0 if cresting else 0.0, dt / CREST_RAMP)
+	_line = lerpf(lerpf(DRY, FLOOD_LINE, smoothstep(0.0, 1.0, _level)), CREST_LINE, smoothstep(0.0, 1.0, _crest))
 	# Olas: picos cortos, cada SURGE_EVERY segundos
 	_surge = SURGE * pow(maxf(0.0, sin(_t * TAU / SURGE_EVERY)), 6.0) * smoothstep(0.0, 1.0, _level)
 

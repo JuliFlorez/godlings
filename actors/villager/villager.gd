@@ -143,6 +143,31 @@ var flooded := false             # Flota en la isla inundada (no en el mar)
 var _flee := 0.0
 var _flee_bias := 0.0            # Cada uno se escapa para un lado un poco distinto
 
+# --- Gripe: se contagia. Primero la incuba sin que se note; después anda pálido y verdoso,
+# lento, se para a cada rato, estornuda (y el estornudo contagia a los que tiene adelante) y
+# no reza. Al final se cura (y queda inmune un tiempo) o se muere. Aparece sola cada tanto
+# (ver World) y la pueden agarrar los que se llevó el agua del diluvio. Se ve en el carnet.
+enum Flu { HEALTHY, INCUBATING, SICK, IMMUNE }
+const INCUBATION := Vector2(8.0, 14.0)
+const SICK_TIME := Vector2(35.0, 50.0)
+const IMMUNE_TIME := 120.0
+const FLU_DEATH_CHANCE := 0.3
+const FLU_SPEED := 0.55          # Veces speed, enfermo
+const FLU_REST_CHANCE := 0.7     # Enfermo se para mucho más seguido
+const FLU_TINT := 0.55           # Lo verdoso que se pone (ver waterline.gdshader)
+const SNEEZE_EVERY := Vector2(3.0, 7.0)
+const SNEEZE_REACH := 46.0       # Hasta dónde llega el estornudo, para adelante...
+const SNEEZE_CONE := 0.6         # ...en un cono de este coseno
+const SNEEZE_CATCH := 0.5        # Probabilidad de contagiar a cada uno que alcanza
+const CLOSE_CATCH := 4.0         # Segundos pegado a un enfermo hasta contagiarse
+const SOAKED_CATCH := 0.35       # Probabilidad de agarrársela si se lo llevó el agua del diluvio
+var flu := Flu.HEALTHY
+var flu_t := 0.0                 # Lo que le falta a la etapa de ahora
+var _flu_tint := 0.0
+var _sneeze_t := 0.0
+var _exposure := 0.0
+static var _sneeze_sound: AudioStreamWAV
+
 # --- Espacio personal y empujones ---
 # Los aldeanos no chocan físicamente entre sí: se esquivan con una separación suave.
 # El que está agarrado sí empuja a los demás, y los puede tirar de la isla.
@@ -408,7 +433,7 @@ func _physics_process(dt: float) -> void:
 	_walk = move_toward(_walk, 0.0 if stop else 1.0, WALK_ACCEL * dt * (4.0 if hurry else 1.0))
 	# Al doblar va más despacio (y si vuelve para atrás, frena y arranca de nuevo)
 	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * (2.0 if hurry else 1.0) * dt))
-	var pace := speed * (PANIC_SPEED if on_fire else (FLOOD_FLEE_SPEED if _flee > 0.0 else 1.0))
+	var pace := speed * (PANIC_SPEED if on_fire else (FLOOD_FLEE_SPEED if _flee > 0.0 else (FLU_SPEED if flu == Flu.SICK else 1.0)))
 	velocity = _heading * pace * smoothstep(0.0, 1.0, _walk) + _separation() + shove_vel
 	var prev_pos := global_position
 	move_and_slide()
@@ -446,7 +471,7 @@ func _physics_process(dt: float) -> void:
 					_update_sprite_flip()
 				wander_timer = randf_range(PANIC_TURN.x, PANIC_TURN.y)
 		elif wander_timer <= 0.0:
-			if not _resting and randf() < REST_CHANCE:
+			if not _resting and randf() < (FLU_REST_CHANCE if flu == Flu.SICK else REST_CHANCE):
 				_resting = true
 				wander_timer = randf_range(REST_TIME.x, REST_TIME.y)
 			else:
@@ -1271,6 +1296,8 @@ func _swept_by_flood() -> void:
 	if not dead:
 		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
 		_voice.play()
+		if randf() < SOAKED_CATCH:
+			catch_flu()   # Empapado se resfría (se le nota recién al rato)
 
 ## Bajó el agua: queda en tierra donde estaba (vivo sigue caminando).
 func _flood_dry() -> void:
@@ -1285,6 +1312,197 @@ func _flood_dry() -> void:
 		corpse_vel = Vector2.ZERO
 		return
 	_land_on_island()
+
+# --- GRIPE ---
+## Se contagió: la incuba un rato sin que se note (solo lo dice el carnet). Los sanos nada más:
+## el que ya la tiene o se acaba de curar no.
+func catch_flu() -> void:
+	if flu != Flu.HEALTHY or dead or eaten:
+		return
+	flu = Flu.INCUBATING
+	flu_t = randf_range(INCUBATION.x, INCUBATION.y)
+	_exposure = 0.0
+
+## Para cargar la partida: en qué etapa estaba y lo que le faltaba.
+func set_flu(state: Flu, time_left: float) -> void:
+	flu = state
+	flu_t = time_left
+	_flu_tint = FLU_TINT if flu == Flu.SICK else 0.0
+	_sneeze_t = randf_range(SNEEZE_EVERY.x, SNEEZE_EVERY.y)
+
+## La peste (ver Plague): se enferma ya, sin incubarla y aunque estuviera inmune.
+func infect() -> void:
+	if dead or eaten or flu == Flu.SICK:
+		return
+	flu = Flu.SICK
+	flu_t = randf_range(SICK_TIME.x, SICK_TIME.y)
+	_sneeze_t = randf_range(SNEEZE_EVERY.x, SNEEZE_EVERY.y) * 0.5
+	_exposure = 0.0
+
+## El poder de curar (ver Cure): se le va la gripe (queda inmune) y, si se estaba quemando,
+## se apaga y se le va el tizne. true si tenía algo que curar.
+func cure() -> bool:
+	if dead or eaten or zap_state != Zap.NONE:
+		return false
+	var flu_cured := flu == Flu.INCUBATING or flu == Flu.SICK
+	if flu_cured:
+		_recover()   # Ya dice "¡Se curó!"
+	var burns := on_fire or _soot > 0.0
+	if burns:
+		_put_out()
+		_soot = 0.0
+		_heat = 0.0
+		if _waterline:
+			_waterline.set_shader_parameter("burnt", 0.0)
+		_ensure_hud()
+		if hud and not flu_cured:
+			hud.popup_text("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
+	return flu_cured or burns
+
+## Enfermo de verdad (con síntomas, contagia y no reza).
+func is_sick() -> bool:
+	return flu == Flu.SICK and not dead
+
+func _update_flu(dt: float) -> void:
+	if eaten or is_queued_for_deletion():
+		return
+	if not dead:
+		match flu:
+			Flu.HEALTHY:
+				_update_exposure(dt)
+			Flu.INCUBATING:
+				flu_t -= dt
+				if flu_t <= 0.0:
+					flu = Flu.SICK
+					flu_t = randf_range(SICK_TIME.x, SICK_TIME.y)
+					_sneeze_t = randf_range(SNEEZE_EVERY.x, SNEEZE_EVERY.y) * 0.5
+			Flu.SICK:
+				flu_t -= dt
+				if is_idle() and not on_fire:
+					_sneeze_t -= dt
+					if _sneeze_t <= 0.0:
+						_sneeze_t = randf_range(SNEEZE_EVERY.x, SNEEZE_EVERY.y)
+						_sneeze()
+					# Termina parado en la isla: no se muere colgando del mouse ni flotando
+					if flu_t <= 0.0:
+						if randf() < FLU_DEATH_CHANCE:
+							_die_of_flu()
+						else:
+							_recover()
+			Flu.IMMUNE:
+				flu_t -= dt
+				if flu_t <= 0.0:
+					flu = Flu.HEALTHY
+	# Se pone verdoso de a poco (y muerto de gripe se queda así)
+	var tint := FLU_TINT if flu == Flu.SICK else 0.0
+	if not dead or tint > 0.0:
+		_flu_tint = move_toward(_flu_tint, tint, dt * 0.15)
+	if _waterline:
+		_waterline.set_shader_parameter("sick", _flu_tint)
+
+## Sano y parado en la isla: si se queda pegado a un enfermo, al rato se contagia.
+func _update_exposure(dt: float) -> void:
+	var near := false
+	if is_idle():
+		for node in get_tree().get_nodes_in_group("villager"):
+			var o := node as Villager
+			if o and o != self and o.is_sick() and o.is_idle() \
+					and o.global_position.distance_to(global_position) < SEPARATION_RADIUS * 1.4:
+				near = true
+				break
+	_exposure = _exposure + dt if near else maxf(0.0, _exposure - dt * 0.5)
+	if _exposure >= CLOSE_CATCH:
+		catch_flu()
+
+## ¡Achís! Se sacude, le salen gotitas para adelante y contagia a los que tiene enfrente.
+func _sneeze() -> void:
+	var facing := rig.facing() if rig else 1.0
+	var mouth := to_global(Vector2(7.0 * facing, -24.0))
+	if rig:
+		rig.hit(mouth, Vector2(facing, 0.6), 0.35)
+		rig.sneeze()
+	_spawn_droplets(mouth, Vector2(facing, 0.15))
+	if _sneeze_sound == null:
+		_sneeze_sound = _make_sneeze()
+	var p := AudioStreamPlayer.new()
+	p.stream = _sneeze_sound
+	p.volume_db = VOICE_DB - 4.0
+	p.pitch_scale = _voice_pitch * randf_range(0.92, 1.05)
+	add_child(p)
+	p.play()
+	p.finished.connect(p.queue_free)
+	_ensure_hud()
+	if hud:
+		hud.popup_text("¡Achís!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o == null or o == self or o.flu != Flu.HEALTHY or not o.is_idle():
+			continue
+		var d := o.global_position - global_position
+		if d.length() < SNEEZE_REACH and (d.length() < SEPARATION_RADIUS or d.normalized().x * facing > SNEEZE_CONE) \
+				and randf() < SNEEZE_CATCH:
+			o.catch_flu()
+
+func _recover() -> void:
+	flu = Flu.IMMUNE
+	flu_t = IMMUNE_TIME
+	_ensure_hud()
+	if hud:
+		hud.popup_text("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
+
+## No aguantó: se desploma donde está (cuenta como sacrificio, como cualquier muerte).
+func _die_of_flu() -> void:
+	_ensure_hud()
+	if hud:
+		hud.popup_text("Murió de gripe", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
+	if food:
+		food.release_eater()
+	_die()
+	swing_vel = (1.0 if randf() < 0.5 else -1.0) * randf_range(2.5, 4.0)   # Se cae para un costado
+	corpse_vel = Vector2.ZERO
+
+func _spawn_droplets(at: Vector2, toward: Vector2) -> void:
+	var p := CPUParticles2D.new()
+	p.one_shot = true
+	p.explosiveness = 0.95
+	p.amount = 16
+	p.lifetime = 0.5
+	p.direction = toward
+	p.spread = 22.0
+	p.initial_velocity_min = 70.0
+	p.initial_velocity_max = 150.0
+	p.gravity = Vector2(0, 260)
+	p.scale_amount_min = 1.2
+	p.scale_amount_max = 2.4
+	p.color_ramp = _fade_ramp(Color(0.8, 0.95, 0.7, 0.85), Color(0.75, 0.9, 0.65, 0.0))
+	get_parent().add_child(p)
+	p.global_position = at
+	p.emitting = true
+	p.finished.connect(p.queue_free)
+
+## "Aaa... ¡chís!": una vocal que sube y un soplido de ruido.
+static func _make_sneeze() -> AudioStreamWAV:
+	var rate := 22050
+	var vowel := int(rate * 0.24)
+	var burst := int(rate * 0.2)
+	var buf := PackedFloat32Array()
+	buf.resize(vowel + burst)
+	var ph := 0.0
+	for i in vowel:
+		var k := float(i) / vowel
+		ph += TAU * lerpf(230.0, 360.0, k * k) / rate
+		var env := minf(1.0, k * 12.0) * (0.55 + 0.45 * k)
+		buf[i] = (sin(ph) + 0.5 * sin(ph * 2.0) + 0.3 * sin(ph * 3.0)) * env * 0.35
+	var prev := 0.0
+	var hp := 0.0
+	for i in burst:
+		var k := float(i) / burst
+		var noise := randf_range(-1.0, 1.0)
+		hp = 0.85 * (hp + noise - prev)   # Pasa-altos: la "ch" y la "s"
+		prev = noise
+		var env := minf(1.0, k * 40.0) * pow(1.0 - k, 2.0)
+		buf[vowel + i] = (hp * 0.8 + sin(ph + TAU * 420.0 * i / rate) * 0.25 * (1.0 - k)) * env
+	return Synth.wav(buf, rate, 0.9)
 
 # --- TIBURÓN ---
 ## En el agua se hunde. En la isla (mouth = la boca del tiburón) se lo chupa hacia la boca.
@@ -1356,6 +1574,7 @@ func _process(dt: float) -> void:
 		_update_drag(dt)
 	_update_fire(dt)
 	_update_zap(dt)
+	_update_flu(dt)
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)
 	_tornado_cool = maxf(0.0, _tornado_cool - dt)

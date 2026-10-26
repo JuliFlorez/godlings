@@ -17,6 +17,8 @@ uniform float crumble = -1.0;      // Lo que ya se hizo cenizas, medido desde la
 uniform vec2 crumble_from = vec2(0.0);       // Coronilla (global)
 uniform vec2 crumble_axis = vec2(0.0, 1.0);  // De la cabeza a los pies
 uniform vec4 ember_color : source_color = vec4(1.0, 0.45, 0.1, 1.0);
+uniform float sick = 0.0;          // Con gripe (ver Villager._update_flu): pálido y verdoso
+uniform vec4 sick_color : source_color = vec4(0.78, 0.95, 0.62, 1.0);
 
 const float GRAIN = 4.0;           // Ancho del borde que se desgrana (px)
 
@@ -33,6 +35,10 @@ void vertex() {
 void fragment() {
     vec4 col = COLOR;
     float lum = dot(col.rgb, vec3(0.299, 0.587, 0.114));
+    if (sick > 0.0) {
+        // Descolorido y tirando a verde (más claro, como pálido)
+        col.rgb = mix(col.rgb, sick_color.rgb * (lum * 0.8 + 0.25), sick);
+    }
     if (xray) {
         col.rgb = xray_color.rgb + vec3(0.05, 0.1, 0.25) * lum;
     } else if (burnt > 0.0) {

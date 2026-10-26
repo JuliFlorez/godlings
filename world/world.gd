@@ -52,6 +52,8 @@ var lightning: Lightning
 var meteor: Meteor
 var tornado: Tornado
 var storm: Storm
+var plague: Plague
+var cure: Cure
 var placer: DecorPlacer
 var sharks: Array[Shark] = []
 ## Aldeanos y decoraciones, ordenados por Y para que el de adelante tape al de atrás.
@@ -59,6 +61,10 @@ var props: Node2D
 ## Manchas en el piso (charcos de sangre): siempre debajo de aldeanos y decoraciones.
 var ground: Node2D
 var _worship_t := 0.0
+## Brotes de gripe (ver Villager.catch_flu): cada tanto, si hay suficientes aldeanos.
+const OUTBREAK_EVERY := Vector2(90.0, 180.0)
+const OUTBREAK_MIN := 3
+var _outbreak_t := randf_range(OUTBREAK_EVERY.x, OUTBREAK_EVERY.y)
 
 var _base_poly_global: PackedVector2Array
 var _base_sprite_scale: Vector2
@@ -154,6 +160,10 @@ func _ready() -> void:
 	add_child(tornado)
 	storm = Storm.new()
 	add_child(storm)
+	plague = Plague.new()
+	add_child(plague)
+	cure = Cure.new()
+	add_child(cure)
 	placer = DecorPlacer.new()
 	placer.hud = hud
 	placer.props = props
@@ -168,6 +178,10 @@ func _ready() -> void:
 		meteor.armed_changed.connect(hud.set_meteor_armed)
 		hud.tornado_toggled.connect(tornado.set_armed)
 		tornado.armed_changed.connect(hud.set_tornado_armed)
+		hud.plague_toggled.connect(plague.set_armed)
+		plague.armed_changed.connect(hud.set_plague_armed)
+		hud.cure_toggled.connect(cure.set_armed)
+		cure.armed_changed.connect(hud.set_cure_armed)
 		# El diluvio no se apunta: no guarda las armas ni ellas a él
 		hud.storm_toggled.connect(storm.set_active)
 		storm.active_changed.connect(hud.set_raining)
@@ -205,7 +219,7 @@ func _ready() -> void:
 	title.open()
 
 func _weapons() -> Array[Node]:
-	return [gun, lightning, meteor, tornado]
+	return [gun, lightning, meteor, tornado, plague, cure]
 
 ## Guarda las armas y poderes (menos keep).
 func _disarm(keep: Node = null) -> void:
@@ -260,9 +274,10 @@ func _process(dt: float) -> void:
 		_worship_t += dt
 		if _worship_t >= worship_interval:
 			_worship_t = 0.0
-			var n := alive_villagers()
+			var n := alive_villagers() - sick_villagers()   # Los enfermos no rezan
 			if n > 0:
 				hud.add_offerings(n)
+		_update_outbreak(dt)
 
 	_play_time += dt
 	_autosave_t += dt
@@ -292,6 +307,45 @@ func alive_villagers() -> int:
 		var villager := v as Villager
 		if villager and not villager.eaten and not villager.drowning and not villager.dead and not villager.is_queued_for_deletion():
 			n += 1
+	return n
+
+func sick_villagers() -> int:
+	var n := 0
+	for v in get_tree().get_nodes_in_group("villager"):
+		var villager := v as Villager
+		if villager and villager.is_sick() and not villager.is_queued_for_deletion():
+			n += 1
+	return n
+
+## Cada tanto alguien se agarra la gripe solo (si no hay ya alguien con gripe dando vueltas).
+func _update_outbreak(dt: float) -> void:
+	_outbreak_t -= dt
+	if _outbreak_t > 0.0:
+		return
+	_outbreak_t = randf_range(OUTBREAK_EVERY.x, OUTBREAK_EVERY.y)
+	var healthy: Array[Villager] = []
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v == null or v.dead or v.eaten:
+			continue
+		if v.flu == Villager.Flu.INCUBATING or v.flu == Villager.Flu.SICK:
+			return
+		if v.flu == Villager.Flu.HEALTHY and v.is_idle():
+			healthy.append(v)
+	if healthy.size() >= OUTBREAK_MIN:
+		healthy.pick_random().catch_flu()
+
+## Para la consola de trucos: n aldeanos sanos se agarran la gripe (ya con síntomas).
+func debug_infect(n: int) -> int:
+	var healthy: Array[Villager] = []
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v and v.flu == Villager.Flu.HEALTHY and not v.dead and not v.eaten:
+			healthy.append(v)
+	healthy.shuffle()
+	n = mini(n, healthy.size())
+	for i in n:
+		healthy[i].set_flu(Villager.Flu.SICK, randf_range(Villager.SICK_TIME.x, Villager.SICK_TIME.y))
 	return n
 
 func _spawn_villagers(n: int) -> void:
@@ -472,6 +526,8 @@ func save_game() -> void:
 			"first_name": v.first_name,
 			"last_name": v.last_name,
 			"gender": v.gender,
+			"flu": v.flu,
+			"flu_t": v.flu_t,
 		})
 	var decorations := []
 	for c in props.get_children():
@@ -516,6 +572,7 @@ func _load_game() -> bool:
 		v.first_name = d.get("first_name", "")
 		v.last_name = d.get("last_name", "")
 		v.gender = d.get("gender", Villager.Gender.MALE)
+		v.set_flu(d.get("flu", Villager.Flu.HEALTHY) as Villager.Flu, d.get("flu_t", 0.0))
 	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
 
 	var sky := $Sky

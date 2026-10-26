@@ -2,7 +2,7 @@ extends PanelContainer
 class_name VillagerCard
 ## Carnet del aldeano: se abre con un click sobre él en modo seleccionar.
 ## Foto tipo carnet con el género abajo, número, y nombre y apellido para escribir
-## (se ven arriba de su cabeza, ver NameTag).
+## (se ven arriba de su cabeza, ver NameTag), y su estado: sano, con gripe, curado o muerto.
 ## La foto es un rig propio del aldeano (así parpadea) que copia su cara: la boca de
 ## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto.
 
@@ -27,6 +27,7 @@ var _first: LineEdit
 var _last: LineEdit
 var _photo: Control
 var _photo_rig: VillagerRig
+var _status: Label
 
 func _ready() -> void:
 	visible = false
@@ -90,6 +91,12 @@ func _ready() -> void:
 	gap3.custom_minimum_size = Vector2(0, 6)
 	fields.add_child(gap3)
 	_last = _field(fields, "Apellido", "Sin apellido")
+	var gap4 := Control.new()
+	gap4.custom_minimum_size = Vector2(0, 6)
+	fields.add_child(gap4)
+	fields.add_child(_caption("Estado"))
+	_status = HUD.make_label("", 15, HUD.C_TEXT)
+	fields.add_child(_status)
 	_first.text_changed.connect(func(t: String):
 		if villager:
 			villager.first_name = t.strip_edges())
@@ -127,6 +134,30 @@ func _process(_dt: float) -> void:
 		return
 	if villager.rig:
 		_photo_rig.copy_face(villager.rig)
+	_update_status()
+
+## Sano, incubando la gripe, enfermo, inmune o muerto. En la foto también se lo ve verdoso.
+func _update_status() -> void:
+	var v := villager
+	var text := "Sano"
+	var col := HUD.C_SHOP
+	if v.dead:
+		text = "Muerto"
+		col = HUD.C_MUTED
+	else:
+		match v.flu:
+			Villager.Flu.INCUBATING:
+				text = "Incubando gripe"
+				col = HUD.C_SOON
+			Villager.Flu.SICK:
+				text = "Enfermo de gripe"
+				col = HUD.C_WARN
+			Villager.Flu.IMMUNE:
+				text = "Curado (inmune)"
+				col = HUD.C_DEVOTION
+	_status.text = text
+	_status.add_theme_color_override("font_color", col)
+	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
 
 func _input(event: InputEvent) -> void:
 	# Click afuera del carnet: deja de escribir (si no, G o S escribirían en el nombre)

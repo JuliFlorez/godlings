@@ -1,7 +1,7 @@
 extends Control
 class_name Shop
 ## Tienda: se gastan ofrendas en decoraciones para la isla, el cielo (Luna de Sangre),
-## armas/poderes (pistola, rayo, meteorito, tornado y diluvio) y tiburones.
+## armas/poderes (pistola, rayo, meteorito, tornado, diluvio, peste y curar) y tiburones.
 ## Las decoraciones se cobran recién al colocarlas (ver DecorPlacer).
 
 var hud: HUD
@@ -12,6 +12,8 @@ var _lightning_btn: Button
 var _meteor_btn: Button
 var _tornado_btn: Button
 var _storm_btn: Button
+var _plague_btn: Button
+var _cure_btn: Button
 var _moon_btn: Button
 var _sharks: Array[Dictionary] = []   # Por tarjeta: {btn, icon, price, status}
 
@@ -124,6 +126,12 @@ func _ready() -> void:
 			"rain":
 				_storm_btn = _unlock_card(power_row, icon, t[1], Storm.PRICE,
 						"Una tormenta que inunda la orilla: el agua se lleva a los que alcanza. La lluvia apaga el fuego.", hud.unlock_storm)
+			"plague":
+				_plague_btn = _unlock_card(power_row, icon, t[1], Plague.PRICE,
+						"Una nube de miasma que enferma de gripe a los que alcanza. Después se contagian solos.", hud.unlock_plague)
+			"cure":
+				_cure_btn = _unlock_card(power_row, icon, t[1], Cure.PRICE,
+						"Un haz de luz que cura la gripe (y deja inmune un rato) y apaga y sana a los que se queman.", hud.unlock_cure)
 			_:
 				icon.modulate = Color(1, 1, 1, 0.45)
 				var b := _card(power_row, icon, t[1], -1, "Próximamente")
@@ -179,6 +187,8 @@ func _sync() -> void:
 	_sync_unlock(_meteor_btn, Meteor.unlocked, Meteor.PRICE, "Desbloqueado")
 	_sync_unlock(_tornado_btn, Tornado.unlocked, Tornado.PRICE, "Desbloqueado")
 	_sync_unlock(_storm_btn, Storm.unlocked, Storm.PRICE, "Desbloqueado")
+	_sync_unlock(_plague_btn, Plague.unlocked, Plague.PRICE, "Desbloqueada")
+	_sync_unlock(_cure_btn, Cure.unlocked, Cure.PRICE, "Desbloqueado")
 	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada")
 	var next := hud.shark_owned.find(false)   # Se compran en orden: el primero que falta
 	for i in _sharks.size():

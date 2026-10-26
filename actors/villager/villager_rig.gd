@@ -134,6 +134,7 @@ var _look_t := 0.0
 var _female := false
 var _male_head_poly := PackedVector2Array()
 var _male_head_uv := PackedVector2Array()
+var _sneeze := 0.0            # Estornudando: la boca abierta un ratito
 
 const MAX_MARKS := 10
 ## Alfa de cada textura del dibujo, para saber si un tiro cayó sobre el dibujo o en un hueco.
@@ -331,6 +332,14 @@ func hit(point: Vector2, dir: Vector2, strength := 1.0) -> void:
 func set_facing_left(left: bool) -> void:
 	_facing = -1.0 if left else 1.0
 
+## 1 si mira a la derecha, -1 a la izquierda (aunque se esté dando vuelta).
+func facing() -> float:
+	return _facing
+
+## ¡Achís! Abre la boca un instante (ver Villager._sneeze).
+func sneeze() -> void:
+	_sneeze = 0.3
+
 func _process(dt: float) -> void:
 	if villager == null or dt <= 0.0:
 		return
@@ -353,10 +362,12 @@ func _process(dt: float) -> void:
 	rag = move_toward(rag, 1.0 if ragdoll else 0.0, BLEND_SPEED * dt)
 
 	# Boca: "¡wow!" mientras lo tienen agarrado, va volando (o girando en un tornado), ve venir
-	# un meteorito o se quema; masticando cuando come
+	# un meteorito, se quema o estornuda; masticando cuando come
+	_sneeze = maxf(0.0, _sneeze - dt)
 	if villager.dead:
 		_mouth.target = 0.0
-	elif villager.dragging or villager.falling or villager.tornado != null or villager.is_scared() or villager.on_fire:
+	elif villager.dragging or villager.falling or villager.tornado != null or villager.is_scared() or villager.on_fire \
+			or _sneeze > 0.0:
 		_mouth.target = 1.0
 	elif villager.food and villager._eat_t > 0.0:
 		_mouth.target = absf(sin(villager._eat_t * 12.0)) * 0.45

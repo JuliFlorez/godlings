@@ -18,7 +18,8 @@ const COMMANDS := [
 	["puntos / points [n]", "Suma puntos de expansión (por defecto los que faltan para el máximo)"],
 	["isla / island [n]", "Pone la isla en ese nivel (por defecto el máximo)"],
 	["aldeanos / villagers [n]", "Invoca aldeanos gratis (por defecto hasta llenar la isla)"],
-	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, Luna de Sangre y todos los tiburones"],
+	["gripe / flu [n]", "Contagia de gripe a n aldeanos sanos (por defecto 1)"],
+	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, peste, curar, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
 	["limpiar / clear", "Borra la consola"],
 ]
@@ -148,6 +149,8 @@ func run(text: String) -> void:
 			var n := mini(arg if arg > 0 else room, room)
 			world.debug_spawn_villagers(n)
 			_ok(tr("+%d aldeanos") % n)
+		"gripe", "flu", "enfermar", "infect":
+			_ok(tr("%d aldeanos con gripe") % world.debug_infect(arg if arg > 0 else 1))
 		"desbloquear", "unlock":
 			_unlock_all()
 		"todo", "all":
@@ -167,6 +170,8 @@ func _unlock_all() -> void:
 	Meteor.unlocked = true
 	Tornado.unlocked = true
 	Storm.unlocked = true
+	Plague.unlocked = true
+	Cure.unlocked = true
 	Moon.blood_unlocked = true
 	for i in Shark.MAX:
 		if not hud.shark_owned[i]:
@@ -174,4 +179,4 @@ func _unlock_all() -> void:
 			hud.shark_on[i] = true
 			hud.shark_changed.emit(i, true)
 	hud._refresh()
-	_ok(tr("Desbloqueado: pistola, rayo, meteorito, tornado, diluvio, Luna de Sangre y %d tiburones") % Shark.MAX)
+	_ok(tr("Desbloqueado: pistola, rayo, meteorito, tornado, diluvio, peste, curar, Luna de Sangre y %d tiburones") % Shark.MAX)
