@@ -105,8 +105,32 @@ var _descent: Tween
 var lift := 0.0:
 	set(v):
 		lift = v
-		get_viewport().canvas_transform = Transform2D(0.0, Vector2(0.0, lift))
+		_apply_view()
 		$Sky.lift = lift
+
+## Zoom (rueda del mouse, + y -, o 0 para volver): agranda o achica el mundo hacia donde
+## está el mouse, y de cerca se puede correr la vista arrastrando con la rueda apretada.
+## El horizonte nunca baja de donde está (ahí el cielo, que está en su propia capa, se
+## junta con el mar): alejándose se queda fijo, y de cerca solo puede subir. Solo jugando.
+const ZOOM_MIN := 0.6
+const ZOOM_MAX := 1.5
+const ZOOM_STEP := 1.12          # Cada paso de la rueda
+const ZOOM_SMOOTH := 12.0
+var zoom := 1.0
+var _zoom_target := 1.0
+var _zoom_anchor := Vector2.ZERO # Punto de la pantalla que se queda quieto al hacer zoom
+var _view := Vector2.ZERO        # Corrimiento de la vista (px de pantalla)
+var _panning := false
+## Temblor del meteorito (px de pantalla, ver Meteor).
+var shake := Vector2.ZERO:
+	set(v):
+		shake = v
+		_apply_view()
+
+## Arma la vista: el zoom, la cámara subida (lift) y el temblor.
+func _apply_view() -> void:
+	get_viewport().canvas_transform = Transform2D(Vector2(zoom, 0.0), Vector2(0.0, zoom),
+			_view + Vector2(0.0, lift) + shake)
 
 func _ready() -> void:
 	# Capas sobre la isla y el tiburón: primero el piso, después lo que tiene altura
@@ -269,6 +293,7 @@ func _on_blood_moon_changed(active: bool) -> void:
 func _process(dt: float) -> void:
 	if not playing:
 		return
+	_update_zoom(dt)
 	if hud:
 		hud.set_population(alive_villagers(), capacity())
 		_worship_t += dt
@@ -284,6 +309,60 @@ func _process(dt: float) -> void:
 	if _autosave_t >= AUTOSAVE_INTERVAL:
 		_autosave_t = 0.0
 		save_game()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not playing:
+		return
+	if event is InputEventMouseButton:
+		match event.button_index:
+			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
+				if event.pressed:
+					var k := ZOOM_STEP if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / ZOOM_STEP
+					_zoom_to(_zoom_target * k, event.position)
+					get_viewport().set_input_as_handled()
+			MOUSE_BUTTON_MIDDLE:
+				_panning = event.pressed
+				get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion and _panning:
+		_view = _clamp_view(_view + event.relative, zoom)
+		_apply_view()
+	elif event is InputEventKey and event.pressed:
+		var mid := get_viewport_rect().size * 0.5
+		match event.keycode:
+			KEY_EQUAL, KEY_PLUS, KEY_KP_ADD:
+				_zoom_to(_zoom_target * ZOOM_STEP, mid)
+			KEY_MINUS, KEY_KP_SUBTRACT:
+				_zoom_to(_zoom_target / ZOOM_STEP, mid)
+			KEY_0, KEY_KP_0:
+				_zoom_to(1.0, mid)
+			_:
+				return
+		get_viewport().set_input_as_handled()
+
+func _zoom_to(target: float, anchor: Vector2) -> void:
+	_zoom_target = clampf(target, ZOOM_MIN, ZOOM_MAX)
+	_zoom_anchor = anchor
+
+## Lleva el zoom de a poco al que se pidió, dejando quieto lo que está debajo del mouse.
+func _update_zoom(dt: float) -> void:
+	if is_equal_approx(zoom, _zoom_target):
+		return
+	var world_p := (_zoom_anchor - _view) / zoom
+	zoom = lerpf(zoom, _zoom_target, 1.0 - exp(-ZOOM_SMOOTH * dt))
+	if absf(zoom - _zoom_target) < 0.001:
+		zoom = _zoom_target
+	_view = _clamp_view(_zoom_anchor - world_p * zoom, zoom)
+	_apply_view()
+
+## Para los costados: de cerca, que no se salga de lo que se ve sin zoom; de lejos, que eso
+## quede adentro. Para arriba y abajo: el horizonte nunca más abajo de donde está, y de cerca
+## tampoco más allá del borde de abajo de la pantalla sin zoom.
+func _clamp_view(v: Vector2, z: float) -> Vector2:
+	var size := get_viewport_rect().size
+	var a := size.x * (1.0 - z)
+	var top: float = $Sky.horizon_y * (1.0 - z)
+	var bottom := size.y * (1.0 - z)
+	return Vector2(clampf(v.x, minf(0.0, a), maxf(0.0, a)), top if bottom > top else clampf(v.y, bottom, top))
 
 func _notification(what: int) -> void:
 	# Al cerrar la ventana (y desde "Salir del juego", que manda lo mismo)

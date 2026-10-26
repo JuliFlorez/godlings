@@ -69,6 +69,9 @@ void fragment() {
     float s = mix(far_scale, 1.0, v);                                // Tamaño aparente
     // Posición sobre el piso del mar (px de piso): lo lejano queda estirado
     vec2 P = vec2((world_pos.x - vanish_x) / s, depth / (1.0 - far_scale) * log(s) / squash);
+    // Más adelante del borde de abajo de siempre (se ve con el zoom alejado) ya no se achica:
+    // el piso sigue de a 1 px de pantalla
+    P.y += max(world_pos.y - horizon_y - depth, 0.0) / squash;
 
     // Color base: lejos refleja el cielo (más claro cerca del horizonte), adelante es hondo
     vec3 sky = mix(sky_color, vec3(1.0), 0.3);

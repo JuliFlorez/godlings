@@ -19,7 +19,7 @@
 shader = ExtResource("3_tlwt5")
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_036b0"]
-size = Vector2(1149.5, 76.5)
+size = Vector2(3200, 76.5)
 
 [node name="World" type="Node2D" unique_id=1318916357]
 script = ExtResource("1_f3sb7")

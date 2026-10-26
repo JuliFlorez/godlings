@@ -37,6 +37,12 @@ func _ready() -> void:
 	_mat.set_shader_parameter("depth", bottom.y - top.y)
 	_mat.set_shader_parameter("vanish_x", get_viewport_rect().size.x * 0.5)
 	_mat.set_shader_parameter("squash", SQUASH)
+	# Con el zoom alejado (ver World.zoom) se ve más mar: el dibujo se estira para los costados
+	# y para adelante (la perspectiva sigue igual: depth es la del mar tal cual se armó)
+	var k := get_global_transform().get_scale()
+	var view := get_viewport_rect().size
+	global_position = Vector2(-view.x * 1.5, top.y)
+	size = Vector2(view.x * 4.0, (bottom.y - top.y) * 6.0) / k
 
 ## Anillos en el agua donde cae algo (ring_size: 1 = un aldeano).
 func ripple(at: Vector2, ring_size := 1.0) -> void:
@@ -127,7 +133,8 @@ func _process(dt: float) -> void:
 			col = C_BLOOD_MOON if moon.creepy else C_MOON
 	_glint = move_toward(_glint, target, 2.0 * dt)
 	_mat.set_shader_parameter("glint", _glint)
-	_mat.set_shader_parameter("glint_pos", astro.position)
+	# El astro está en la pantalla (el cielo es otra capa) y el mar en el mundo (con zoom)
+	_mat.set_shader_parameter("glint_pos", get_canvas_transform().affine_inverse() * astro.position)
 	_mat.set_shader_parameter("glint_color", _untinted(col, tint))
 
 ## El agua la tiñe la noche (CanvasModulate) y el cielo no: para que lo que se refleja

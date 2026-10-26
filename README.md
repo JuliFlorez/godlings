@@ -73,5 +73,6 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - **Tecla D / botón "Diluvio"**: Desatar o calmar el diluvio (una vez desbloqueado en la tienda). Mientras llueve se pueden seguir agarrando aldeanos para rescatarlos.
 - **Tecla P / botón "Peste"**: Sacar o guardar la peste (una vez desbloqueada en la tienda). Click sobre los aldeanos para enfermarlos; click derecho o Esc la guardan.
 - **Tecla C / botón "Curar"**: Sacar o guardar curar (una vez desbloqueado en la tienda). Click sobre un aldeano para curarlo; click derecho o Esc lo guardan.
+- **Rueda del mouse (o + y -)**: Zoom para acercarse o alejarse (hacia donde está el mouse); 0 vuelve al tamaño normal. De cerca, arrastrando con la rueda apretada se corre la vista. Alejándose entra la isla más grande sin chocar con los paneles.
 - **Click o cualquier tecla mientras baja la cámara**: La apura hasta la isla.
 - **Esc**: Menú de pausa (volumen, idioma, pantalla completa, menú principal y salir). En el menú de inicio vuelve a la pantalla principal.

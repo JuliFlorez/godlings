@@ -373,7 +373,8 @@ func _physics_process(dt: float) -> void:
 		rotation += swing_vel * dt
 
 		# Los costados de la pantalla lo rebotan: así no se pierde volando fuera de la vista
-		var view := get_viewport().get_visible_rect()
+		# (lo que se ve del mundo: con el zoom alejado, más; ver World.zoom)
+		var view := get_canvas_transform().affine_inverse() * get_viewport_rect()
 		if (global_position.x < view.position.x + BODY_HALF_W and fall_vx < 0.0) \
 				or (global_position.x > view.end.x - BODY_HALF_W and fall_vx > 0.0):
 			fall_vx *= -0.5
@@ -392,7 +393,7 @@ func _physics_process(dt: float) -> void:
 		else:
 			_flight_left_island = true
 
-		var kill_y := get_viewport().get_visible_rect().size.y + 150.0
+		var kill_y := view.end.y + 150.0
 		if global_position.y > kill_y:
 			queue_free()
 		return

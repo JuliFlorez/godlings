@@ -321,11 +321,16 @@ func set_active(on: bool) -> void:
 			visible = false
 			set_process(false))
 
+## Por dónde nada: el ancho de la pantalla sin zoom, o lo que se ve si está alejado (sin
+## salirse del agua). Así no se va lejos de la vista.
 func _left() -> float:
-	return water_rect.position.x + 20.0
+	return maxf(water_rect.position.x, minf(0.0, _view().position.x)) + 20.0
 
 func _right() -> float:
-	return water_rect.end.x - 20.0
+	return minf(water_rect.end.x, maxf(get_viewport_rect().size.x, _view().end.x)) - 20.0
+
+func _view() -> Rect2:
+	return get_canvas_transform().affine_inverse() * get_viewport_rect()
 
 func _process(dt: float) -> void:
 	_t += dt
@@ -794,7 +799,7 @@ func _fly(dt: float) -> void:
 	global_position += _vel * dt
 	rotation += _spin * dt
 
-	var view := get_viewport().get_visible_rect()
+	var view := _view()   # Con zoom, lo que se ve
 	var half_w := SPRITE_W * 0.5
 	if (global_position.x < view.position.x + half_w and _vel.x < 0.0) \
 			or (global_position.x > view.end.x - half_w and _vel.x > 0.0):

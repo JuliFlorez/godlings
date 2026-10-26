@@ -126,15 +126,20 @@ func _notification(what: int) -> void:
 	# Que no quede la pantalla corrida si pausan (o se va) justo mientras tiembla
 	if (what == NOTIFICATION_PAUSED or what == NOTIFICATION_EXIT_TREE) and _shake > 0.0:
 		_shake = 0.0
-		get_viewport().canvas_transform = Transform2D.IDENTITY
+		_set_shake(Vector2.ZERO)
 
 ## Tiembla el mundo (la isla, el agua y lo que hay encima; el cielo no, que está lejos).
 func _update_shake(dt: float) -> void:
 	if _shake <= 0.0:
 		return
 	_shake = maxf(0.0, _shake - dt / SHAKE_TIME)
-	var off := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * SHAKE * _shake * _shake
-	get_viewport().canvas_transform = Transform2D(0.0, off)
+	_set_shake(Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * SHAKE * _shake * _shake)
+
+## La vista la arma World (con el zoom): le pasa el temblor.
+func _set_shake(off: Vector2) -> void:
+	var world := get_parent()
+	if world and world.is_inside_tree() and "shake" in world:
+		world.shake = off
 
 # ---- El meteorito ----
 ## Dónde cae un meteorito tirado a p: en la isla ahí mismo y en el agua en la superficie.

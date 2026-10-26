@@ -275,6 +275,8 @@ func _update_thunder(dt: float) -> void:
 
 # ---- Dibujo ----
 func _draw() -> void:
+	# La lluvia va en coordenadas de pantalla (con zoom tiene que seguir tapando todo)
+	draw_set_transform_matrix(_screen())
 	if rain > 0.0:
 		_paint_clouds()
 		var segs := PackedVector2Array()
@@ -330,11 +332,15 @@ func _build_bank(width: float) -> void:
 ## La panza de las nubes de tormenta, que baja desde arriba de la pantalla y se mece.
 func _paint_clouds() -> void:
 	var drop := -CLOUD_DROP * (1.0 - ease(rain, 0.4))
-	draw_set_transform(Vector2(sin(_t * 0.25) * 12.0, drop + sin(_t * 0.6) * 3.0))
+	draw_set_transform_matrix(_screen() * Transform2D(0.0, Vector2(sin(_t * 0.25) * 12.0, drop + sin(_t * 0.6) * 3.0)))
 	draw_colored_polygon(_bank[0], C_CLOUD_BACK)
-	draw_set_transform(Vector2(sin(_t * 0.25 + 1.3) * 12.0, drop))
+	draw_set_transform_matrix(_screen() * Transform2D(0.0, Vector2(sin(_t * 0.25 + 1.3) * 12.0, drop)))
 	draw_colored_polygon(_bank[1], C_CLOUD)
-	draw_set_transform(Vector2.ZERO)
+	draw_set_transform_matrix(_screen())
+
+## De pantalla a mundo: para dibujar en la pantalla aunque haya zoom (ver World.zoom).
+func _screen() -> Transform2D:
+	return get_canvas_transform().affine_inverse()
 
 ## El agua de la inundación: una copia del dibujo de la isla, encima, con flood.gdshader
 ## (la orilla del agua avanza desde el borde hacia el centro).
