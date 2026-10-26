@@ -3,12 +3,15 @@ class_name VillagerCard
 ## Carnet del aldeano: se abre con un click sobre él en modo seleccionar.
 ## Foto tipo carnet con el género abajo, número, y nombre y apellido para escribir
 ## (se ven arriba de su cabeza, ver NameTag), y su estado: sano, con gripe, curado o muerto.
+## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos. Un click en
+## un nombre abre el carnet de ese aldeano.
 ## La foto es un rig propio del aldeano (así parpadea) que copia su cara: la boca de
 ## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto.
 
 const VILLAGER := preload("res://actors/villager/villager.tscn")
 const MARGIN := 14.0
-const TOP := 196.0               # Debajo del sol
+const TOP := 196.0               # Debajo del sol...
+const BOTTOM := 96.0             # ...y arriba de la barra de poderes (si no entra, sube)
 const MAX_NAME := 16
 const PHOTO_SIZE := Vector2(104, 124)
 const PHOTO_SCALE := 0.15
@@ -19,6 +22,13 @@ const GENDERS := {
 	Villager.Gender.MALE: "Masculino",
 	Villager.Gender.FEMALE: "Femenino",
 }
+const RELATIONS := [
+	[Relations.Kind.COUPLE, "Pareja", Villager.Bubble.HEART],
+	[Relations.Kind.FRIEND, "Amigos", Villager.Bubble.SMILE],
+	[Relations.Kind.ENEMY, "Enemigos", Villager.Bubble.ANGER],
+]
+const REL_CAPTION_W := 66.0
+const MAX_LISTED_NAME := 18      # Los nombres más largos se cortan con "…"
 
 var villager: Villager
 var _number: Label
@@ -28,6 +38,8 @@ var _last: LineEdit
 var _photo: Control
 var _photo_rig: VillagerRig
 var _status: Label
+var _relations: Array[HFlowContainer] = []   # Una fila por cada tipo de relación (RELATIONS)
+var _relations_key := ""        # Lo que se está mostrando: se rearma solo si cambia
 
 func _ready() -> void:
 	visible = false
@@ -97,6 +109,7 @@ func _ready() -> void:
 	fields.add_child(_caption("Estado"))
 	_status = HUD.make_label("", 15, HUD.C_TEXT)
 	fields.add_child(_status)
+	_build_relations(col)
 	_first.text_changed.connect(func(t: String):
 		if villager:
 			villager.first_name = t.strip_edges())
@@ -116,9 +129,16 @@ func open(v: Villager) -> void:
 	_first.text = v.first_name
 	_last.text = v.last_name
 	_new_photo()
+	_relations_key = "-"   # Que se rearme
+	_update_relations()
 	visible = true
+	_place()
+
+## Arriba a la derecha (con la altura que tenga ahora: cambia con la lista de relaciones).
+func _place() -> void:
 	reset_size()
-	position = Vector2(get_viewport_rect().size.x - size.x - MARGIN, TOP)
+	var view := get_viewport_rect().size
+	position = Vector2(view.x - size.x - MARGIN, clampf(view.y - BOTTOM - size.y, MARGIN, TOP))
 
 func close() -> void:
 	_first.release_focus()
@@ -135,6 +155,8 @@ func _process(_dt: float) -> void:
 	if villager.rig:
 		_photo_rig.copy_face(villager.rig)
 	_update_status()
+	_update_relations()
+	_place()
 
 ## Sano, incubando la gripe, enfermo, inmune o muerto. En la foto también se lo ve verdoso.
 func _update_status() -> void:
@@ -158,6 +180,64 @@ func _update_status() -> void:
 	_status.text = text
 	_status.add_theme_color_override("font_color", col)
 	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
+
+## Su pareja, sus amigos y sus enemigos (los vivos), con el nombre de cada uno (o su número
+## si no tiene) en el color de la relación.
+func _update_relations() -> void:
+	var lists := {}
+	for r: Array in RELATIONS:
+		lists[r[0]] = []
+	for node in villager.get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o == null or o.dead or o.eaten or o.is_queued_for_deletion():
+			continue
+		var k := Relations.kind(villager, o)
+		if lists.has(k):
+			lists[k].append(o)
+	var key := TranslationServer.get_locale()   # Los que no tienen nombre dicen "N.º" en el idioma
+	for k in lists:
+		lists[k].sort_custom(func(a: Villager, b: Villager): return a.id_number < b.id_number)
+		for o: Villager in lists[k]:
+			key += "%d:%d:%s;" % [k, o.id_number, o.full_name()]
+	if key == _relations_key:
+		return
+	_relations_key = key
+	for i in RELATIONS.size():
+		var flow := _relations[i]
+		for c in flow.get_children():
+			c.queue_free()
+		var people: Array = lists[RELATIONS[i][0]]
+		if people.is_empty():
+			var none := HUD.make_label("—", 14, Color(HUD.C_MUTED, 0.6))
+			flow.add_child(none)
+		for o: Villager in people:
+			flow.add_child(_person_button(o, Relations.color(RELATIONS[i][0])))
+
+## El nombre de alguien con quien tiene una relación: un click abre su carnet.
+func _person_button(o: Villager, col: Color) -> Button:
+	var b := Button.new()
+	var who := o.full_name()
+	if who == "":
+		who = "%s %04d" % [tr("N.º"), o.id_number]
+	elif who.length() > MAX_LISTED_NAME:
+		who = who.left(MAX_LISTED_NAME - 1) + "…"
+	b.text = who
+	b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED  # Es un nombre
+	b.flat = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_color_override("font_color", col)
+	b.add_theme_color_override("font_hover_color", col.lightened(0.35))
+	b.add_theme_color_override("font_pressed_color", col.darkened(0.2))
+	var pad := Vector4(5, 0, 5, 0)
+	b.add_theme_stylebox_override("normal", HUD.make_box(Color(col, 0.1), 6, Color(0, 0, 0, 0), 0, pad))
+	b.add_theme_stylebox_override("hover", HUD.make_box(Color(col, 0.22), 6, Color(0, 0, 0, 0), 0, pad))
+	b.add_theme_stylebox_override("pressed", HUD.make_box(Color(col, 0.3), 6, Color(0, 0, 0, 0), 0, pad))
+	b.pressed.connect(func():
+		if is_instance_valid(o):
+			open(o))
+	return b
 
 func _input(event: InputEvent) -> void:
 	# Click afuera del carnet: deja de escribir (si no, G o S escribirían en el nombre)
@@ -186,6 +266,35 @@ func _new_photo() -> void:
 	_photo.add_child(_photo_rig)
 
 # ---- Construcción ----
+func _build_relations(parent: Control) -> void:
+	var sep := HSeparator.new()
+	var line := StyleBoxLine.new()
+	line.color = Color(1, 1, 1, 0.10)
+	line.thickness = 1
+	sep.add_theme_stylebox_override("separator", line)
+	parent.add_child(sep)
+	var box := VBoxContainer.new()   # Más apretado que el resto del carnet
+	box.add_theme_constant_override("separation", 3)
+	parent.add_child(box)
+	box.add_child(_caption("Relaciones"))
+	for r: Array in RELATIONS:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		box.add_child(row)
+		var icon := RelationIcon.new()
+		icon.kind = r[2]
+		row.add_child(icon)
+		var caption := HUD.make_label(r[1], 13, HUD.C_MUTED)
+		caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
+		caption.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		row.add_child(caption)
+		var flow := HFlowContainer.new()
+		flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		flow.add_theme_constant_override("h_separation", 6)
+		flow.add_theme_constant_override("v_separation", 3)
+		row.add_child(flow)
+		_relations.append(flow)
+
 func _caption(text: String) -> Label:
 	var l := HUD.make_label(text, 11, HUD.C_MUTED)
 	l.uppercase = true   # Mayúsculas al mostrar, así el texto sigue siendo la clave de traducción
@@ -207,3 +316,15 @@ func _field(parent: Control, caption: String, placeholder: String) -> LineEdit:
 	e.add_theme_stylebox_override("focus", HUD.make_box(Color(0, 0, 0, 0), 8, HUD.C_DEVOTION, 2))
 	parent.add_child(e)
 	return e
+
+## El dibujito de cada tipo de relación (ver SpeechBubble.draw_icon).
+class RelationIcon extends Control:
+	var kind := Villager.Bubble.NONE
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(20, 22)
+		size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		SpeechBubble.draw_icon(self, kind, size * 0.5, 0.72)

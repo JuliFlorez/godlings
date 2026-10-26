@@ -194,6 +194,41 @@ var _food_t := 0.0
 var _food_cooldown := 0.0
 var _rig_rest := Vector2.ZERO
 
+# --- Charlas: cada tanto, dos que andan cerca y con ganas se juntan a charlar un rato. El que
+# la empieza va hasta el lado del otro, se miran y hablan por turnos (con un globito arriba de
+# la cabeza y un bla-bla con su voz). Según cómo les fue se quieren más o menos (ver
+# Relations): así se hacen amigos, enemigos o pareja, y los enemigos a veces terminan a los
+# empujones. Cuando alguien se muere, su pareja y sus amigos lloran. Se ve en el carnet.
+enum Bubble { NONE, DOTS, QUESTION, EXCLAIM, MUSIC, SUN, LAUGH, HEART, SMILE, ANGER, TEAR }
+const CHAT_EVERY := Vector2(12.0, 25.0) # Después de una charla, hasta tener ganas de otra
+const CHAT_SEEK := 130.0                # Hasta dónde busca con quién charlar
+const CHAT_SEEK_EVERY := 0.5
+const CHAT_GAP := 40.0                  # Charlando, uno al lado del otro (entre centros)
+const CHAT_REACH := 3.0
+const CHAT_APPROACH := 5.0              # Si no llega al lado del otro en este tiempo, lo deja
+const CHAT_TURNS := Vector2i(3, 6)
+const CHAT_TURN := Vector2(0.8, 1.2)    # Lo que dura el globito de cada uno
+const CHAT_PAUSE := 0.3                 # Entre un turno y otro
+const CHAT_MOOD := 3.0                  # Ganando o perdiendo más que esto, se les nota
+const REACT_TIME := 1.6                 # La cara que ponen al terminar
+const MOURN_TIME := 4.0
+const FIGHT_CHANCE := 0.5               # Enemigos que se pelearon: alguno empuja al otro
+const FIGHT_SHOVE := 170.0
+const BABBLE_DB := -16.0
+var chat_with: Villager
+var bubble := Bubble.NONE               # Lo que dice (ver SpeechBubble)
+var bubble_t := 0.0
+var _chat_lead := false                 # La empezó él: la lleva él
+var _chat_talking := false              # Ya están uno al lado del otro (si no, va yendo)
+var _chat_t := 0.0
+var _chat_turn := 0
+var _chat_len := 0
+var _chat_delta := 0.0                  # Cómo les va a ir (ver Relations.chat_delta)
+var _chat_cool := 0.0                   # Hasta tener ganas de charlar
+var _chat_seek := 0.0
+var _talking := 0.0                     # Hablando: mueve la boca
+static var _babbles: Array[AudioStreamWAV] = []
+
 # --- Carnet: nombre y apellido los pone el jugador en modo seleccionar (ver VillagerCard) ---
 enum Gender { MALE, FEMALE }
 static var ids_issued := 0       # Números de carnet repartidos (se guarda con la partida)
@@ -234,6 +269,7 @@ func _ready() -> void:
 	speed *= randf_range(PACE.x, PACE.y)
 	_pick_dir()
 	wander_timer = randf_range(1.5, 4.0)
+	_chat_cool = randf_range(2.0, CHAT_EVERY.y)
 	input_pickable = true
 
 	if rig:
@@ -427,6 +463,9 @@ func _physics_process(dt: float) -> void:
 		food.release_eater()   # Prendido fuego no se queda comiendo
 	if food != null and _food_ai(dt):
 		return
+	if chat_with != null and _chat_ai(dt):
+		return
+	_seek_chat(dt)
 	# Asustado (ve venir un meteorito) se queda quieto mirándolo; prendido fuego (o escapándose
 	# del agua) corre sin parar
 	var hurry := on_fire or _flee > 0.0
@@ -550,6 +589,274 @@ func _food_ai(dt: float) -> bool:
 			_eat_t = 0.001
 	return true
 
+# --- CHARLAS ---
+## Tranquilo en la isla: sin quemarse, asustarse, comer ni escaparse del agua.
+func can_chat() -> bool:
+	return is_idle() and not on_fire and not is_scared() and _flee <= 0.0 and food == null
+
+func wants_chat() -> bool:
+	return chat_with == null and _chat_cool <= 0.0 and can_chat()
+
+## Con ganas de charlar, busca a alguien cerca que también tenga ganas: más seguido a su
+## pareja y sus amigos, poco a sus enemigos.
+func _seek_chat(dt: float) -> void:
+	if not wants_chat():
+		return
+	_chat_seek -= dt
+	if _chat_seek > 0.0:
+		return
+	_chat_seek = CHAT_SEEK_EVERY
+	var best: Villager
+	var best_w := 0.0
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o == null or o == self or not o.wants_chat():
+			continue
+		var d := o.global_position.distance_to(global_position)
+		if d > CHAT_SEEK:
+			continue
+		var w := Relations.chat_weight(self, o) * (1.5 - d / CHAT_SEEK) * randf()
+		if w > best_w:
+			best = o
+			best_w = w
+	if best:
+		_start_chat(best)
+
+func _start_chat(o: Villager) -> void:
+	chat_with = o
+	o.chat_with = self
+	_chat_lead = true
+	o._chat_lead = false
+	_chat_talking = false
+	_chat_t = 0.0
+	_chat_turn = 0
+	_chat_len = randi_range(CHAT_TURNS.x, CHAT_TURNS.y)
+	_chat_delta = Relations.chat_delta(self, o)
+
+## Charlando con chat_with: el que la empezó va hasta el lado del otro, y ahí se quedan
+## mirándose y hablando por turnos (lo lleva el que la empezó). false si se cortó.
+func _chat_ai(dt: float) -> bool:
+	var o := chat_with
+	if not is_instance_valid(o) or o.chat_with != self or not can_chat() or not o.can_chat():
+		_end_chat()
+		return false
+	if not _chat_lead:
+		_stand_facing(o)   # Espera (o charla) parado, mirándolo
+		return true
+	if not _chat_talking:
+		_chat_t += dt
+		if _chat_t > CHAT_APPROACH:
+			_end_chat()
+			return false
+		if _walk_to_chat(o, dt):
+			_chat_talking = true
+			_chat_t = CHAT_PAUSE
+		return true
+	_stand_facing(o)
+	_chat_t -= dt
+	if _chat_t > 0.0:
+		return true
+	if _chat_turn >= _chat_len:
+		_finish_chat(o)
+		return true
+	# Hablan por turnos: primero el que la empezó
+	var speaker: Villager = self if _chat_turn % 2 == 0 else o
+	_chat_turn += 1
+	var time := randf_range(CHAT_TURN.x, CHAT_TURN.y)
+	speaker.say(_chat_topic(o), time)
+	_chat_t = time + CHAT_PAUSE
+	return true
+
+## Va caminando hasta quedar al lado del otro (del lado de donde viene; si ahí no hay isla,
+## del otro). true al llegar.
+func _walk_to_chat(o: Villager, dt: float) -> bool:
+	var side := 1.0 if global_position.x >= o.global_position.x else -1.0
+	var spot := o.global_position + Vector2(CHAT_GAP * side, 0.0)
+	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(spot, island_poly):
+		spot = o.global_position - Vector2(CHAT_GAP * side, 0.0)
+	var to := spot - global_position
+	if to.length() <= CHAT_REACH:
+		return true
+	dir = to.normalized()
+	_update_sprite_flip()
+	velocity = (dir * speed + shove_vel).limit_length(maxf(to.length() / dt, shove_vel.length()))
+	var prev_pos := global_position
+	move_and_slide()
+	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
+		if shove_timer > 0.0:
+			_fall_from_shove()
+			return false
+		global_position = prev_pos
+		# Trabado en la orilla: si ya está cerca, charlan desde ahí
+		return global_position.distance_to(o.global_position) < CHAT_GAP * 1.8
+	return false
+
+## Parado mirando al otro (solo se mueve si lo empujan).
+func _stand_facing(o: Villager) -> void:
+	_walk = 0.0   # Al terminar arranca a caminar de a poco
+	if rig:
+		rig.set_facing_left(o.global_position.x < global_position.x)
+	velocity = shove_vel
+	if velocity == Vector2.ZERO:
+		return
+	var prev_pos := global_position
+	move_and_slide()
+	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
+		if shove_timer > 0.0:
+			_fall_from_shove()
+		else:
+			global_position = prev_pos
+
+## De qué habla: según lo que son y si la charla viene bien o mal.
+func _chat_topic(o: Villager) -> Bubble:
+	var bad := _chat_delta < -CHAT_MOOD and randf() < 0.6
+	match Relations.kind(self, o):
+		Relations.Kind.COUPLE:
+			if bad:
+				return Bubble.ANGER
+			return [Bubble.HEART, Bubble.HEART, Bubble.MUSIC, Bubble.LAUGH].pick_random()
+		Relations.Kind.FRIEND:
+			if bad:
+				return [Bubble.ANGER, Bubble.EXCLAIM].pick_random()
+			return [Bubble.LAUGH, Bubble.LAUGH, Bubble.MUSIC, Bubble.SUN, Bubble.EXCLAIM].pick_random()
+		Relations.Kind.ENEMY:
+			if bad or randf() < 0.5:
+				return Bubble.ANGER
+			return [Bubble.EXCLAIM, Bubble.QUESTION].pick_random()
+	if bad:
+		return [Bubble.ANGER, Bubble.EXCLAIM, Bubble.QUESTION].pick_random()
+	return [Bubble.DOTS, Bubble.QUESTION, Bubble.SUN, Bubble.EXCLAIM, Bubble.MUSIC, Bubble.LAUGH].pick_random()
+
+## Terminó la charla: se quieren más o menos según cómo les fue, lo muestran con una cara (y
+## si cambió lo que son, con un cartel), y cada uno sigue con lo suyo.
+func _finish_chat(o: Villager) -> void:
+	var ev := Relations.change(self, o, _chat_delta)
+	var k := Relations.kind(self, o)
+	var face := Bubble.NONE
+	if ev == Relations.Event.BROKE_UP:
+		face = Bubble.TEAR
+	elif _chat_delta > CHAT_MOOD:
+		face = Bubble.HEART if k == Relations.Kind.COUPLE else Bubble.SMILE
+	elif _chat_delta < -CHAT_MOOD:
+		face = Bubble.ANGER
+	if face != Bubble.NONE:
+		say(face, REACT_TIME, false)
+		o.say(face, REACT_TIME, false)
+	var news := ""
+	var color := HUD.C_TEXT
+	match ev:
+		Relations.Event.FRIENDS:
+			news = "¡Se hicieron amigos!"
+			color = Relations.color(Relations.Kind.FRIEND)
+		Relations.Event.ENEMIES:
+			news = "¡Ahora son enemigos!"
+			color = Relations.color(Relations.Kind.ENEMY)
+		Relations.Event.MADE_UP:
+			news = "Hicieron las paces"
+			color = HUD.C_DEVOTION
+		Relations.Event.COUPLE:
+			news = "¡Son pareja!"
+			color = Relations.color(Relations.Kind.COUPLE)
+		Relations.Event.BROKE_UP:
+			news = "Se separaron"
+			color = HUD.C_MUTED
+	# Los enemigos que se pelearon a veces terminan a los empujones
+	if k == Relations.Kind.ENEMY and _chat_delta < 0.0 and randf() < FIGHT_CHANCE:
+		var pusher: Villager = self if randf() < 0.5 else o
+		var pushed: Villager = o if pusher == self else self
+		pushed._get_pushed_by(pusher)
+		if news == "":
+			news = "¡Pelea!"
+			color = HUD.C_WARN
+	_ensure_hud()
+	if hud and news != "":
+		var mid := (get_global_transform_with_canvas().origin + o.get_global_transform_with_canvas().origin) * 0.5
+		hud.popup_text(news, mid + Vector2(0, -100), color)
+	_end_chat()
+	_wander_off()
+	o._wander_off()
+
+## Se terminó (o se cortó) la charla: un rato sin ganas de otra, los dos.
+func _end_chat() -> void:
+	var o := chat_with
+	chat_with = null
+	_chat_cool = randf_range(CHAT_EVERY.x, CHAT_EVERY.y)
+	if is_instance_valid(o) and o.chat_with == self:
+		o.chat_with = null
+		o._chat_cool = randf_range(CHAT_EVERY.x, CHAT_EVERY.y)
+
+func _wander_off() -> void:
+	_resting = false
+	_pick_dir()
+	wander_timer = randf_range(1.5, 3.0)
+
+## Un enemigo lo empujó (y capaz que lo tira de la isla).
+func _get_pushed_by(o: Villager) -> void:
+	var push := Vector2(1.0 if global_position.x >= o.global_position.x else -1.0, 0.0)
+	get_shoved(Vector2.ZERO, push * FIGHT_SHOVE)
+	if rig:
+		rig.hit(body_center(), push, 0.8)
+	_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
+	_voice.play()
+
+## Dice algo (o pone una cara, si no talk): un globito arriba de la cabeza durante time
+## segundos. Hablando mueve la boca con un bla-bla en su tono de voz.
+func say(b: Bubble, time: float, talk := true) -> void:
+	bubble = b
+	bubble_t = time
+	if not talk:
+		return
+	if _babbles.is_empty():
+		for i in 6:
+			_babbles.append(_make_babble())
+	var p := AudioStreamPlayer.new()
+	p.stream = _babbles.pick_random()
+	p.volume_db = BABBLE_DB
+	p.pitch_scale = _voice_pitch * randf_range(0.95, 1.05)
+	add_child(p)
+	p.play()
+	p.finished.connect(p.queue_free)
+	_talking = p.stream.get_length() / p.pitch_scale
+
+## Hablando abre y cierra la boca (0..1, ver VillagerRig).
+func talk_mouth() -> float:
+	return absf(sin(_talking * 18.0)) * 0.55 if _talking > 0.0 else 0.0
+
+## Se murió: su pareja y sus amigos lloran un rato, y deja de contar para los demás.
+func _mourn() -> void:
+	_ensure_hud()
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o == null or o == self or o.dead or o.eaten or o.is_queued_for_deletion():
+			continue
+		match Relations.kind(self, o):
+			Relations.Kind.COUPLE:
+				o.say(Bubble.TEAR, MOURN_TIME, false)
+				if hud:
+					hud.popup_text("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), HUD.C_MUTED)
+			Relations.Kind.FRIEND:
+				o.say(Bubble.TEAR, MOURN_TIME * 0.6, false)
+	Relations.forget(self)
+
+## "Bla-bla-bla": unas sílabas cortitas con la vocal que sube y baja de tono.
+static func _make_babble() -> AudioStreamWAV:
+	var rate := 22050
+	var buf := PackedFloat32Array()
+	var ph := 0.0
+	for s in randi_range(4, 7):
+		var n := int(rate * randf_range(0.05, 0.085))
+		var f0 := randf_range(200.0, 300.0)
+		var f1 := f0 * randf_range(0.8, 1.25)
+		var bright := randf_range(0.2, 0.6)
+		for i in n:
+			var k := float(i) / n
+			ph += TAU * lerpf(f0, f1, k) / rate
+			var env := minf(1.0, k * 10.0) * minf(1.0, (1.0 - k) * 6.0)
+			buf.append((sin(ph) + bright * sin(ph * 2.0) + 0.25 * sin(ph * 3.0)) * env * 0.3)
+		for i in int(rate * randf_range(0.02, 0.045)):   # Pausita entre sílabas
+			buf.append(0.0)
+	return Synth.wav(buf, rate, 0.9)
+
 ## Empuje suave para no quedar encimado con otros aldeanos en tierra.
 func _separation() -> Vector2:
 	var push := Vector2.ZERO
@@ -618,6 +925,7 @@ func _grant_sacrifice_xp() -> void:
 	if xp_granted:
 		return
 	xp_granted = true
+	_mourn()   # Toda muerte pasa por acá
 	_ensure_hud()
 	if hud and hud.has_method("add_xp"):
 		hud.add_xp(1)
@@ -882,6 +1190,7 @@ func _start_ashes() -> void:
 	_pile.global_position = Vector2((a.x + b.x) * 0.5, maxf(a.y, b.y) + lying * 9.0 - 1.0)
 
 func _exit_tree() -> void:
+	Relations.forget(self)   # También el que se cayó al vacío
 	# Si se va a mitad de hacerse cenizas (se lo comió el tiburón), el montoncito igual se apaga
 	if is_instance_valid(_pile) and _pile.is_inside_tree():
 		_pile.finish()
@@ -1579,6 +1888,9 @@ func _process(dt: float) -> void:
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)
 	_tornado_cool = maxf(0.0, _tornado_cool - dt)
+	_chat_cool = maxf(0.0, _chat_cool - dt)
+	_talking = maxf(0.0, _talking - dt)
+	bubble_t = maxf(0.0, bubble_t - dt)
 
 ## Flotando (o hundiéndose) lo que queda debajo de la superficie no se ve.
 func _update_waterline() -> void:

@@ -362,7 +362,7 @@ func _process(dt: float) -> void:
 	rag = move_toward(rag, 1.0 if ragdoll else 0.0, BLEND_SPEED * dt)
 
 	# Boca: "¡wow!" mientras lo tienen agarrado, va volando (o girando en un tornado), ve venir
-	# un meteorito, se quema o estornuda; masticando cuando come
+	# un meteorito, se quema o estornuda; masticando cuando come, y moviéndose cuando charla
 	_sneeze = maxf(0.0, _sneeze - dt)
 	if villager.dead:
 		_mouth.target = 0.0
@@ -372,7 +372,7 @@ func _process(dt: float) -> void:
 	elif villager.food and villager._eat_t > 0.0:
 		_mouth.target = absf(sin(villager._eat_t * 12.0)) * 0.45
 	else:
-		_mouth.target = 0.0
+		_mouth.target = villager.talk_mouth()
 
 	# Gravedad efectiva que "sienten" los miembros: g - a (+ arrastre del aire)
 	var g_world := Vector2(0.0, GRAVITY) - _acc

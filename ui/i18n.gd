@@ -94,6 +94,19 @@ const EN := {
 	"Incubando gripe": "Coming down with the flu",
 	"Enfermo de gripe": "Sick with the flu",
 	"Curado (inmune)": "Recovered (immune)",
+	"Relaciones": "Relationships",
+	"Pareja": "Partner",
+	"Amigos": "Friends",
+	"Enemigos": "Enemies",
+	# Charlas (ver Villager y Relations)
+	"ja ja": "ha ha",
+	"¡Se hicieron amigos!": "They're friends now!",
+	"¡Ahora son enemigos!": "They're enemies now!",
+	"Hicieron las paces": "They made peace",
+	"¡Son pareja!": "They're a couple!",
+	"Se separaron": "They broke up",
+	"¡Pelea!": "Fight!",
+	"Perdió a su pareja": "Lost their partner",
 	# Tienda
 	"Ganás ofrendas con cada sacrificio y cuando tus aldeanos rezan.": "You earn offerings with every sacrifice and when your villagers pray.",
 	"Decoración para la isla": "Island decorations",
@@ -191,6 +204,8 @@ const EN := {
 	"+%d aldeanos": "+%d villagers",
 	"Contagia de gripe a n aldeanos sanos (por defecto 1)": "Gives the flu to n healthy villagers (1 by default)",
 	"%d aldeanos con gripe": "%d villagers with the flu",
+	"Simula n charlas al azar (por defecto 30) y les da ganas de charlar a todos": "Simulates n random chats (30 by default) and makes everyone want to chat",
+	"%d charlas: %d amistades, %d enemistades y %d parejas": "%d chats: %d friendships, %d rivalries and %d couples",
 	"Desbloqueado: pistola, rayo, meteorito, tornado, diluvio, peste, curar, Luna de Sangre y %d tiburones": "Unlocked: gun, lightning, meteor, tornado, flood, plague, heal, Blood Moon and %d sharks",
 	"No conozco \"%s\". Escribí ayuda (o help).": "Unknown command \"%s\". Type help (or ayuda).",
 }

@@ -226,6 +226,7 @@ func _ready() -> void:
 				placer.stop())
 
 	Villager.ids_issued = 0
+	Relations.clear()
 	_start_music()
 
 	# Arranca en el cielo, con el menú de inicio; la partida se carga al elegirla
@@ -585,7 +586,8 @@ func debug_spawn_villagers(n: int) -> void:
 
 # ---- Partida guardada ----
 ## Guarda lo que hace a la partida: progreso y compras (ver HUD.save_state), el tamaño
-## de la isla, los aldeanos con su carnet, las decoraciones y cómo está el cielo.
+## de la isla, los aldeanos con su carnet y lo que se quieren entre ellos (ver Relations),
+## las decoraciones y cómo está el cielo.
 ## Lo que pasa en el momento no (cadáveres, cocos sueltos, aldeanos volando o en el
 ## agua): los vivos que no estaban parados en la isla aparecen en ella al cargar.
 ## Solo jugando: en el menú de inicio no hay partida, y mientras la cámara baja ya está
@@ -594,6 +596,7 @@ func save_game() -> void:
 	if not playing or hud == null:
 		return
 	var villagers := []
+	var ids := []
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
 		if v == null or v.dead or v.eaten or v.drowning or v.is_queued_for_deletion():
@@ -608,6 +611,7 @@ func save_game() -> void:
 			"flu": v.flu,
 			"flu_t": v.flu_t,
 		})
+		ids.append(v.id_number)
 	var decorations := []
 	for c in props.get_children():
 		var d := c as Decoration
@@ -620,6 +624,7 @@ func save_game() -> void:
 	cfg.set_value("island", "level", island_level)
 	cfg.set_value("island", "villagers", villagers)
 	cfg.set_value("island", "next_id", Villager.ids_issued)
+	cfg.set_value("island", "relations", Relations.save_state(ids))
 	cfg.set_value("island", "decorations", decorations)
 	cfg.set_value("sky", "night", sky.is_night)
 	cfg.set_value("sky", "sun_creepy", sky.sun.creepy)
@@ -653,6 +658,7 @@ func _load_game() -> bool:
 		v.gender = d.get("gender", Villager.Gender.MALE)
 		v.set_flu(d.get("flu", Villager.Flu.HEALTHY) as Villager.Flu, d.get("flu_t", 0.0))
 	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
+	Relations.load_state(cfg.get_value("island", "relations", []))
 
 	var sky := $Sky
 	if cfg.get_value("sky", "night", false):

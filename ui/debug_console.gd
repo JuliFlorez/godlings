@@ -19,6 +19,7 @@ const COMMANDS := [
 	["isla / island [n]", "Pone la isla en ese nivel (por defecto el máximo)"],
 	["aldeanos / villagers [n]", "Invoca aldeanos gratis (por defecto hasta llenar la isla)"],
 	["gripe / flu [n]", "Contagia de gripe a n aldeanos sanos (por defecto 1)"],
+	["charlas / chats [n]", "Simula n charlas al azar (por defecto 30) y les da ganas de charlar a todos"],
 	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, peste, curar, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
 	["limpiar / clear", "Borra la consola"],
@@ -151,6 +152,8 @@ func run(text: String) -> void:
 			_ok(tr("+%d aldeanos") % n)
 		"gripe", "flu", "enfermar", "infect":
 			_ok(tr("%d aldeanos con gripe") % world.debug_infect(arg if arg > 0 else 1))
+		"charlas", "chats", "charlar", "chat":
+			_ok(tr("%d charlas: %d amistades, %d enemistades y %d parejas") % _simulate_chats(arg if arg > 0 else 30))
 		"desbloquear", "unlock":
 			_unlock_all()
 		"todo", "all":
@@ -163,6 +166,29 @@ func run(text: String) -> void:
 			_log.clear()
 		_:
 			_print("[color=#ff8c73]%s[/color]" % (tr("No conozco \"%s\". Escribí ayuda (o help).") % cmd))
+
+## n charlas entre dos aldeanos vivos al azar, de una (sin que se junten). Después todos
+## quedan con ganas de charlar. Devuelve [charlas, amistades, enemistades, parejas] que
+## hay ahora.
+func _simulate_chats(n: int) -> Array:
+	var alive: Array[Villager] = []
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v and not v.dead and not v.eaten and not v.is_queued_for_deletion():
+			alive.append(v)
+			v._chat_cool = 0.0
+	if alive.size() < 2:
+		return [0, 0, 0, 0]
+	for i in n:
+		alive.shuffle()
+		Relations.change(alive[0], alive[1], Relations.chat_delta(alive[0], alive[1]))
+	var count := {Relations.Kind.FRIEND: 0, Relations.Kind.ENEMY: 0, Relations.Kind.COUPLE: 0}
+	for i in alive.size():
+		for j in range(i + 1, alive.size()):
+			var k := Relations.kind(alive[i], alive[j])
+			if count.has(k):
+				count[k] += 1
+	return [n, count[Relations.Kind.FRIEND], count[Relations.Kind.ENEMY], count[Relations.Kind.COUPLE]]
 
 func _unlock_all() -> void:
 	Gun.unlocked = true
