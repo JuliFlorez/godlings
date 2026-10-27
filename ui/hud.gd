@@ -1,9 +1,10 @@
 extends CanvasLayer
 class_name HUD
-## Panel superior izquierdo: XP (progreso al próximo punto de expansión),
-## Devoción, población de la isla, botón de Expandir, Tienda e Historial (quién se hizo amigo,
-## enemigo o pareja de quién, ver HistoryPanel).
-## Arriba al medio, un + grande para invocar aldeanos; arriba a la derecha (al lado del sol), las
+## Panel superior izquierdo: XP (progreso al próximo punto de expansión), el tamaño de la isla
+## con el botón de Expandir, Tienda e Historial (quién se hizo amigo, enemigo o pareja de quién,
+## ver HistoryPanel).
+## Arriba al medio, un + grande para invocar aldeanos, con la devoción en un anillo alrededor, lo
+## que cuesta abajo y cuántos aldeanos hay al lado; arriba a la derecha (al lado del sol), las
 ## monedas: las ofrendas y los sacrificios (con la cabeza de un aldeano muerto, como el logo).
 ## Menú inferior: modo del click (arrastrar aldeanos, seleccionarlos o editar la isla) y armas
 ## y poderes (los que todavía no existen dicen "Próximamente").
@@ -108,7 +109,11 @@ const C_EVIL := Color(0.92, 0.3, 0.26)
 const C_HOLY := Color(1.0, 0.86, 0.4)
 const TAB_SIZE := 38.0
 const SLOT_SIZE := Vector2(76, 62)
-const SUMMON_SIZE := 78.0       # El + de invocar
+const SUMMON_SIZE := 78.0       # El + de invocar...
+const RING_W := 7.0             # ...con el anillo de devoción alrededor...
+const RING_GAP := 3.0           # ...un poquito separado
+const PANEL_W := 250.0          # El panel de la izquierda...
+const PANEL_BUTTON_H := 38.0    # ...y sus botones
 const COIN_W := 118.0           # Ancho de cada moneda de arriba a la derecha
 const COIN_ICON := 34.0          # Alto del ícono de cada moneda
 const SACRIFICE_ICON := preload("res://icon.png")
@@ -117,11 +122,9 @@ const SACRIFICE_HEAD := Rect2(15, 78, 481, 357)   # Donde está la cabeza en el 
 var _root: Control
 var _xp_bar: ProgressBar
 var _xp_value: Label
-var _energy_bar: ProgressBar
-var _energy_value: Label
+var _devotion_ring: DevotionRing
 var _pop_value: Label
 var _level_value: Label
-var _points_value: Label
 var _spawn_btn: Button
 var _expand_btn: Button
 var _gun_btn: Button
@@ -200,7 +203,7 @@ func _ready() -> void:
 
 	_build_ui()
 	_xp_bar.value = xp
-	_energy_bar.value = energy
+	_devotion_ring.value = energy
 	_refresh()
 	process_mode = Node.PROCESS_MODE_ALWAYS  # Sigue cargando aunque pierda foco
 
@@ -241,7 +244,7 @@ func _process(delta: float) -> void:
 	var k := 1.0 - exp(-10.0 * delta)
 	var xp_target := _xp_bar.max_value if not _can_earn_points() else float(xp)
 	_xp_bar.value = lerpf(_xp_bar.value, xp_target, k)
-	_energy_bar.value = lerpf(_energy_bar.value, energy, k)
+	_devotion_ring.value = lerpf(_devotion_ring.value, energy, k)
 
 	if _flash_amount > 0.0:
 		_flash_amount = move_toward(_flash_amount, 0.0, 6.0 * delta)
@@ -620,7 +623,7 @@ func load_state(d: Dictionary) -> void:
 		if shark_on[i]:
 			shark_changed.emit(i, true)
 	_xp_bar.value = xp       # Sin la animación de las barras llenándose
-	_energy_bar.value = energy
+	_devotion_ring.value = energy
 	expansion_points_changed.emit(expansion_points)
 	_refresh()
 
@@ -685,30 +688,25 @@ func _refresh() -> void:
 	if maxed:
 		_xp_bar.value = _xp_bar.max_value
 
-	_energy_bar.max_value = energy_max
-	_energy_value.text = "%d / %d" % [int(energy), int(energy_max)]
+	_devotion_ring.max_value = energy_max
+	_devotion_ring.cost = _spawn_cost
 
 	var full := _capacity >= 0 and _population >= _capacity
 	_pop_value.text = "%d / %d" % [maxi(_population, 0), maxi(_capacity, 0)]
 	_pop_value.add_theme_color_override("font_color", C_WARN if full else C_TEXT)
 	_level_value.text = "%d / %d" % [_island_level + 1, _island_max + 1]
-	_points_value.text = str(expansion_points)
 
 	var has_energy := energy >= _spawn_cost
 	_spawn_btn.disabled = full or not has_energy
-	_spawn_btn.tooltip_text = tr("Invocar aldeano (−%d devoción)") % int(_spawn_cost)
+	_spawn_btn.tooltip_text = tr("Invocar aldeano (−%d devoción)") % int(_spawn_cost) + "\n" \
+			+ tr("Devoción: %d / %d") % [int(energy), int(energy_max)]
 	_spawn_btn.get_meta("icon").modulate.a = 0.45 if _spawn_btn.disabled else 1.0
 	_spawn_cost_label.text = str(int(_spawn_cost))
 	_spawn_cost_label.add_theme_color_override("font_color", C_TEXT if has_energy else C_WARN)
 
 	var island_maxed := _island_level >= _island_max
 	_expand_btn.disabled = expansion_points <= 0 or island_maxed
-	if island_maxed:
-		_expand_btn.text = tr("Isla al máximo\n—")
-	elif expansion_points == 1:
-		_expand_btn.text = tr("Expandir isla\n1 punto")
-	else:
-		_expand_btn.text = tr("Expandir isla\n%d puntos") % expansion_points
+	_expand_btn.text = tr("Isla al máximo") if island_maxed else tr("Expandir isla (%d)") % expansion_points
 
 	_offer_value.text = str(offerings)
 	_sacrifice_value.text = str(sacrifices)
@@ -824,45 +822,60 @@ func _build_ui() -> void:
 
 	var panel := PanelContainer.new()
 	panel.position = Vector2(14, 14)
-	panel.custom_minimum_size = Vector2(300, 0)
-	panel.add_theme_stylebox_override("panel", make_box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(16, 14, 16, 14)))
+	panel.custom_minimum_size = Vector2(PANEL_W, 0)
+	panel.add_theme_stylebox_override("panel", make_box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(12, 10, 12, 12)))
 	_root.add_child(panel)
 
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
+	col.add_theme_constant_override("separation", 8)
 	panel.add_child(col)
 
-	var xp_row := _bar_row(col, "xp", "XP", C_XP)
-	_xp_bar = xp_row[0]
-	_xp_value = xp_row[1]
-	var en_row := _bar_row(col, "devotion", "Devoción", C_DEVOTION)
-	_energy_bar = en_row[0]
-	_energy_value = en_row[1]
+	# XP: una barrita finita con lo que falta para el próximo punto de expansión
+	var xp_row := HBoxContainer.new()
+	xp_row.add_theme_constant_override("separation", 7)
+	xp_row.tooltip_text = "XP: cada sacrificio suma 1; al llenarse ganás un punto para expandir la isla"
+	col.add_child(xp_row)
+	xp_row.add_child(HudIcon.make("xp", 16))
+	_xp_bar = ProgressBar.new()
+	_xp_bar.show_percentage = false
+	_xp_bar.custom_minimum_size = Vector2(0, 8)
+	_xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_xp_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_xp_bar.mouse_filter = Control.MOUSE_FILTER_PASS
+	_xp_bar.add_theme_stylebox_override("background", make_box(C_TRACK, 4))
+	_xp_bar.add_theme_stylebox_override("fill", make_box(C_XP, 4))
+	xp_row.add_child(_xp_bar)
+	_xp_value = make_label("", 12, C_MUTED)
+	xp_row.add_child(_xp_value)
 
-	var sep := HSeparator.new()
-	var line := StyleBoxLine.new()
-	line.color = Color(1, 1, 1, 0.10)
-	line.thickness = 1
-	sep.add_theme_stylebox_override("separator", line)
-	col.add_child(sep)
-
-	var stats := HBoxContainer.new()
-	stats.add_theme_constant_override("separation", 6)
-	col.add_child(stats)
-	_pop_value = _stat_chip(stats, "villager", "Aldeanos")
-	_level_value = _stat_chip(stats, "island", "Isla")
-	_points_value = _stat_chip(stats, "point", "Puntos")
-
-	_expand_btn = _action_button(col, C_EXPAND)
+	# La isla: de qué tamaño es y el botón para agrandarla
+	var island_row := HBoxContainer.new()
+	island_row.add_theme_constant_override("separation", 6)
+	col.add_child(island_row)
+	var island := PanelContainer.new()
+	island.tooltip_text = "Isla"
+	island.add_theme_stylebox_override("panel", make_box(Color(1, 1, 1, 0.06), 9, Color(0, 0, 0, 0), 0, Vector4(8, 0, 9, 0)))
+	island_row.add_child(island)
+	var island_in := HBoxContainer.new()
+	island_in.add_theme_constant_override("separation", 5)
+	island_in.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	island.add_child(island_in)
+	island_in.add_child(HudIcon.make("island", 16))
+	_level_value = make_label("", 14, C_TEXT)
+	island_in.add_child(_level_value)
+	_expand_btn = _action_button(island_row, C_EXPAND)
+	_expand_btn.custom_minimum_size.y = PANEL_BUTTON_H
 	_expand_btn.pressed.connect(func(): expand_pressed.emit())
 
 	var shop_row := HBoxContainer.new()
 	shop_row.add_theme_constant_override("separation", 8)
 	col.add_child(shop_row)
 	_shop_btn = _action_button(shop_row, C_SHOP)
+	_shop_btn.custom_minimum_size.y = PANEL_BUTTON_H
 	_shop_btn.text = "Tienda"
 	_shop_btn.pressed.connect(open_shop)
 	_history_btn = _action_button(shop_row, C_HISTORY)
+	_history_btn.custom_minimum_size.y = PANEL_BUTTON_H
 	_history_btn.text = "Historial"
 	_history_btn.tooltip_text = "Quién se hizo amigo, enemigo o pareja de quién [H]"
 	_history_btn.pressed.connect(toggle_history)
@@ -871,7 +884,7 @@ func _build_ui() -> void:
 	_hint.add_theme_font_size_override("font_size", 12)
 	_hint.add_theme_color_override("font_color", C_MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_hint.custom_minimum_size = Vector2(268, 0)
+	_hint.custom_minimum_size = Vector2(PANEL_W - 24.0, 0)
 	col.add_child(_hint)
 
 	_build_top()
@@ -884,21 +897,33 @@ func _build_ui() -> void:
 	_hut_card.hud = self
 	_root.add_child(_hut_card)
 
-## Arriba al medio, el + grande para invocar aldeanos (con lo que cuesta abajo); arriba a la
-## derecha, las ofrendas y los sacrificios.
+## Arriba al medio, el + grande para invocar aldeanos: alrededor, la devoción (un anillo que se
+## llena); abajo, lo que cuesta, y al costado, cuántos aldeanos hay. Arriba a la derecha, las
+## ofrendas y los sacrificios.
 func _build_top() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	center.offset_top = 10.0
+	center.offset_top = 6.0
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(center)
 	var summon := VBoxContainer.new()
-	summon.add_theme_constant_override("separation", -12)   # El costo se apoya en el borde del +
+	summon.add_theme_constant_override("separation", -8)   # El costo se apoya en el anillo
 	summon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(summon)
+	var ring_size := SUMMON_SIZE + (RING_GAP + RING_W) * 2.0
+	var ring_box := Control.new()   # El anillo con el + adentro (y los aldeanos al costado, afuera)
+	ring_box.custom_minimum_size = Vector2(ring_size, ring_size)
+	ring_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ring_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	summon.add_child(ring_box)
+	_devotion_ring = DevotionRing.new()
+	_devotion_ring.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_devotion_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ring_box.add_child(_devotion_ring)
 	_spawn_btn = Button.new()
+	_spawn_btn.position = Vector2.ONE * (RING_GAP + RING_W)
+	_spawn_btn.size = Vector2(SUMMON_SIZE, SUMMON_SIZE)
 	_spawn_btn.custom_minimum_size = Vector2(SUMMON_SIZE, SUMMON_SIZE)
-	_spawn_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_spawn_btn.pivot_offset = Vector2(SUMMON_SIZE, SUMMON_SIZE) * 0.5
 	_spawn_btn.focus_mode = Control.FOCUS_NONE
 	var r := int(SUMMON_SIZE * 0.5)
@@ -918,7 +943,20 @@ func _build_top() -> void:
 		_spawn_btn.scale = Vector2.ONE * 1.15
 		tw.tween_property(_spawn_btn, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		spawn_pressed.emit())
-	summon.add_child(_spawn_btn)
+	ring_box.add_child(_spawn_btn)
+	# Cuántos aldeanos hay (y cuántos entran), al costado
+	var pop := PanelContainer.new()
+	pop.tooltip_text = "Aldeanos"
+	pop.add_theme_stylebox_override("panel", make_box(C_PANEL, 17, C_PANEL_BORDER, 1, Vector4(8, 3, 12, 3)))
+	ring_box.add_child(pop)
+	var pop_row := HBoxContainer.new()
+	pop_row.add_theme_constant_override("separation", 5)
+	pop_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pop.add_child(pop_row)
+	pop_row.add_child(HudIcon.make("villager", 22))
+	_pop_value = make_label("", 18, C_TEXT)
+	pop_row.add_child(_pop_value)
+	pop.position = Vector2(ring_size + 6.0, (ring_size - pop.get_combined_minimum_size().y) * 0.5)
 	# Lo que cuesta: una gotita de devoción y el número
 	var cost := PanelContainer.new()
 	cost.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -1190,48 +1228,6 @@ func _slot_badge(slot: Control, text: String, color: Color) -> Control:
 	badge.rotation = deg_to_rad(-6.0)
 	return badge
 
-func _bar_row(parent: Control, icon: String, title: String, color: Color) -> Array:
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 4)
-	parent.add_child(box)
-
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 6)
-	box.add_child(head)
-	head.add_child(HudIcon.make(icon, 16))
-	var name_l := make_label(title, 14, C_TEXT)
-	head.add_child(name_l)
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(spacer)
-	var value_l := make_label("", 13, C_MUTED)
-	head.add_child(value_l)
-
-	var bar := ProgressBar.new()
-	bar.show_percentage = false
-	bar.custom_minimum_size = Vector2(0, 12)
-	bar.add_theme_stylebox_override("background", make_box(C_TRACK, 6))
-	bar.add_theme_stylebox_override("fill", make_box(color, 6, color.lightened(0.35), 1))
-	box.add_child(bar)
-	return [bar, value_l]
-
-func _stat_chip(parent: Control, icon: String, title: String) -> Label:
-	var chip := PanelContainer.new()
-	chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	chip.add_theme_stylebox_override("panel", make_box(Color(1, 1, 1, 0.06), 9, Color(0, 0, 0, 0), 0, Vector4(8, 6, 8, 6)))
-	parent.add_child(chip)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 0)
-	chip.add_child(v)
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 5)
-	v.add_child(top)
-	top.add_child(HudIcon.make(icon, 14))
-	top.add_child(make_label(title, 11, C_MUTED))
-	var value := make_label("", 16, C_TEXT)
-	v.add_child(value)
-	return value
-
 func _action_button(parent: Control, color: Color) -> Button:
 	var b := Button.new()
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1281,6 +1277,26 @@ static func make_box(bg: Color, radius: int, border := Color(0, 0, 0, 0), border
 	s.content_margin_bottom = pad.w
 	s.anti_aliasing = true
 	return s
+
+## El anillo de devoción alrededor del +: se llena desde arriba, en el sentido del reloj, con la
+## devoción. Si no alcanza para invocar (cost), apagado.
+class DevotionRing extends Control:
+	var max_value := 100.0
+	var cost := 10.0
+	var value := 0.0:
+		set(v):
+			if not is_equal_approx(v, value):
+				value = v
+				queue_redraw()
+
+	func _draw() -> void:
+		var c := size * 0.5
+		var r := size.x * 0.5 - HUD.RING_W * 0.5
+		draw_arc(c, r, 0.0, TAU, 64, Color(0.06, 0.09, 0.16, 0.75), HUD.RING_W + 3.0, true)
+		var k := clampf(value / maxf(max_value, 1.0), 0.0, 1.0)
+		if k > 0.002:
+			var col := HUD.C_DEVOTION if value >= cost else HUD.C_DEVOTION.darkened(0.45)
+			draw_arc(c, r, -PI * 0.5, -PI * 0.5 + TAU * k, maxi(3, int(64.0 * k)), col, HUD.RING_W, true)
 
 ## Lienzo en overlay que pide a paint(lienzo) que lo dibuje cada cuadro (ver Lightning y Meteor).
 class Painter extends Node2D:

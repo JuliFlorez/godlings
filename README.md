@@ -44,7 +44,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - ⚡ **Sistema de Fe / Devoción & XP**:
   - Cada sacrificio (ahogado o comido por el tiburón) da +1 XP.
   - Al llenar la barra de XP ganás un **punto de expansión**: aparecen orbes dorados "+" en los bordes de la isla. Tocá uno (o el botón "Expandir isla") y la isla crece.
-  - La invocación de aldeanos (el **+** grande de arriba al medio) consume Devoción, la cual se recarga progresivamente con el tiempo. No se puede invocar si la isla está llena: el + se apaga.
+  - La invocación de aldeanos (el **+** grande de arriba al medio) consume Devoción, la cual se recarga progresivamente con el tiempo: el anillo de alrededor del + muestra cuánta hay (apagado si no alcanza), abajo dice lo que cuesta y al costado cuántos aldeanos hay en la isla. No se puede invocar si la isla está llena: el + se apaga.
 - 💾 **Partidas guardadas**: hay 3 (en `user://save_1.cfg`, `save_2.cfg` y `save_3.cfg`; la partida de antes, `user://save.cfg`, pasa a ser la 1). Cada una se guarda sola cada 20 segundos, al salir y al volver al menú, y al elegirla se sigue donde quedó: progreso, ofrendas, compras, tamaño de la isla, aldeanos con su nombre, su número de carnet, su fe, su miedo, su hambre y lo que se quieren entre ellos, decoraciones, y si era de día o de noche (con la Luna de Sangre incluida). Los aldeanos que estaban volando o en el agua aparecen en la isla; los cadáveres y los cocos sueltos no se guardan. "Menú principal" en el menú de pausa guarda y vuelve al cielo, a elegir partida.
 - ⚙️ **Configuración** (en el menú de inicio y en el de pausa): volumen general, música, idioma (español o inglés), pantalla completa y un contador de fotogramas por segundo (FPS) en la esquina de abajo a la derecha. Se guarda aparte de las partidas (`user://settings.cfg`).
 - 🎨 **Arte 2D**: Sprites y texturas originales.
@@ -68,7 +68,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - **Soltar en el agua / vacío**: El aldeano cae y comienza a flotar / ahogarse.
 - **Arrastrar el sol (o la luna) hasta el horizonte**: Se pone y sale el otro astro (día ↔ noche).
 - **Tocar el sol (o la luna) 5 veces seguidas**: Activa/desactiva su versión perturbadora.
-- **Botón + (arriba al medio)**: Invoca un nuevo aldeano consumiendo 10 puntos de Devoción (lo dice abajo del +), si hay lugar en la isla.
+- **Botón + (arriba al medio)**: Invoca un nuevo aldeano consumiendo 10 puntos de Devoción (lo dice abajo del +; el anillo de alrededor es la devoción que tenés), si hay lugar en la isla (al costado dice cuántos aldeanos hay y cuántos entran).
 - **Orbe "+" en la isla / Botón "Expandir isla"**: Gasta un punto de expansión para agrandar la isla.
 - **Botón "Tienda"**: en pestañas (Isla, Poderes malos, Poderes buenos, y Cielo y tiburones): comprar decoraciones (click en la isla para colocarlas, click derecho o Esc para terminar) y desbloquear armas y poderes. Tocar un poder bloqueado en la barra abre la tienda en su pestaña.
 - **Click en la aleta del tiburón + Arrastrar**: Sacarlo del agua (soltalo en el agua, tiralo o dejalo en la isla).
