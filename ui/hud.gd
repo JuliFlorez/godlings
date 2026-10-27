@@ -171,6 +171,7 @@ var _edit_btn: Button
 var _slot_mode: StyleBoxFlat
 var _tags: Control
 var _card: VillagerCard
+var _hut_card: HutCard
 
 func _ready() -> void:
 	add_to_group("hud")
@@ -502,6 +503,7 @@ func set_select_mode(on: bool) -> void:
 	select_mode = on
 	if not on:
 		_card.close()
+		_hut_card.close()
 	select_mode_changed.emit(on)
 	_refresh()
 
@@ -521,7 +523,19 @@ func set_drag_mode() -> void:
 
 ## Click sobre un aldeano en modo seleccionar: abre su carnet.
 func select_villager(v: Villager) -> void:
+	_hut_card.close()
 	_card.open(v)
+
+## Click sobre una choza en modo seleccionar: abre su cartel, para ponerle nombre.
+func select_hut(h: Decoration) -> void:
+	_card.close()
+	_hut_card.open(h)
+
+## La choza con el cartel abierto (o null).
+func selected_hut() -> Decoration:
+	if _hut_card == null or not _hut_card.visible or not is_instance_valid(_hut_card.hut):
+		return null
+	return _hut_card.hut
 
 ## El aldeano con el carnet abierto (o null). Si ya no está (se ahogó o se cayó al vacío) es
 ## null aunque el carnet todavía no se haya cerrado: se cierra recién en su _process, y los
@@ -591,7 +605,8 @@ func load_state(d: Dictionary) -> void:
 	_refresh()
 
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, el historial, la colocación
-## de decoraciones, las armas y poderes ni el carnet, que la usan para cerrar/terminar/guardar).
+## de decoraciones, las armas y poderes ni el carnet o el cartel de una choza, que la usan para
+## cerrar/terminar/guardar).
 ## (El diluvio no: se calma con D.)
 ## Tampoco con el click apretado: en pausa se perdería el soltado de lo que se está
 ## arrastrando (aldeano, tiburón, coco, sol o luna) y quedaría pegado al cursor.
@@ -599,7 +614,7 @@ func esc_is_free() -> bool:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return false
 	return not (_shop and _shop.visible) and not (_history and _history.visible) and not _placing \
-			and not aiming() and _decor_edit != DecorPlacer.Edit.MOVING and not _card.visible
+			and not aiming() and _decor_edit != DecorPlacer.Edit.MOVING and not _card.visible and not _hut_card.visible
 
 ## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.
 func _on_locale_changed() -> void:
@@ -727,8 +742,10 @@ func _refresh() -> void:
 		_hint.text = tr("Agarrá el coco y tiráselo en la cabeza a un aldeano.")
 	elif _decor_edit == DecorPlacer.Edit.COCONUT_HELD:
 		_hint.text = tr("Soltalo encima de un aldeano para partirlo.")
+	elif _decor_edit == DecorPlacer.Edit.HUT:
+		_hint.text = tr("Click para ponerle nombre al cartel de la choza.")
 	elif select_mode:
-		_hint.text = tr("Click en un aldeano para ver su carnet y ponerle nombre · S para volver a arrastrar.")
+		_hint.text = tr("Click en un aldeano para ver su carnet y ponerle nombre, o en una choza para escribir su cartel · S para volver a arrastrar.")
 	elif edit_mode:
 		_hint.text = tr("Arrastrá una decoración para moverla · click derecho para quitarla (devuelve la mitad) · I para volver a arrastrar aldeanos.")
 	elif _raining:
@@ -843,7 +860,11 @@ func _build_ui() -> void:
 	_build_toolbar()
 
 	_card = VillagerCard.new()
+	_card.hud = self
 	_root.add_child(_card)
+	_hut_card = HutCard.new()
+	_hut_card.hud = self
+	_root.add_child(_hut_card)
 
 func _build_toolbar() -> void:
 	_slot_idle = make_box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1)
@@ -884,7 +905,7 @@ func _build_toolbar() -> void:
 	var mode_row := _toolbar_panel(bars)
 	_drag_btn = _tool_slot(mode_row, "hand", "Arrastrar", "", true, "Agarrá y tirá aldeanos [S]")
 	_drag_btn.pressed.connect(set_drag_mode)
-	_select_btn = _tool_slot(mode_row, "select", "Seleccionar", "S", true, "Click en un aldeano para ver su carnet [S]")
+	_select_btn = _tool_slot(mode_row, "select", "Seleccionar", "S", true, "Click en un aldeano para ver su carnet, o en una choza para ponerle nombre [S]")
 	_select_btn.pressed.connect(set_select_mode.bind(true))
 	_edit_btn = _tool_slot(mode_row, "edit", "Editar isla", "I", true, "Mover y quitar decoraciones, sin agarrar aldeanos [I]")
 	_edit_btn.pressed.connect(set_edit_mode.bind(true))

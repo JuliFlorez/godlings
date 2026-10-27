@@ -3,7 +3,9 @@ class_name Decoration
 ## Decoración de la isla (palmera, arbusto de bayas, flores, roca, antorcha, choza), dibujada
 ## por código. En las chozas viven los aldeanos (ver Villager.home): de noche duermen adentro
 ## (con la puerta iluminada y unas zetas saliendo del techo) y de día entran cada tanto a
-## descansar; las parejas que están adentro juntas cada tanto tienen un bebé (ver _try_birth). De noche las antorchas iluminan la isla alrededor (PointLight2D); la
+## descansar; las parejas que están adentro juntas cada tanto tienen un bebé (ver _try_birth).
+## Arriba de la puerta tienen un cartel con el nombre que les pone el jugador (ver hut_name y
+## HutCard). De noche las antorchas iluminan la isla alrededor (PointLight2D); la
 ## lluvia del diluvio las apaga hasta que para (ver Storm). A las palmeras les crecen cocos y
 ## a los arbustos de bayas, bayas: los aldeanos con hambre las vienen a comer solos (ver
 ## BerryPick y Villager._seek_food).
@@ -19,7 +21,7 @@ const KINDS := {
 	"flowers": {"name": "Flores", "price": 6, "icon_scale": 1.7},
 	"rock": {"name": "Roca", "price": 5, "icon_scale": 1.5},
 	"torch": {"name": "Antorcha", "price": 12, "icon_scale": 0.62},
-	"hut": {"name": "Choza", "price": 40, "icon_scale": 0.85},
+	"hut": {"name": "Choza", "price": 40, "icon_scale": 0.64},
 }
 
 const FLOWER_COLORS: Array[Color] = [
@@ -60,7 +62,7 @@ const HIT_RECTS := {
 	"flowers": Rect2(-15, -20, 30, 23),
 	"rock": Rect2(-21, -22, 42, 25),
 	"torch": Rect2(-12, -78, 24, 81),
-	"hut": Rect2(-32, -58, 64, 60),
+	"hut": Rect2(-46, -74, 92, 76),
 }
 
 ## Cocos de la palmera: crecen de a uno en los lugares libres de la copa y se pueden arrancar.
@@ -87,6 +89,21 @@ const BIRTH_CHECK := 4.0            # Cada cuánto se fija
 const BIRTH_CHANCE := 0.2           # Y la probabilidad cada vez
 const HUT_LIGHT_SCALE := 0.4        # La luz de la puerta, de noche (más chica que la de la antorcha)
 const HUT_LIGHT_ENERGY := 0.9
+## Dibujo de la choza, relativo a la base: paredes de cañas, techo de paja hasta la punta (con
+## los huesos cruzados arriba), la puerta y el cartel de madera con su nombre arriba de ella.
+const HUT_WALL := Vector2(38, 36)   # Medio ancho y alto de las paredes
+const HUT_EAVE := Vector2(45, -33)  # Punta del alero (la derecha; los flecos llegan más abajo)
+const HUT_TOP := -64.0              # Punta del techo
+const HUT_DOOR := Vector2(9, 25)    # Medio ancho y alto del hueco de la puerta
+const HUT_SIGN := Vector2(44, 14)   # Ancho (si el nombre no entra, se estira) y alto del cartel
+const HUT_SIGN_Y := -40.0           # Centro del cartel
+const HUT_SIGN_FONT := Vector2i(10, 7)   # Tamaño de letra: el más grande, y hasta dónde se achica
+const HUT_NAME_MAX := 14            # Letras del nombre
+static var _sign_font: Font
+var hut_name := "":                 # Lo que dice el cartel (lo escribe el jugador, ver HutCard)
+	set(v):
+		hut_name = v
+		queue_redraw()
 var hover_coconut := -1             # Coco de la copa bajo el mouse (se resalta)
 ## Los cocos de la palmera o las bayas del arbusto: si hay uno en cada lugar, y su tamaño
 ## (0..1: los nuevos crecen de a poco). Las bayas reservadas son las que alguien viene a comer.
@@ -102,6 +119,7 @@ var _glow := 0.0            # Choza: la puerta iluminada (alguien adentro, de no
 var _door_light: PointLight2D
 var _sleepers := 0          # Choza: los que están adentro
 var _birth_t := BIRTH_CHECK
+var _hud: HUD               # Choza: para saber si tiene el cartel abierto
 
 func _ready() -> void:
 	if not ghost:
@@ -120,12 +138,13 @@ func _ready() -> void:
 	if kind == "hut" and not ghost:
 		add_to_group("hut")   # Los aldeanos buscan dónde vivir
 		_sky = get_tree().get_first_node_in_group("sky")
+		_hud = get_tree().get_first_node_in_group("hud")
 		# La puerta iluminada tiene que verse aunque la noche oscurezca todo
 		_door_light = PointLight2D.new()
 		_door_light.texture = _torch_light_texture()
 		_door_light.texture_scale = HUT_LIGHT_SCALE
 		_door_light.color = TORCH_LIGHT_COLOR
-		_door_light.position = Vector2(0, LIFT - 10.0)
+		_door_light.position = Vector2(0, LIFT - HUT_DOOR.y * 0.5)
 		_door_light.enabled = false
 		add_child(_door_light)
 	if kind == "torch" and not ghost:
@@ -272,14 +291,21 @@ func _grow_fruit(dt: float) -> void:
 func _draw() -> void:
 	draw_set_transform(Vector2(0, LIFT))
 	paint(self, kind, variant, Time.get_ticks_msec() / 1000.0, ALL_FRUIT if ghost else _fruit_size,
-			_glow if kind == "hut" else _lit)
+			_glow if kind == "hut" else _lit, hut_name)
 	if kind == "hut" and _sleepers > 0 and _glow > 0.5:
 		# Durmiendo: zetas que suben del techo
 		var t := Time.get_ticks_msec() / 1000.0
 		for i in 3:
 			var k := fposmod(t * 0.4 + i / 3.0, 1.0)
-			var c := Vector2(10.0 + k * 14.0 + sin(k * 6.0 + i) * 3.0, -56.0 - k * 26.0)
+			var c := Vector2(14.0 + k * 14.0 + sin(k * 6.0 + i) * 3.0, HUT_TOP + 6.0 - k * 26.0)
 			SpeechBubble._text(self, "z", c, 9.0 + k * 6.0, Color(1, 1, 1, 0.9 * (1.0 - k)))
+	if kind == "hut" and not ghost and _hud and _hud.selected_hut() == self:
+		# Con su cartel abierto (ver HutCard): una flechita arriba, como la del carnet
+		var y := HUT_TOP - 20.0 - (0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 6.0)) * NameTag.ARROW_BOB
+		var tri := PackedVector2Array([Vector2(-NameTag.ARROW.x, y - NameTag.ARROW.y), Vector2(NameTag.ARROW.x, y - NameTag.ARROW.y), Vector2(0, y)])
+		draw_colored_polygon(tri, HUD.C_XP)
+		tri.append(tri[0])
+		draw_polyline(tri, NameTag.C_OUTLINE, 2.0, true)
 	if hover_coconut >= 0:
 		var c := palm_top(variant) + COCONUT_SLOTS[hover_coconut]
 		draw_arc(c, COCONUT_R + 2.5, 0.0, TAU, 20, Color(1.0, 0.95, 0.6, 0.9), 1.5, true)
@@ -293,16 +319,18 @@ static func palm_top(v: float) -> Vector2:
 
 ## Dibuja la decoración con la base en el origen (hacia arriba es -y).
 ## "fruit" es el tamaño (0..1) de cada coco de la palmera o baya del arbusto (vacío: todos
-## grandes, como en la tienda); "lit", cuánto está prendida la antorcha.
-static func paint(ci: CanvasItem, k: String, v: float, t: float, fruit: Array[float] = ALL_FRUIT, lit := 1.0) -> void:
-	ci.draw_colored_polygon(_ellipse(Vector2(0, 2), 20 if k == "palm" else 14, 5), Color(0, 0, 0, 0.18))
+## grandes, como en la tienda); "lit", cuánto está prendida la antorcha (o iluminada la puerta
+## de la choza); "label", lo que dice el cartel de la choza (vacío: el cartel en blanco).
+static func paint(ci: CanvasItem, k: String, v: float, t: float, fruit: Array[float] = ALL_FRUIT, lit := 1.0, label := "") -> void:
+	var shadow: float = {"palm": 20.0, "hut": 44.0}.get(k, 14.0)
+	ci.draw_colored_polygon(_ellipse(Vector2(0, 2), shadow, 5), Color(0, 0, 0, 0.18))
 	match k:
 		"palm": _paint_palm(ci, v, t, fruit)
 		"berries": _paint_berry_bush(ci, v, fruit)
 		"flowers": _paint_flowers(ci, v)
 		"rock": _paint_rock(ci, v)
 		"torch": _paint_torch(ci, t, lit)
-		"hut": _paint_hut(ci, v, t, lit)
+		"hut": _paint_hut(ci, v, t, lit, label)
 
 static func _paint_palm(ci: CanvasItem, v: float, t: float, nuts: Array[float]) -> void:
 	var top := palm_top(v)
@@ -384,36 +412,141 @@ static func _paint_rock(ci: CanvasItem, v: float) -> void:
 	ci.draw_colored_polygon(_ellipse(Vector2(-5, -13), 6, 3), Color(0.72, 0.72, 0.76))
 	ci.draw_circle(Vector2(16, -3), 4.0, Color(0.5, 0.5, 0.54), true, -1.0, true)
 
-## Choza de barro con techo de paja. glow: la puerta iluminada (0..1), de noche con alguien adentro.
-static func _paint_hut(ci: CanvasItem, v: float, t: float, glow: float) -> void:
-	var wall := Color(0.74, 0.54, 0.34).lerp(Color(0.68, 0.5, 0.32), v)
-	ci.draw_colored_polygon(PackedVector2Array([Vector2(-25, 0), Vector2(25, 0), Vector2(22, -28), Vector2(-22, -28)]), wall)
-	for y: float in [-8.0, -17.0]:   # Junturas del barro
-		ci.draw_line(Vector2(-23, y), Vector2(23, y), wall.darkened(0.12), 1.2, true)
-	# La puerta: un arco oscuro que de noche, con alguien adentro, se ilumina
-	var door := PackedVector2Array([Vector2(-7, 0), Vector2(7, 0)])
-	for i in 9:
-		var a := TAU * 0.5 * i / 8.0
-		door.append(Vector2(cos(a) * 7.0, -14.0 - sin(a) * 7.0))
+## Choza de cañas de bambú con techo de paja (con hojas encima y dos huesos cruzados en la
+## punta), la puerta con su marco de madera y arriba de ella el cartel, que dice label.
+## glow: la puerta iluminada (0..1), de noche con alguien adentro.
+static func _paint_hut(ci: CanvasItem, v: float, t: float, glow: float, label: String) -> void:
+	var ink := Color(0.22, 0.13, 0.06)   # El contorno de todo
+	var wood := Color(0.5, 0.31, 0.15)
+	var w := HUT_WALL.x
+	var h := HUT_WALL.y
+	# Las paredes: cañas paradas, cada una con sus nudos, y postes en las esquinas
+	var post := 5.0
+	ci.draw_rect(Rect2(-w, -h, w * 2.0, h), Color(0.34, 0.2, 0.09))   # Lo que se ve entre caña y caña
+	var cane := Color(0.86, 0.79, 0.42).lerp(Color(0.8, 0.78, 0.4), v)
+	var canes := 13
+	var cw := (w - post) * 2.0 / canes
+	for i in canes:
+		var x := -w + post + cw * i
+		var c := cane if i % 2 == 0 else cane.darkened(0.08)
+		ci.draw_rect(Rect2(x + 0.5, -h, cw - 1.0, h), c)
+		ci.draw_line(Vector2(x + 1.4, -h), Vector2(x + 1.4, 0), c.lightened(0.3), 0.8)   # El brillo
+		var y := -4.0 - fposmod(i * 0.37 + v, 1.0) * 8.0
+		while y > -h:
+			ci.draw_line(Vector2(x + 0.5, y), Vector2(x + cw - 0.5, y), c.darkened(0.3), 1.0)
+			y -= 11.0
+	for x: float in [-w, w - post]:
+		ci.draw_rect(Rect2(x, -h, post, h), wood)
+		ci.draw_rect(Rect2(x, -h, post, h), ink, false, 1.0)
+	ci.draw_rect(Rect2(-w, -h, w * 2.0, h), ink, false, 1.2)
+	# La puerta: un hueco oscuro que de noche, con alguien adentro, se ilumina; con su marco
+	var dw := HUT_DOOR.x
+	var dh := HUT_DOOR.y
 	if glow > 0.01:
-		ci.draw_circle(Vector2(0, -9), 16.0 * glow, Color(1.0, 0.65, 0.25, 0.18 * glow), true, -1.0, true)
-	ci.draw_colored_polygon(door, Color(0.2, 0.12, 0.07).lerp(Color(1.0, 0.72, 0.32), glow))
-	# El techo de paja, con flecos abajo
-	var straw := Color(0.88, 0.72, 0.34).lerp(Color(0.82, 0.66, 0.3), v)
-	var roof := PackedVector2Array([Vector2(-33, -22), Vector2(0, -60), Vector2(33, -22)])
-	for i in 9:   # Flecos
-		var x := lerpf(33.0, -33.0, i / 8.0)
-		roof.append(Vector2(x, -18.0 if i % 2 == 0 else -22.0))
+		ci.draw_circle(Vector2(0, -dh * 0.5), 18.0 * glow, Color(1.0, 0.65, 0.25, 0.18 * glow), true, -1.0, true)
+	ci.draw_rect(Rect2(-dw, -dh, dw * 2.0, dh), Color(0.17, 0.1, 0.05).lerp(Color(1.0, 0.72, 0.32), glow))
+	for x: float in [-dw - 3.5, dw]:
+		ci.draw_rect(Rect2(x, -dh, 3.5, dh), wood)
+		ci.draw_rect(Rect2(x, -dh, 3.5, dh), ink, false, 1.0)
+	var lintel := Rect2(-dw - 5.0, -dh - 3.5, dw * 2.0 + 10.0, 3.5)
+	ci.draw_rect(lintel, wood.lightened(0.08))
+	ci.draw_rect(lintel, ink, false, 1.0)
+	# El techo de paja: baja de la punta un poco abombado y termina en flecos
+	var straw := Color(0.92, 0.76, 0.38).lerp(Color(0.86, 0.7, 0.33), v)
+	var roof := PackedVector2Array()
+	for i in 9:   # De la punta al alero de la izquierda...
+		var s := i / 8.0
+		roof.append(Vector2(-lerpf(3.0, HUT_EAVE.x, s), lerpf(HUT_TOP, HUT_EAVE.y, pow(s, 1.25))))
+	var fringe := 15
+	for i in range(1, fringe):   # ...los flecos...
+		var tip := 2.0 + 2.5 * fposmod(i * 0.61 + v * 3.0, 1.0)
+		roof.append(Vector2(lerpf(-HUT_EAVE.x, HUT_EAVE.x, float(i) / fringe), HUT_EAVE.y + (tip if i % 2 == 1 else -1.5)))
+	for i in range(8, -1, -1):   # ...y del alero de la derecha a la punta
+		var s := i / 8.0
+		roof.append(Vector2(lerpf(3.0, HUT_EAVE.x, s), lerpf(HUT_TOP, HUT_EAVE.y, pow(s, 1.25))))
 	ci.draw_colored_polygon(roof, straw)
-	for i in 5:   # Las líneas de la paja
-		var x := lerpf(-24.0, 24.0, i / 4.0)
-		ci.draw_line(Vector2(0, -56), Vector2(x, -24), straw.darkened(0.18), 1.2, true)
-	ci.draw_line(Vector2(-6, -60), Vector2(6, -60), straw.darkened(0.3), 3.0, true)   # El atado de arriba
+	for i in 11:   # Las pajas
+		var s := lerpf(-1.0, 1.0, i / 10.0)
+		var bottom := Vector2(s * (HUT_EAVE.x - 5.0), HUT_EAVE.y - 1.0)
+		var top := Vector2(s * 3.0, HUT_TOP + 3.0).lerp(bottom, 0.1 + 0.25 * fposmod(i * 0.53 + v, 1.0))
+		ci.draw_line(top, bottom, straw.darkened(0.2), 1.0, true)
+	roof.append(roof[0])
+	ci.draw_polyline(roof, ink, 1.2, true)
+	# Hojas sueltas encima de la paja: (x, y, ángulo)
+	var leaves: Array[Vector3] = [Vector3(-31, -40, 0.7), Vector3(-17, -53, -0.4), Vector3(14, -55, 0.5), Vector3(30, -42, -0.8), Vector3(-1, -59, 1.4)]
+	for i in leaves.size():
+		var col := Color(0.55, 0.56, 0.24) if i % 2 == 0 else Color(0.66, 0.42, 0.18)
+		_leaf(ci, Vector2(leaves[i].x, leaves[i].y), leaves[i].z, col, ink)
+	# Dos huesos cruzados en la punta
+	for d: Vector2 in [Vector2(6, -5.5), Vector2(-6, -5.5)]:
+		_bone(ci, Vector2(0, HUT_TOP - 3.0) - d, Vector2(0, HUT_TOP - 3.0) + d, ink)
+	_paint_hut_sign(ci, label, ink)
 	if glow > 0.01:
-		# Humito de la chimenea, de noche
+		# Humito que sale de arriba, de noche
 		for i in 3:
 			var k := fposmod(t * 0.25 + i / 3.0, 1.0)
-			ci.draw_circle(Vector2(-4.0 + sin(k * 5.0 + i) * 3.0, -62.0 - k * 22.0), 2.5 + k * 3.0, Color(0.85, 0.85, 0.9, 0.35 * glow * (1.0 - k)), true, -1.0, true)
+			ci.draw_circle(Vector2(-12.0 + sin(k * 5.0 + i) * 3.0, HUT_TOP + 4.0 - k * 22.0), 2.5 + k * 3.0, Color(0.85, 0.85, 0.9, 0.35 * glow * (1.0 - k)), true, -1.0, true)
+
+## El cartel de madera de la choza, con el nombre (si no entra, se achica la letra y después
+## se estira el cartel).
+static func _paint_hut_sign(ci: CanvasItem, label: String, ink: Color) -> void:
+	var font := _hut_sign_font()
+	var fs := HUT_SIGN_FONT.x
+	var text_w := 0.0
+	if label != "":
+		text_w = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		while fs > HUT_SIGN_FONT.y and text_w > HUT_SIGN.x - 8.0:
+			fs -= 1
+			text_w = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var sw := maxf(HUT_SIGN.x, text_w + 8.0)
+	var board := Rect2(-sw * 0.5, HUT_SIGN_Y - HUT_SIGN.y * 0.5, sw, HUT_SIGN.y)
+	var plank := Color(0.74, 0.53, 0.31)
+	ci.draw_rect(board, plank)
+	for g: Vector3 in [Vector3(0.08, -3.5, 0.45), Vector3(0.5, -0.5, 0.42), Vector3(0.2, 3.0, 0.5)]:   # Vetas: (desde, y, largo)
+		var x := board.position.x + 2.0 + (sw - 4.0) * g.x
+		ci.draw_line(Vector2(x, HUT_SIGN_Y + g.y), Vector2(x + (sw - 4.0) * g.z, HUT_SIGN_Y + g.y), plank.darkened(0.1), 0.8)
+	ci.draw_rect(board, ink, false, 1.2)
+	if label != "":
+		var base := HUT_SIGN_Y + (font.get_ascent(fs) - font.get_descent(fs)) * 0.5
+		ci.draw_string(font, Vector2(-text_w * 0.5, base), label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.2, 0.1, 0.04))
+
+## La letra del cartel: la de siempre pero más gruesa y con campo de distancia, así se ve
+## nítida con cualquier zoom (la común, agrandada, se ve borrosa).
+static func _hut_sign_font() -> Font:
+	if _sign_font == null:
+		var base := ThemeDB.fallback_font
+		if base is FontFile:
+			var msdf := (base as FontFile).duplicate() as FontFile
+			msdf.multichannel_signed_distance_field = true
+			base = msdf
+		var bold := FontVariation.new()
+		bold.base_font = base
+		bold.variation_embolden = 0.5
+		_sign_font = bold
+	return _sign_font
+
+## Una hoja en punta, con su nervadura.
+static func _leaf(ci: CanvasItem, c: Vector2, angle: float, col: Color, ink: Color) -> void:
+	var pts := PackedVector2Array()
+	for i in 12:
+		var s := i / 6.0 if i <= 6 else (12 - i) / 6.0
+		var side := -1.0 if i <= 6 else 1.0
+		pts.append(c + Vector2(lerpf(-5.0, 5.0, s), side * 2.2 * sin(PI * s)).rotated(angle))
+	ci.draw_colored_polygon(pts, col)
+	pts.append(pts[0])
+	ci.draw_polyline(pts, Color(ink, 0.8), 0.8, true)
+	ci.draw_line(c + Vector2(-4.5, 0).rotated(angle), c + Vector2(4.5, 0).rotated(angle), col.darkened(0.3), 0.7, true)
+
+## Un hueso de a a b, con dos bolitas en cada punta.
+static func _bone(ci: CanvasItem, a: Vector2, b: Vector2, ink: Color) -> void:
+	var n := (b - a).normalized().orthogonal() * 1.3
+	for outline: bool in [true, false]:
+		var col := ink if outline else Color(0.96, 0.93, 0.84)
+		var grow := 0.9 if outline else 0.0
+		ci.draw_line(a, b, col, 2.4 + grow * 2.0, true)
+		for e: Vector2 in [a, b]:
+			for side: float in [-1.0, 1.0]:
+				ci.draw_circle(e + n * side, 1.7 + grow, col, true, -1.0, true)
 
 ## lit: 1 prendida, 0 apagada (la llama se achica hacia la copa y quedan las brasas).
 static func _paint_torch(ci: CanvasItem, t: float, lit := 1.0) -> void:

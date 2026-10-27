@@ -8,7 +8,8 @@ class_name VillagerCard
 ## devoto, fanático, hereje o aterrado.
 ## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos; su familia (sus
 ## padres y sus hijos) y su casa (la choza donde vive y con quién). Un click en un nombre abre
-## el carnet de ese aldeano. Los chicos dicen "Nene" o "Nena" en vez del género.
+## el carnet de ese aldeano, y uno en la choza, su cartel (ver HutCard). Los chicos dicen "Nene"
+## o "Nena" en vez del género.
 ## La foto es un rig propio del aldeano (así parpadea) que copia su cara: la boca de
 ## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto.
 
@@ -48,7 +49,9 @@ const C_FAITH := HUD.C_HOLY
 const C_FEAR := HUD.C_EVIL
 const C_HUNGER := HUD.C_FEED
 const MAX_LISTED_NAME := 18      # Los nombres más largos se cortan con "…"
+const C_HUT := Color(0.9, 0.72, 0.46)
 
+var hud: HUD
 var villager: Villager
 var _number: Label
 var _gender: Label
@@ -86,15 +89,7 @@ func _ready() -> void:
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(4, 0)
 	head.add_child(gap)
-	var close_btn := Button.new()
-	close_btn.text = "✕"
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.custom_minimum_size = Vector2(28, 28)
-	close_btn.add_theme_stylebox_override("normal", HUD.make_box(Color(1, 1, 1, 0.08), 8))
-	close_btn.add_theme_stylebox_override("hover", HUD.make_box(Color(1, 1, 1, 0.18), 8))
-	close_btn.add_theme_stylebox_override("pressed", HUD.make_box(Color(1, 1, 1, 0.26), 8))
-	close_btn.pressed.connect(close)
-	head.add_child(close_btn)
+	head.add_child(close_button(close))
 
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 14)
@@ -115,7 +110,7 @@ func _ready() -> void:
 	var gap2 := Control.new()
 	gap2.custom_minimum_size = Vector2(0, 8)
 	photo_col.add_child(gap2)
-	photo_col.add_child(_caption("Género"))
+	photo_col.add_child(caption("Género"))
 	_gender = HUD.make_label("", 15, HUD.C_TEXT)
 	photo_col.add_child(_gender)
 
@@ -123,15 +118,15 @@ func _ready() -> void:
 	fields.add_theme_constant_override("separation", 4)
 	fields.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(fields)
-	_first = _field(fields, "Nombre", "Sin nombre")
+	_first = field(fields, "Nombre", "Sin nombre")
 	var gap3 := Control.new()
 	gap3.custom_minimum_size = Vector2(0, 6)
 	fields.add_child(gap3)
-	_last = _field(fields, "Apellido", "Sin apellido")
+	_last = field(fields, "Apellido", "Sin apellido")
 	var gap4 := Control.new()
 	gap4.custom_minimum_size = Vector2(0, 6)
 	fields.add_child(gap4)
-	fields.add_child(_caption("Estado"))
+	fields.add_child(caption("Estado"))
 	_status = HUD.make_label("", 15, HUD.C_TEXT)
 	fields.add_child(_status)
 	_hunger_bar = _bar(fields, "Hambre", C_HUNGER)
@@ -249,7 +244,7 @@ func _update_relations() -> void:
 		lists[k].sort_custom(func(a: Villager, b: Villager): return a.id_number < b.id_number)
 		for o: Villager in lists[k]:
 			key += "%d:%d:%s;" % [k, o.id_number, o.full_name()]
-	key += "|%s|%s|" % [villager._home_ok(), villager.inside]
+	key += "|%s|%s|%s|" % [villager._home_ok(), villager.inside, villager.home.hut_name if villager._home_ok() else ""]
 	for o: Villager in family + housemates:
 		key += "%d:%s;" % [o.id_number, o.full_name()]
 	if key == _relations_key:
@@ -261,12 +256,12 @@ func _update_relations() -> void:
 	if not villager._home_ok():
 		_home.add_child(HUD.make_label("Sin casa", 14, Color(HUD.C_MUTED, 0.6)))
 	else:
-		var hut := tr("Choza")
+		var hut := villager.home
+		_home.add_child(link_button(HutCard.title_of(hut), C_HUT, func():
+			if is_instance_valid(hut) and hud:
+				hud.select_hut(hut)))
 		if villager.inside:
-			hut += " · " + tr("adentro")
-		var l := HUD.make_label(hut, 14, HUD.C_TEXT)
-		l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-		_home.add_child(l)
+			_home.add_child(HUD.make_label("adentro", 14, HUD.C_MUTED))
 		for o in housemates:
 			_home.add_child(_person_button(o, HUD.C_MUTED))
 	for i in RELATIONS.size():
@@ -283,13 +278,23 @@ func _fill(flow: HFlowContainer, people: Array, col: Color) -> void:
 
 ## El nombre de alguien con quien tiene una relación: un click abre su carnet.
 func _person_button(o: Villager, col: Color) -> Button:
-	var b := Button.new()
+	return link_button(listed_name(o), col, func():
+		if is_instance_valid(o):
+			open(o))
+
+## El nombre para las listas (cortado si es largo), o su número si no tiene.
+static func listed_name(o: Villager) -> String:
 	var who := o.full_name()
 	if who == "":
-		who = "%s %04d" % [tr("N.º"), o.id_number]
-	elif who.length() > MAX_LISTED_NAME:
-		who = who.left(MAX_LISTED_NAME - 1) + "…"
-	b.text = who
+		return "%s %04d" % [TranslationServer.translate("N.º"), o.id_number]
+	if who.length() > MAX_LISTED_NAME:
+		return who.left(MAX_LISTED_NAME - 1) + "…"
+	return who
+
+## Un nombre en una lista, que se toca (abre el carnet de alguien, o el cartel de una choza).
+static func link_button(text: String, col: Color, on_pressed: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
 	b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED  # Es un nombre
 	b.flat = true
 	b.focus_mode = Control.FOCUS_NONE
@@ -302,9 +307,19 @@ func _person_button(o: Villager, col: Color) -> Button:
 	b.add_theme_stylebox_override("normal", HUD.make_box(Color(col, 0.1), 6, Color(0, 0, 0, 0), 0, pad))
 	b.add_theme_stylebox_override("hover", HUD.make_box(Color(col, 0.22), 6, Color(0, 0, 0, 0), 0, pad))
 	b.add_theme_stylebox_override("pressed", HUD.make_box(Color(col, 0.3), 6, Color(0, 0, 0, 0), 0, pad))
-	b.pressed.connect(func():
-		if is_instance_valid(o):
-			open(o))
+	b.pressed.connect(on_pressed)
+	return b
+
+## La ✕ para cerrar, arriba a la derecha.
+static func close_button(on_pressed: Callable) -> Button:
+	var b := Button.new()
+	b.text = "✕"
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(28, 28)
+	b.add_theme_stylebox_override("normal", HUD.make_box(Color(1, 1, 1, 0.08), 8))
+	b.add_theme_stylebox_override("hover", HUD.make_box(Color(1, 1, 1, 0.18), 8))
+	b.add_theme_stylebox_override("pressed", HUD.make_box(Color(1, 1, 1, 0.26), 8))
+	b.pressed.connect(on_pressed)
 	return b
 
 func _input(event: InputEvent) -> void:
@@ -341,7 +356,7 @@ func _build_creed(parent: Control) -> void:
 	parent.add_child(box)
 	var head := HBoxContainer.new()
 	box.add_child(head)
-	head.add_child(_caption("Creencia"))
+	head.add_child(caption("Creencia"))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
@@ -382,7 +397,7 @@ func _build_relations(parent: Control) -> void:
 	var box := VBoxContainer.new()   # Más apretado que el resto del carnet
 	box.add_theme_constant_override("separation", 3)
 	parent.add_child(box)
-	box.add_child(_caption("Relaciones"))
+	box.add_child(caption("Relaciones"))
 	for r: Array in RELATIONS:
 		_relations.append(_relation_row(box, r[1], r[2]))
 	_family = _relation_row(box, "Familia", Villager.Bubble.SUN)
@@ -409,16 +424,16 @@ func _relation_row(box: Control, title: String, bubble: Villager.Bubble, hut := 
 	row.add_child(flow)
 	return flow
 
-func _caption(text: String) -> Label:
+static func caption(text: String) -> Label:
 	var l := HUD.make_label(text, 11, HUD.C_MUTED)
 	l.uppercase = true   # Mayúsculas al mostrar, así el texto sigue siendo la clave de traducción
 	return l
 
-func _field(parent: Control, caption: String, placeholder: String) -> LineEdit:
-	parent.add_child(_caption(caption))
+static func field(parent: Control, title: String, placeholder: String, max_length := MAX_NAME) -> LineEdit:
+	parent.add_child(caption(title))
 	var e := LineEdit.new()
 	e.placeholder_text = placeholder
-	e.max_length = MAX_NAME
+	e.max_length = max_length
 	e.select_all_on_focus = true
 	e.custom_minimum_size = Vector2(176, 36)
 	e.add_theme_font_size_override("font_size", 15)
@@ -443,7 +458,7 @@ class RelationIcon extends Control:
 
 	func _draw() -> void:
 		if hut:
-			draw_set_transform(Vector2(size.x * 0.5, size.y - 2.0), 0.0, Vector2.ONE * 0.3)
+			draw_set_transform(Vector2(size.x * 0.5, size.y - 2.0), 0.0, Vector2.ONE * 0.22)
 			Decoration.paint(self, "hut", 0.5, 0.0)
 			return
 		SpeechBubble.draw_icon(self, kind, size * 0.5, 0.72)

@@ -8,12 +8,13 @@ class_name DecorPlacer
 ## click izquierdo para moverlas (si se sueltan fuera de la isla vuelven a su lugar) y con
 ## click derecho se quitan, devolviendo la mitad de lo que costaron; ahí los aldeanos que
 ## estén adelante no tapan. Fuera de ese modo no se tocan (así no se mueven sin querer), pero
-## los cocos (en la copa de las palmeras o sueltos) se agarran con click izquierdo.
+## los cocos (en la copa de las palmeras o sueltos) se agarran con click izquierdo, y en el modo
+## seleccionar un click en una choza abre su cartel para ponerle nombre (ver HutCard).
 
 const MIN_GAP := 14.0       # Distancia mínima entre decoraciones
 const REFUND := 0.5         # Parte del precio que se devuelve al quitar una decoración
 
-enum Edit { NONE, HOVER, MOVING, COCONUT, COCONUT_HELD }
+enum Edit { NONE, HOVER, MOVING, COCONUT, COCONUT_HELD, HUT }
 
 var hud: HUD
 var props: Node2D           # Contenedor ordenado por Y donde viven aldeanos y decoraciones
@@ -25,7 +26,8 @@ var kind := ""
 var _ghost: Decoration
 
 ## Lo que está bajo el mouse: {"deco": Decoration}, {"palm": Decoration, "slot": int}
-## (un coco en la copa), {"nut": Coconut} (un coco suelto), o vacío.
+## (un coco en la copa), {"nut": Coconut} (un coco suelto), {"hut": Decoration} (una choza,
+## en el modo seleccionar), o vacío.
 var _hover := {}
 var _moving: Decoration
 var _move_from := Vector2.ZERO
@@ -152,7 +154,9 @@ func _edit_input(event: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()   # Que no agarre al aldeano de atrás
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		if h.has("nut"):
+		if h.has("hut"):
+			hud.select_hut(h.hut)
+		elif h.has("nut"):
 			_grab_nut(h.nut)
 		elif h.has("palm"):
 			var nut := Coconut.new()
@@ -169,10 +173,14 @@ func _edit_input(event: InputEvent) -> void:
 func _editing() -> bool:
 	return hud != null and hud.edit_mode
 
+## En el modo seleccionar.
+func _selecting() -> bool:
+	return hud != null and hud.select_mode
+
 ## Lo que se puede agarrar bajo el mouse (lo de más adelante). Editando la isla, las
 ## decoraciones (aunque haya un aldeano delante: ahí no se los agarra). Si no, los cocos:
-## primero los sueltos y después los de las palmeras; vacío si hay un aldeano delante, que
-## agarrar aldeanos tiene prioridad.
+## primero los sueltos y después los de las palmeras, y seleccionando, las chozas; vacío si hay
+## un aldeano delante, que agarrar aldeanos (o abrir su carnet) tiene prioridad.
 func _pick(p: Vector2) -> Dictionary:
 	if HUD.aiming() or _held_nut or get_tree().paused or get_viewport().gui_get_hovered_control() != null:
 		return {}
@@ -200,6 +208,11 @@ func _pick(p: Vector2) -> Dictionary:
 				if slot >= 0:
 					best = {"palm": c, "slot": slot}
 					best_y = c.global_position.y
+	if best.is_empty() and _selecting():
+		for c in props.get_children():
+			if c is Decoration and c.is_in_group("hut") and c.hit_test(p) and c.global_position.y > best_y:
+				best = {"hut": c}
+				best_y = c.global_position.y
 	if best.is_empty():
 		return {}
 	var q := PhysicsPointQueryParameters2D.new()
@@ -223,6 +236,8 @@ func _set_hover(h: Dictionary) -> void:
 func _show_hover(h: Dictionary, on: bool) -> void:
 	if h.has("deco") and is_instance_valid(h.deco):
 		h.deco.hovered = on
+	elif h.has("hut") and is_instance_valid(h.hut):
+		h.hut.hovered = on
 	elif h.has("palm") and is_instance_valid(h.palm):
 		h.palm.hover_coconut = h.slot if on else -1
 	elif h.has("nut") and is_instance_valid(h.nut):
@@ -295,6 +310,8 @@ func _sync_hud() -> void:
 		state = Edit.COCONUT_HELD
 	elif _hover.has("deco"):
 		state = Edit.HOVER
+	elif _hover.has("hut"):
+		state = Edit.HUT
 	elif not _hover.is_empty():
 		state = Edit.COCONUT
 	hud.set_decor_edit(state)

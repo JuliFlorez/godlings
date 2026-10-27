@@ -655,7 +655,10 @@ func save_game() -> void:
 		var d := c as Decoration
 		if d:
 			deco_index[d] = decorations.size()
-			decorations.append({"kind": d.kind, "pos": placer.resting_position(d), "variant": d.variant})
+			var entry := {"kind": d.kind, "pos": placer.resting_position(d), "variant": d.variant}
+			if d.hut_name != "":
+				entry.name = d.hut_name   # Lo que dice el cartel de la choza
+			decorations.append(entry)
 	var villagers := []
 	var ids := []
 	for node in get_tree().get_nodes_in_group("villager"):
@@ -717,6 +720,7 @@ func _load_game() -> bool:
 		props.add_child(deco)
 		deco.global_position = d.get("pos", _island_point())
 		deco.variant = d.get("variant", deco.variant)   # Después de _ready, que elige una al azar
+		deco.hut_name = d.get("name", "")
 		decos.append(deco)
 	for d: Dictionary in cfg.get_value("island", "villagers", []):
 		var v := add_villager(d.get("pos", _island_point()))
