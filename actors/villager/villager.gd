@@ -320,6 +320,79 @@ var _scram := 0.0                       # Escapándose de tu mano
 var _from_water := false                # Lo agarraste del agua: si lo dejás en la isla, lo rescataste
 var _gentle_death := false              # Se murió de gripe o de hambre (asusta menos a los que lo ven)
 
+# --- Ánimo: qué tan contento está, de 0 (deprimido) a 100 (feliz). Se va acercando de a poco a
+# lo que le toca por cómo está su vida (ver _mood_factors: su pareja, sus amigos y enemigos, sus
+# hijos, su casa, el hambre, la gripe y el miedo), y lo que le pasa lo sube o lo baja de golpe
+# (ver add_mood) y después se le va pasando: que se le muera la pareja, un hijo o un amigo lo
+# hunde y que se muera un enemigo lo alegra; las charlas, enamorarse o separarse, pelearse, tener
+# un bebé, comer o que le hagas un milagro también cuentan (ver relation_mood y _mourn).
+# Contento charla mejor (ver Relations.chat_delta), reza más, sonríe y a veces canta; triste
+# charla peor, se pelea más, camina más lento, descansa y se mete en su casa más seguido, no
+# tiene bebés y, si está deprimido, a veces llora. Se ve en el carnet (con por qué está así) y
+# se guarda con la partida.
+enum Mood { DEPRESSED, SAD, OK, CONTENT, HAPPY }
+const MOOD_LEVELS: Array[float] = [20.0, 40.0, 60.0, 80.0]   # Dónde empieza cada uno, de triste a feliz
+const MOOD_START := Vector2(50.0, 70.0)
+const MOOD_BASE := 55.0            # Lo que le toca sin nada a favor ni en contra, y lo que suma...
+const MOOD_PARTNER := 12.0         # ...tener pareja...
+const MOOD_FRIEND := 4.0           # ...cada amigo...
+const MOOD_FRIENDS_MAX := 12.0
+const MOOD_ENEMY := -4.0           # ...cada enemigo...
+const MOOD_ENEMIES_MAX := -12.0
+const MOOD_KIDS := 6.0             # ...tener hijos...
+const MOOD_HOME := 5.0             # ...tener casa (o no tenerla, si en la isla hay chozas)...
+const MOOD_HOMELESS := -6.0
+const MOOD_HUNGRY := -10.0         # ...el hambre...
+const MOOD_STARVING := -25.0
+const MOOD_SICK := -15.0           # ...la gripe...
+const MOOD_FEAR := -0.25           # ...y el miedo (por punto, de MOOD_FEAR_FROM para arriba)
+const MOOD_FEAR_FROM := 20.0
+const MOOD_DRIFT := 0.15           # Por segundo: lo que se acerca a lo que le toca...
+const MOOD_DRIFT_HOME := 2.0       # ...(descansando en su casa, el doble)
+const MOOD_CHECK := 1.0            # Cada cuánto se fija qué le toca
+## Lo que le pasa, de golpe
+const MOOD_LOST_PARTNER := -45.0
+const MOOD_LOST_CHILD := -40.0
+const MOOD_LOST_PARENT := -30.0
+const MOOD_LOST_FRIEND := -15.0
+const MOOD_ENEMY_DIED := 10.0
+const MOOD_SAW_DEATH := -6.0       # Ver morir bien de cerca a alguien que no era nada suyo
+const MOOD_CHAT := 0.4             # Veces lo que se quieren de más (o de menos) después de charlar
+const MOOD_SHOVED := -8.0          # Lo empujaron en una pelea
+const MOOD_LOST_HOME := -15.0      # Le rompieron la casa
+const MOOD_ATE := 0.15             # Por cada punto de hambre que se le va comiendo
+const MOOD_MIRACLE := 10.0         # Lo curaste o lo rescataste
+const MOOD_MANNA := 6.0            # Comió comida del cielo
+const MOOD_THROWN := -6.0
+const MOOD_BONKED := -5.0
+const MOOD_BURNED := -12.0         # Se prendió fuego y se salvó
+## Cuando cambia lo que es con alguien (ver Relations): [cuánto, por qué]
+const MOOD_EVENTS := {
+	Relations.Event.FRIENDS: [8.0, "Se hizo un amigo"],
+	Relations.Event.ENEMIES: [-8.0, "Se hizo un enemigo"],
+	Relations.Event.MADE_UP: [6.0, "Hizo las paces"],
+	Relations.Event.COUPLE: [20.0, "Se enamoró"],
+	Relations.Event.BROKE_UP: [-20.0, "Se separó"],
+	Relations.Event.DRIFTED: [-4.0, "Se distanció de un amigo"],
+	Relations.Event.BIRTH: [25.0, "Tuvo un bebé"],
+}
+const MOOD_NOTE := 5.0             # Lo que le pasa desde esto (más o menos) es "por qué está así"...
+const MOOD_REMEMBER := 90.0        # ...durante esto (ver mood_reason)
+const MOOD_SAY_EVERY := Vector2(14.0, 26.0)   # Feliz canta; deprimido llora
+const MOOD_SAD_SPEED := 0.8        # Triste camina más lento...
+const MOOD_SAD_REST := 0.55        # ...se para más seguido...
+const MOOD_SAD_HOME := 0.5         # ...y se mete en su casa más seguido (veces REST_EVERY)
+const MOOD_BABY_AT := 45.0         # Para tener un bebé, los dos al menos así de contentos
+const MOOD_TRIBUTE := Vector2(0.6, 1.4)   # Lo que rinde su rezo, de deprimido a feliz
+var mood := 60.0
+var _mood_goal := 60.0
+var _mood_factors_now: Array = []  # Lo que cuenta ahora (ver _mood_factors)
+var _mood_check := 0.0
+var _mood_say := 0.0
+var _mood_why := ""                # Lo último fuerte que le pasó...
+var _mood_why_amount := 0.0
+var _mood_why_t := INF             # ...y hace cuánto
+
 # --- Carnet: nombre y apellido los pone el jugador en modo seleccionar (ver VillagerCard) ---
 enum Gender { MALE, FEMALE }
 static var ids_issued := 0       # Números de carnet repartidos (se guarda con la partida)
@@ -365,6 +438,10 @@ func _ready() -> void:
 	fear = randf_range(FEAR_START.x, FEAR_START.y)
 	hunger = randf_range(HUNGER_START.x, HUNGER_START.y)
 	_hungry_say = randf_range(HUNGRY_SAY_EVERY.x, HUNGRY_SAY_EVERY.y)
+	mood = randf_range(MOOD_START.x, MOOD_START.y)
+	_mood_goal = mood
+	_mood_say = randf_range(MOOD_SAY_EVERY.x, MOOD_SAY_EVERY.y)
+	_mood_check = randf_range(0.0, MOOD_CHECK)
 	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
 	_home_check = randf_range(0.0, HOME_CHECK)
 	input_pickable = true
@@ -588,6 +665,8 @@ func _physics_process(dt: float) -> void:
 		pace *= FLU_SPEED
 	elif starving():
 		pace *= STARVING_SPEED
+	elif is_sad():
+		pace *= MOOD_SAD_SPEED
 	velocity = _heading * pace * smoothstep(0.0, 1.0, _walk) + _separation() + shove_vel
 	var prev_pos := global_position
 	move_and_slide()
@@ -625,7 +704,7 @@ func _physics_process(dt: float) -> void:
 					_update_sprite_flip()
 				wander_timer = randf_range(PANIC_TURN.x, PANIC_TURN.y)
 		elif wander_timer <= 0.0:
-			if not _resting and randf() < (FLU_REST_CHANCE if flu == Flu.SICK else REST_CHANCE):
+			if not _resting and randf() < (FLU_REST_CHANCE if flu == Flu.SICK else (MOOD_SAD_REST if is_sad() else REST_CHANCE)):
 				_resting = true
 				wander_timer = randf_range(REST_TIME.x, REST_TIME.y)
 			else:
@@ -650,6 +729,7 @@ func starving() -> bool:
 
 ## Comió: se le va el hambre.
 func feed(amount: float) -> void:
+	add_mood(minf(amount, hunger) * MOOD_ATE)
 	hunger = maxf(0.0, hunger - amount)
 	_starve_t = 0.0
 
@@ -702,6 +782,7 @@ func bonk(at: Vector2) -> void:
 	_ensure_hud()
 	if hud:
 		hud.popup_text("¡Bonk!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
+	add_mood(MOOD_BONKED, "Le cayó un coco en la cabeza")
 
 ## Camina hasta su comida y se la come. false si ya no tiene.
 func _food_ai(dt: float) -> bool:
@@ -867,6 +948,8 @@ func _stand_facing(o: Villager) -> void:
 
 ## De qué habla: según lo que son y si la charla viene bien o mal.
 func _chat_topic(o: Villager) -> Bubble:
+	if mood_level() == Mood.DEPRESSED and randf() < 0.4:
+		return [Bubble.TEAR, Bubble.DOTS].pick_random()   # Deprimido no tiene ganas de nada
 	var bad := _chat_delta < -CHAT_MOOD and randf() < 0.6
 	match Relations.kind(self, o):
 		Relations.Kind.COUPLE:
@@ -890,6 +973,10 @@ func _chat_topic(o: Villager) -> Bubble:
 func _finish_chat(o: Villager) -> void:
 	var ev := Relations.change(self, o, _chat_delta)
 	var k := Relations.kind(self, o)
+	if absf(_chat_delta) > CHAT_MOOD:   # Cómo les fue también les cambia el ánimo
+		var why := "Charló lindo" if _chat_delta > 0.0 else "Discutió"
+		add_mood(_chat_delta * MOOD_CHAT, why)
+		o.add_mood(_chat_delta * MOOD_CHAT, why)
 	var face := Bubble.NONE
 	if ev == Relations.Event.BROKE_UP:
 		face = Bubble.TEAR
@@ -904,10 +991,12 @@ func _finish_chat(o: Villager) -> void:
 	var news: String = n[0]
 	var color: Color = n[1]
 	# Los enemigos que se pelearon a veces terminan a los empujones
-	if k == Relations.Kind.ENEMY and _chat_delta < 0.0 and randf() < FIGHT_CHANCE:
+	# (más si andan tristes)
+	if k == Relations.Kind.ENEMY and _chat_delta < 0.0 and randf() < FIGHT_CHANCE * lerpf(1.6, 0.6, (mood + o.mood) / 200.0):
 		var pusher: Villager = self if randf() < 0.5 else o
 		var pushed: Villager = o if pusher == self else self
 		pushed._get_pushed_by(pusher)
+		pushed.add_mood(MOOD_SHOVED, "Se peleó a los empujones")
 		if news == "":
 			news = "¡Pelea!"
 			color = HUD.C_WARN
@@ -965,8 +1054,9 @@ func say(b: Bubble, time: float, talk := true) -> void:
 func talk_mouth() -> float:
 	return absf(sin(_talking * 18.0)) * 0.55 if _talking > 0.0 else 0.0
 
-## Se murió: los que lo vieron se asustan (más si lo querían) y se quedan mirando; su pareja y
-## sus amigos lloran un rato y pierden fe. Y deja de contar para los demás.
+## Se murió: los que lo vieron se asustan (más si lo querían) y se quedan mirando; su pareja, sus
+## amigos y su familia lloran un rato, pierden fe y se ponen tristes, y sus enemigos se alegran.
+## Y deja de contar para los demás.
 func _mourn() -> void:
 	_ensure_hud()
 	var at := body_center()
@@ -985,11 +1075,28 @@ func _mourn() -> void:
 			Relations.Kind.COUPLE:
 				o.say(Bubble.TEAR, MOURN_TIME, false)
 				o.add_faith(-FAITH_LOST_PARTNER)
+				o.add_mood(MOOD_LOST_PARTNER, "Se le murió la pareja")
 				if hud:
 					hud.popup_text("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), HUD.C_MUTED)
 			Relations.Kind.FRIEND:
 				o.say(Bubble.TEAR, MOURN_TIME * 0.6, false)
 				o.add_faith(-FAITH_LOST_FRIEND)
+				o.add_mood(MOOD_LOST_FRIEND, "Se le murió un amigo")
+			Relations.Kind.ENEMY:
+				o.add_mood(MOOD_ENEMY_DIED, "Se murió un enemigo")
+				if o.bubble_t <= 0.0:
+					o.say(Bubble.LAUGH, REACT_TIME, false)
+			_:
+				if seen > 0.0:
+					o.add_mood(MOOD_SAW_DEATH * seen, "Vio morir a alguien")
+		# Su familia
+		var female := gender == Gender.FEMALE
+		if o.id_number in parents:
+			o.say(Bubble.TEAR, MOURN_TIME, false)
+			o.add_mood(MOOD_LOST_CHILD, "Se le murió una hija" if female else "Se le murió un hijo")
+		elif id_number in o.parents:
+			o.say(Bubble.TEAR, MOURN_TIME * 0.8, false)
+			o.add_mood(MOOD_LOST_PARENT, "Se le murió la mamá" if female else "Se le murió el papá")
 	Relations.forget(self)
 
 ## "Bla-bla-bla": unas sílabas cortitas con la vocal que sube y baja de tono.
@@ -1011,6 +1118,109 @@ static func _make_babble() -> AudioStreamWAV:
 			buf.append(0.0)
 	return Synth.wav(buf, rate, 0.9)
 
+# --- ÁNIMO ---
+## Deprimido, triste, tranquilo, contento o feliz.
+func mood_level() -> Mood:
+	var level := 0
+	for at in MOOD_LEVELS:
+		if mood >= at:
+			level += 1
+	return level as Mood
+
+## Triste o deprimido.
+func is_sad() -> bool:
+	return mood < MOOD_LEVELS[1]
+
+## Le pasó algo que lo pone más contento (o más triste). why: lo que dice el carnet de por qué
+## está así (ver mood_reason), si fue fuerte.
+func add_mood(amount: float, why := "") -> void:
+	if dead or eaten:
+		return
+	mood = clampf(mood + amount, 0.0, 100.0)
+	if why != "" and absf(amount) >= MOOD_NOTE \
+			and (absf(amount) >= absf(_mood_why_amount) or _mood_why_t > MOOD_REMEMBER * 0.25):
+		_mood_why = why
+		_mood_why_amount = amount
+		_mood_why_t = 0.0
+
+## Cambió lo que es con alguien, o tuvo un bebé (ver Relations._note).
+func relation_mood(ev: Relations.Event) -> void:
+	if MOOD_EVENTS.has(ev):
+		add_mood(MOOD_EVENTS[ev][0], MOOD_EVENTS[ev][1])
+
+## Lo que le toca por cómo está su vida: [[por qué, cuánto], ...] (ver MOOD_BASE).
+func _mood_factors() -> Array:
+	var out := []
+	var bonds := Relations.counts(self)
+	if bonds[Relations.Kind.COUPLE] > 0:
+		out.append(["Tiene pareja", MOOD_PARTNER])
+	if bonds[Relations.Kind.FRIEND] > 0:
+		out.append(["Tiene amigos", minf(bonds[Relations.Kind.FRIEND] * MOOD_FRIEND, MOOD_FRIENDS_MAX)])
+	if bonds[Relations.Kind.ENEMY] > 0:
+		out.append(["Tiene enemigos", maxf(bonds[Relations.Kind.ENEMY] * MOOD_ENEMY, MOOD_ENEMIES_MAX)])
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o and id_number in o.parents and not o.dead and not o.eaten:
+			out.append(["Tiene hijos", MOOD_KIDS])
+			break
+	if _home_ok():
+		out.append(["Tiene casa", MOOD_HOME])
+	elif get_tree().has_group("hut"):
+		out.append(["No tiene casa", MOOD_HOMELESS])
+	if starving():
+		out.append(["Se muere de hambre", MOOD_STARVING])
+	elif hunger >= HUNGRY_AT:
+		out.append(["Tiene hambre", MOOD_HUNGRY])
+	if flu == Flu.SICK:
+		out.append(["Tiene gripe", MOOD_SICK])
+	if fear > MOOD_FEAR_FROM:
+		out.append(["Tiene miedo", (fear - MOOD_FEAR_FROM) * MOOD_FEAR])
+	return out
+
+## Se va acercando a lo que le toca (lo que le pasó se le va pasando). Feliz, a veces canta;
+## deprimido, a veces llora.
+func _update_mood(dt: float) -> void:
+	if dead or eaten or is_queued_for_deletion():
+		return
+	_mood_why_t += dt
+	_mood_check -= dt
+	if _mood_check <= 0.0:
+		_mood_check = MOOD_CHECK
+		_mood_factors_now = _mood_factors()
+		_mood_goal = MOOD_BASE
+		for f: Array in _mood_factors_now:
+			_mood_goal += f[1]
+		_mood_goal = clampf(_mood_goal, 0.0, 100.0)
+	mood = move_toward(mood, _mood_goal, MOOD_DRIFT * (MOOD_DRIFT_HOME if inside else 1.0) * dt)
+	_mood_say -= dt
+	if _mood_say > 0.0:
+		return
+	_mood_say = randf_range(MOOD_SAY_EVERY.x, MOOD_SAY_EVERY.y)
+	if is_idle() and chat_with == null and food == null and bubble_t <= 0.0 and not on_fire:
+		match mood_level():
+			Mood.HAPPY:
+				say([Bubble.MUSIC, Bubble.SUN].pick_random(), 1.4, false)
+			Mood.DEPRESSED:
+				say(Bubble.TEAR, 1.8, false)
+
+## Por qué está así (para el carnet): lo último fuerte que le pasó, si fue hace poco y va para
+## el mismo lado, y si no lo que más le pesa (o le alegra) de su vida. Tranquilo, nada.
+func mood_reason() -> String:
+	var level := mood_level()
+	if level == Mood.OK:
+		return ""
+	var sad := level < Mood.OK
+	if _mood_why != "" and _mood_why_t < MOOD_REMEMBER and (_mood_why_amount < 0.0) == sad:
+		return _mood_why
+	var best := ""
+	var best_v := 0.0
+	for f: Array in _mood_factors_now:
+		var v: float = f[1]
+		if (v < 0.0) == sad and absf(v) > absf(best_v):
+			best = f[0]
+			best_v = v
+	return best
+
 # --- CASA Y FAMILIA ---
 ## Todavía es chico (ver ADULT_AGE).
 func is_child() -> bool:
@@ -1021,9 +1231,10 @@ func set_age(a: float) -> void:
 	age = a
 	scale = Vector2.ONE * lerpf(BABY_SIZE, 1.0, clampf(age / ADULT_AGE, 0.0, 1.0))
 
-## Grande, sano, no muerto de hambre y sin un bebé reciente.
+## Grande, sano, no muerto de hambre, más o menos contento y sin un bebé reciente.
 func can_have_baby() -> bool:
-	return not is_child() and not dead and not is_sick() and not starving() and baby_cool <= 0.0
+	return not is_child() and not dead and not is_sick() and not starving() and baby_cool <= 0.0 \
+			and mood >= MOOD_BABY_AT
 
 ## Crece (si es chico), se le va pasando lo del último bebé y cada tanto se fija dónde vivir.
 func _update_family(dt: float) -> void:
@@ -1110,7 +1321,7 @@ func _can_go_home() -> bool:
 func _go_home() -> void:
 	_going_home = true
 	_home_t = 0.0
-	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
+	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y) * (MOOD_SAD_HOME if is_sad() else 1.0)
 	_resting = false
 
 ## Dónde se para para entrar: con los pies en la puerta.
@@ -1166,6 +1377,7 @@ func lose_home() -> void:
 	if inside:
 		_leave_home()
 	home = null
+	add_mood(MOOD_LOST_HOME, "Le rompieron la casa")
 
 ## Sale por la puerta (o donde estaba, si le quitaron la choza).
 func _leave_home() -> void:
@@ -1174,7 +1386,7 @@ func _leave_home() -> void:
 	$CollisionShape2D.set_deferred("disabled", false)
 	if _home_ok():
 		global_position = _door_spot() + Vector2(0, 4)
-	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
+	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y) * (MOOD_SAD_HOME if is_sad() else 1.0)
 	dir = Vector2(randf_range(-0.8, 0.8), 1.0).normalized()
 	_update_sprite_flip()
 	_walk = 0.0
@@ -1212,9 +1424,10 @@ func add_faith(amount: float) -> void:
 func add_fear(amount: float) -> void:
 	fear = clampf(fear + amount, 0.0, 100.0)
 
-## Lo que deja cada vez que reza (ver World): más cuanto más cree en vos y más te teme.
+## Lo que deja cada vez que reza (ver World): más cuanto más cree en vos y más te teme, y
+## cuanto más contento está.
 func tribute() -> float:
-	return (faith + fear) / TRIBUTE_PAR
+	return (faith + fear) / TRIBUTE_PAR * lerpf(MOOD_TRIBUTE.x, MOOD_TRIBUTE.y, mood / 100.0)
 
 ## Cuánto le afecta algo que pasó en at: 1 bien de cerca, nada si no lo vio.
 func _witness(at: Vector2) -> float:
@@ -1227,6 +1440,7 @@ func _witness(at: Vector2) -> float:
 ## lo vieron (si lo curaste) también te creen un poco más.
 func _thank(amount: float, seen_by_others: bool) -> void:
 	add_faith(amount)
+	add_mood(MOOD_MIRACLE, "Le hiciste un milagro")
 	say(Bubble.HEART, THANKS_TIME, false)
 	if not seen_by_others:
 		return
@@ -1845,6 +2059,7 @@ func _put_out(steam := false) -> void:
 	if not on_fire:
 		return
 	on_fire = false
+	add_mood(MOOD_BURNED, "Se prendió fuego")
 	_heat = 0.0
 	_flames.on = false
 	_sparks.emitting = false
@@ -2342,6 +2557,7 @@ func _process(dt: float) -> void:
 	_update_hunger(dt)
 	_update_family(dt)
 	_update_faith(dt)
+	_update_mood(dt)
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)
 	_tornado_cool = maxf(0.0, _tornado_cool - dt)
@@ -2446,6 +2662,7 @@ func _stop_drag() -> void:
 	if throw.length() >= THROW_MIN_SPEED:
 		if not dead:
 			add_fear(FEAR_THROW)
+			add_mood(MOOD_THROWN, "La revoleaste" if gender == Gender.FEMALE else "Lo revoleaste")
 		_launch(throw, on_island)
 	elif on_island:
 		# Rescatado o depositado en tierra firme

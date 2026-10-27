@@ -677,6 +677,7 @@ func save_game() -> void:
 			"faith": v.faith,
 			"fear": v.fear,
 			"hunger": v.hunger,
+			"mood": v.mood,
 			"age": v.age,
 			"parents": v.parents,
 			"home": deco_index.get(v.home, -1) if v._home_ok() else -1,
@@ -732,6 +733,7 @@ func _load_game() -> bool:
 		v.faith = d.get("faith", v.faith)
 		v.fear = d.get("fear", v.fear)
 		v.hunger = d.get("hunger", v.hunger)
+		v.mood = d.get("mood", v.mood)
 		v.set_age(d.get("age", Villager.ADULT_AGE))
 		v.parents.assign(d.get("parents", []))
 		var h: int = d.get("home", -1)

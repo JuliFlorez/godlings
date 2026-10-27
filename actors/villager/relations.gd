@@ -25,9 +25,9 @@ const ROMANCE := 0.6             # Atracción mínima para ponerse de novios (a 
 const CHEMISTRY := 15.0          # Lo que suma (o resta) la química en cada charla
 const MOMENTUM := 0.06           # Los amigos charlan cada vez mejor y los enemigos, peor
 const LUCK := Vector2(-8.0, 12.0)
-const BAD_DAY := 0.1             # A veces discuten (hasta los amigos y las parejas)...
+const BAD_DAY := 0.1             # A veces discuten (hasta los amigos y las parejas; tristes, más)
 const BAD_DAY_COST := Vector2(12.0, 22.0)
-const SICK_MOOD := 3.0           # ...y con gripe (o muerto de hambre) se anda de mal humor
+const MOOD_TALK := 0.08          # Contentos charlan mejor y tristes, peor (por punto de ánimo de los dos, de 50 para arriba o abajo; ver Villager.mood)
 const COLORS := {
 	Kind.FRIEND: Color(0.46, 0.84, 0.52),
 	Kind.ENEMY: Color(1.0, 0.45, 0.4),
@@ -70,6 +70,14 @@ static func kind(a: Villager, b: Villager) -> Kind:
 static func color(k: Kind) -> Color:
 	return COLORS.get(k, HUD.C_TEXT)
 
+## Cuántos amigos, enemigos y parejas tiene v ({Kind: cuántos}).
+static func counts(v: Villager) -> Dictionary:
+	var out := {Kind.FRIEND: 0, Kind.ENEMY: 0, Kind.COUPLE: 0}
+	for k: Vector2i in _bonds:
+		if k.x == v.id_number or k.y == v.id_number:
+			out[_bonds[k]] += 1
+	return out
+
 ## Número de carnet de su pareja (0: soltero).
 static func partner_id(v: Villager) -> int:
 	for k: Vector2i in _bonds:
@@ -95,12 +103,9 @@ static func attraction(a: Villager, b: Villager) -> float:
 ## en lo que dicen si les está yendo bien o mal).
 static func chat_delta(a: Villager, b: Villager) -> float:
 	var d := chemistry(a, b) * CHEMISTRY + affinity(a, b) * MOMENTUM + randf_range(LUCK.x, LUCK.y)
-	if randf() < BAD_DAY:
+	d += (a.mood + b.mood - 100.0) * MOOD_TALK
+	if randf() < BAD_DAY * lerpf(2.0, 0.5, (a.mood + b.mood) / 200.0):
 		d -= randf_range(BAD_DAY_COST.x, BAD_DAY_COST.y)
-	if a.is_sick() or b.is_sick():
-		d -= SICK_MOOD
-	if a.starving() or b.starving():
-		d -= SICK_MOOD
 	return d
 
 ## Con quién tiene más ganas de charlar: su pareja y sus amigos, mucho más que sus enemigos.
@@ -169,8 +174,10 @@ static func make(a: Villager, b: Villager, k: Kind) -> Event:
 static func note_birth(a: Villager, b: Villager) -> void:
 	_note(Event.BIRTH, a, b)
 
-## Lo anota en el historial.
+## Lo anota en el historial, y a los dos les cambia el ánimo (ver Villager.relation_mood).
 static func _note(ev: Event, a: Villager, b: Villager) -> void:
+	a.relation_mood(ev)
+	b.relation_mood(ev)
 	history.append({
 		"time": World.play_time,
 		"event": ev,

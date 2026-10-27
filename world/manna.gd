@@ -92,6 +92,7 @@ func nibble(progress: float) -> void:
 ## Comida del cielo: además de sacarle el hambre, le sube la fe.
 func finish_eating(v: Villager) -> void:
 	v.add_faith(FAITH)
+	v.add_mood(Villager.MOOD_MANNA, "Le mandaste comida del cielo")
 	v.say(Villager.Bubble.HEART, 1.4, false)
 	_sparkles(point(), 10)
 	super(v)

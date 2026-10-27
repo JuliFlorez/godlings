@@ -293,6 +293,7 @@ func set_xray(on: bool, mat: Material) -> void:
 ## aldeano, con la boca de "¡wow!" y los ojos en X si está muerto.
 func copy_face(from: VillagerRig) -> void:
 	_mouth.target = from._mouth.target
+	_mouth.mood = from._mouth.mood
 	if from._dead_eyes.visible and not _dead_eyes.visible:
 		set_dead()
 
@@ -389,6 +390,8 @@ func _process(dt: float) -> void:
 		_mouth.target = absf(sin(villager._eat_t * 12.0)) * 0.45
 	else:
 		_mouth.target = villager.talk_mouth()
+	# Cerrada, la boca dice cómo anda: sonríe contento y la tuerce para abajo triste
+	_mouth.mood = 0.0 if villager.dead else clampf((villager.mood - 50.0) / 30.0, -1.0, 1.0)
 
 	# Gravedad efectiva que "sienten" los miembros: g - a (+ arrastre del aire)
 	var g_world := Vector2(0.0, GRAVITY) - _acc
@@ -626,8 +629,16 @@ class Mouth extends Node2D:
 	const LIP := Color(0.36, 0.2, 0.13)
 	const OPEN_SPEED := 14.0
 	const CLOSE_SPEED := 6.0
+	const SMILE_HALF := 50.0             # Cerrada: medio ancho de la sonrisa (o de la boca triste)...
+	const SMILE_DEPTH := 24.0            # ...y cuánto se curva, del todo
+	const MOOD_MIN := 0.33               # Con menos que esto queda la línea del dibujo
 
 	var target := 0.0
+	var mood := 0.0:                     # -1 triste .. 1 contento (ver Villager.mood)
+		set(v):
+			if absf(v - mood) > 0.01:
+				mood = v
+				queue_redraw()
 	var _open := 0.0
 
 	func _process(dt: float) -> void:
@@ -639,6 +650,7 @@ class Mouth extends Node2D:
 
 	func _draw() -> void:
 		if _open <= 0.01:
+			_draw_closed()
 			return
 		var k := ease(_open, 0.6)
 		# Tapa la línea de la boca original (con la piel) y abre la "O" encima
@@ -648,6 +660,19 @@ class Mouth extends Node2D:
 		draw_colored_polygon(_ellipse(CENTER, r), INSIDE)
 		draw_colored_polygon(_ellipse(CENTER + Vector2(0, r.y * 0.45), Vector2(r.x * 0.62, r.y * 0.4)), TONGUE)
 		draw_polyline(_ellipse(CENTER, r, true), LIP, 9.0, true)
+
+	## Cerrada: tapa la línea del dibujo y la curva para arriba (sonrisa) o para abajo.
+	func _draw_closed() -> void:
+		var k := (absf(mood) - MOOD_MIN) / (1.0 - MOOD_MIN)
+		if k <= 0.0:
+			return
+		var bend := signf(mood) * k * SMILE_DEPTH   # El medio más abajo que las puntas: sonrisa
+		draw_colored_polygon(_ellipse(CENTER, LINE_HALF * Vector2(1.0, 1.3)), SKIN)
+		var pts := PackedVector2Array()
+		for i in 13:
+			var u := lerpf(-1.0, 1.0, i / 12.0)
+			pts.append(CENTER + Vector2(u * SMILE_HALF, bend * (1.0 - u * u - 0.5)))
+		draw_polyline(pts, LIP, 9.0, true)
 
 	static func _ellipse(c: Vector2, r: Vector2, closed := false) -> PackedVector2Array:
 		var pts := PackedVector2Array()

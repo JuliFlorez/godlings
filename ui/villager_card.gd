@@ -5,7 +5,8 @@ class_name VillagerCard
 ## (se ven arriba de su cabeza, ver NameTag), y su estado: sano, con gripe, curado o muerto.
 ## Debajo del estado, cuánta hambre tiene (ver Villager.hunger; muerto de hambre, en rojo).
 ## Después, cuánto cree en vos y cuánto te teme (ver Villager.faith y fear), y qué es por eso:
-## devoto, fanático, hereje o aterrado.
+## devoto, fanático, hereje o aterrado; y su ánimo (ver Villager.mood): qué tan contento está y
+## por qué.
 ## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos; su familia (sus
 ## padres y sus hijos) y su casa (la choza donde vive y con quién). Un click en un nombre abre
 ## el carnet de ese aldeano, y uno en la choza, su cartel (ver HutCard). Los chicos dicen "Nene"
@@ -45,6 +46,14 @@ const CREEDS := {
 	Villager.Creed.HERETIC: ["Hereje", "Hereje", HUD.C_MUTED],
 	Villager.Creed.TERRIFIED: ["Aterrado", "Aterrada", HUD.C_WARN],
 }
+## Su ánimo: [varón, aldeana, color]
+const MOODS := {
+	Villager.Mood.DEPRESSED: ["Deprimido", "Deprimida", HUD.C_WARN],
+	Villager.Mood.SAD: ["Triste", "Triste", Color(1.0, 0.7, 0.4)],
+	Villager.Mood.OK: ["Tranquilo", "Tranquila", HUD.C_MUTED],
+	Villager.Mood.CONTENT: ["Contento", "Contenta", Color(0.66, 0.88, 0.5)],
+	Villager.Mood.HAPPY: ["Feliz", "Feliz", HUD.C_SHOP],
+}
 const C_FAITH := HUD.C_HOLY
 const C_FEAR := HUD.C_EVIL
 const C_HUNGER := HUD.C_FEED
@@ -64,6 +73,9 @@ var _creed: Label
 var _faith_bar: ProgressBar
 var _fear_bar: ProgressBar
 var _hunger_bar: ProgressBar
+var _mood_bar: ProgressBar
+var _mood_label: Label           # Deprimido, triste, tranquilo, contento o feliz...
+var _mood_why: Label             # ...y por qué
 var _relations: Array[HFlowContainer] = []   # Una fila por cada tipo de relación (RELATIONS)
 var _family: HFlowContainer     # Sus padres y sus hijos
 var _home: HFlowContainer       # Su choza y los que viven con él
@@ -211,13 +223,21 @@ func _update_creed() -> void:
 	_faith_bar.value = v.faith
 	_fear_bar.value = v.fear
 	_hunger_bar.value = v.hunger
+	_mood_bar.value = v.mood
+	var m: Array = MOODS[v.mood_level()]
+	_mood_label.text = m[1] if v.gender == Villager.Gender.FEMALE else m[0]
+	_mood_label.add_theme_color_override("font_color", m[2])
+	(_mood_bar.get_theme_stylebox("fill") as StyleBoxFlat).bg_color = m[2]
+	_mood_why.text = v.mood_reason()
+	_mood_why.visible = _mood_why.text != "" and not v.dead
+	_mood_label.visible = not v.dead
 	_hunger_bar.modulate = Color(1.0, 0.55, 0.5) if v.starving() else Color.WHITE
 	var c: Array = CREEDS[v.creed()]
 	_creed.text = c[1] if v.gender == Villager.Gender.FEMALE else c[0]
 	_creed.add_theme_color_override("font_color", c[2])
 	# Muerto ya no siente nada
 	_creed.visible = not v.dead
-	for bar: ProgressBar in [_faith_bar, _fear_bar, _hunger_bar]:
+	for bar: ProgressBar in [_faith_bar, _fear_bar, _hunger_bar, _mood_bar]:
 		bar.modulate.a = 0.4 if v.dead else 1.0
 
 ## Su pareja, sus amigos y sus enemigos (los vivos), con el nombre de cada uno (o su número
@@ -364,6 +384,21 @@ func _build_creed(parent: Control) -> void:
 	head.add_child(_creed)
 	_faith_bar = _bar(box, "Fe", C_FAITH)
 	_fear_bar = _bar(box, "Miedo", C_FEAR)
+	_mood_bar = _bar(box, "Ánimo", HUD.C_MUTED)
+	_mood_label = HUD.make_label("", 12, HUD.C_TEXT)
+	_mood_label.custom_minimum_size = Vector2(70, 0)
+	_mood_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_mood_bar.get_parent().add_child(_mood_label)
+	var why_row := HBoxContainer.new()   # Abajo de la barrita, corrido como ella
+	why_row.add_theme_constant_override("separation", 6)
+	box.add_child(why_row)
+	var indent := Control.new()
+	indent.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
+	why_row.add_child(indent)
+	_mood_why = HUD.make_label("", 12, HUD.C_MUTED)
+	_mood_why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mood_why.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	why_row.add_child(_mood_why)
 
 ## Una barrita de 0 a 100 con su nombre adelante.
 func _bar(parent: Control, title: String, col: Color) -> ProgressBar:
