@@ -158,6 +158,9 @@ static var _alpha := {}
 
 func _ready() -> void:
 	villager = get_parent() as Villager
+	# El dibujo es grande y se ve muy achicado: con mipmaps queda suave (si no, los mechones del
+	# pelo y los bordes se ven pixelados, más con el pelo teñido, ver Villager.set_looks)
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	base_scale = absf(scale.x)
 	_facing = -1.0 if scale.x < 0.0 else 1.0
 	hip_rest = hip.position

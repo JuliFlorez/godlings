@@ -428,6 +428,21 @@ var _mood_why := ""                # Lo último fuerte que le pasó...
 var _mood_why_amount := 0.0
 var _mood_why_t := INF             # ...y hace cuánto
 
+# --- Cómo es: cada uno tiene la piel un poco más clara u oscura (y más amarilla o rojiza), el
+# pelo de otro color y es un poco más alto o más bajo (ver set_looks y waterline.gdshader). Los
+# bebés salen parecidos a sus padres (ver inherit_looks). Se guarda con la partida.
+const SKIN_SPREAD := 0.4          # Tono de piel: -1 más oscura .. 1 más clara (la mayoría, cerca del medio)
+const WARM_SPREAD := 0.45         # Y más amarilla o más rojiza
+## Lo que se le suma al negro del pelo: casi todos negro (como el dibujo), y si no castaño
+## oscuro, castaño, castaño claro o colorado
+const HAIR_COLORS: Array[Color] = [Color(0, 0, 0), Color(0, 0, 0), Color(0, 0, 0), Color(0.1, 0.06, 0.04),
+		Color(0.18, 0.1, 0.05), Color(0.26, 0.14, 0.07), Color(0.32, 0.1, 0.05)]
+const HEIGHT := Vector2(0.92, 1.08)   # Veces el tamaño del dibujo
+var skin_tone := 0.0
+var skin_warm := 0.0
+var hair_color := Color.BLACK
+var height := 1.0
+
 # --- Carnet: nombre y apellido los pone el jugador en modo seleccionar (ver VillagerCard) ---
 enum Gender { MALE, FEMALE }
 static var ids_issued := 0       # Números de carnet repartidos (se guarda con la partida)
@@ -488,6 +503,9 @@ func _ready() -> void:
 		_waterline = ShaderMaterial.new()
 		_waterline.shader = WATERLINE_SHADER
 		rig.material = _waterline
+	# Cómo es (las partidas guardadas y los bebés traen el suyo, ver set_looks)
+	set_looks(clampf(randfn(0.0, SKIN_SPREAD), -1.0, 1.0), clampf(randfn(0.0, WARM_SPREAD), -1.0, 1.0),
+			HAIR_COLORS.pick_random(), randf_range(HEIGHT.x, HEIGHT.y))
 
 	if not input_event.is_connected(_on_input_event):
 		input_event.connect(_on_input_event)
@@ -1374,10 +1392,42 @@ func wake_up(stand := true) -> void:
 func is_child() -> bool:
 	return age < ADULT_AGE
 
-## Para cargar la partida (y al nacer): la edad, y el tamaño que le toca.
+## Para cargar la partida (y al nacer): la edad, y el tamaño que le toca (con su altura).
 func set_age(a: float) -> void:
 	age = a
-	scale = Vector2.ONE * lerpf(BABY_SIZE, 1.0, clampf(age / ADULT_AGE, 0.0, 1.0))
+	scale = Vector2.ONE * lerpf(BABY_SIZE, 1.0, clampf(age / ADULT_AGE, 0.0, 1.0)) * height
+
+# --- CÓMO ES ---
+## La piel (tono, y más amarilla o rojiza), el color del pelo y la altura.
+func set_looks(tone: float, warm: float, hair: Color, h: float) -> void:
+	skin_tone = tone
+	skin_warm = warm
+	hair_color = hair
+	height = h
+	if _waterline:
+		_paint_looks(_waterline)
+	set_age(age)
+
+## Le pone a mat (el material del rig, o el de la foto del carnet) la piel y el pelo de este.
+func _paint_looks(mat: ShaderMaterial) -> void:
+	mat.set_shader_parameter("skin_tone", skin_tone)
+	mat.set_shader_parameter("skin_warm", skin_warm)
+	mat.set_shader_parameter("hair_color", Vector3(hair_color.r, hair_color.g, hair_color.b))
+
+## Para la foto del carnet: un material con su piel y su pelo.
+func looks_material() -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = WATERLINE_SHADER
+	_paint_looks(m)
+	return m
+
+## Recién nacido: sale parecido a sus padres (la piel y la altura, entre las de los dos; el
+## pelo, el de alguno).
+func inherit_looks(a: Villager, b: Villager) -> void:
+	set_looks(clampf((a.skin_tone + b.skin_tone) * 0.5 + randfn(0.0, 0.12), -1.0, 1.0),
+			clampf((a.skin_warm + b.skin_warm) * 0.5 + randfn(0.0, 0.12), -1.0, 1.0),
+			(a if randf() < 0.5 else b).hair_color,
+			clampf((a.height + b.height) * 0.5 + randf_range(-0.02, 0.02), HEIGHT.x, HEIGHT.y))
 
 ## Grande, sano, no muerto de hambre, más o menos contento y sin un bebé reciente.
 func can_have_baby() -> bool:

@@ -372,6 +372,7 @@ func _new_photo() -> void:
 	body.remove_child(_photo_rig)
 	body.free()
 	_photo_rig.set_female(villager.gender == Villager.Gender.FEMALE)
+	_photo_rig.material = villager.looks_material()   # Su piel y su pelo
 	_photo_rig.scale = Vector2.ONE * PHOTO_SCALE
 	# El Skeleton2D del rig está en (-512, -512): cada px del dibujo es (px - 512) en el rig
 	_photo_rig.position = PHOTO_SIZE * 0.5 - (PHOTO_FOCUS - Vector2(512, 512)) * PHOTO_SCALE

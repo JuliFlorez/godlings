@@ -683,6 +683,7 @@ func save_game() -> void:
 			"hunger": v.hunger,
 			"mood": v.mood,
 			"tired": v.tiredness,
+			"looks": [v.skin_tone, v.skin_warm, v.hair_color, v.height],
 			"age": v.age,
 			"parents": v.parents,
 			"home": deco_index.get(v.home, -1) if v._home_ok() else -1,
@@ -743,6 +744,9 @@ func _load_game() -> bool:
 		v.hunger = d.get("hunger", v.hunger)
 		v.mood = d.get("mood", v.mood)
 		v.tiredness = d.get("tired", v.tiredness)
+		var looks: Array = d.get("looks", [])
+		if looks.size() == 4:
+			v.set_looks(looks[0], looks[1], looks[2], looks[3])
 		v.set_age(d.get("age", Villager.ADULT_AGE))
 		v.parents.assign(d.get("parents", []))
 		var h: int = d.get("home", -1)

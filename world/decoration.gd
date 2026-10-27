@@ -773,6 +773,7 @@ func _try_birth(inside: Array) -> void:
 func _birth(world: World, a: Villager, b: Villager) -> void:
 	var baby := world.add_villager(door())
 	baby.set_age(0.0)
+	baby.inherit_looks(a, b)   # Parecido a sus padres
 	baby.parents.assign([a.id_number, b.id_number])
 	baby.faith = (a.faith + b.faith) * 0.5   # Cree en vos como sus padres
 	baby.fear = 0.0

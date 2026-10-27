@@ -1,5 +1,9 @@
 shader_type canvas_item;
 
+// Cómo es cada aldeano (ver Villager.set_looks): la piel un poco más clara u oscura (y más
+// amarilla o rojiza) y el pelo de otro color. La piel son los marrones anaranjados no muy
+// saturados (así la pintura roja de la cara y las hojas no cambian) y el pelo, lo casi negro y
+// sin color (también se tiñen un poco las pupilas, que casi no se nota).
 // Aldeano flotando: lo que queda debajo de la línea del agua (coords globales) no se ve.
 // También la muerte por rayo (ver Villager.zap): los cuadros de rayos X (el cuerpo se vuelve
 // una silueta oscura y encima se ve el esqueleto, que dibuja VillagerRig.XRay), el cuerpo
@@ -17,12 +21,23 @@ uniform float crumble = -1.0;      // Lo que ya se hizo cenizas, medido desde la
 uniform vec2 crumble_from = vec2(0.0);       // Coronilla (global)
 uniform vec2 crumble_axis = vec2(0.0, 1.0);  // De la cabeza a los pies
 uniform vec4 ember_color : source_color = vec4(1.0, 0.45, 0.1, 1.0);
+uniform float skin_tone = 0.0;     // -1 más oscura .. 1 más clara
+uniform float skin_warm = 0.0;     // -1 más amarilla .. 1 más rojiza
+uniform vec3 hair_color = vec3(0.0);   // Lo que se le suma al negro del pelo (negro: como el dibujo)
 uniform float sick = 0.0;          // Con gripe (ver Villager._update_flu): pálido y verdoso
 uniform vec4 sick_color : source_color = vec4(0.78, 0.95, 0.62, 1.0);
 
 const float GRAIN = 4.0;           // Ancho del borde que se desgrana (px)
 
 varying vec2 world_pos;
+
+vec3 rgb2hsv(vec3 c) {
+    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+    float d = q.x - min(q.w, q.y);
+    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
+}
 
 float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -34,6 +49,15 @@ void vertex() {
 
 void fragment() {
     vec4 col = COLOR;
+    vec3 hsv = rgb2hsv(col.rgb);
+    float skin = (1.0 - smoothstep(0.075, 0.088, hsv.x)) * (1.0 - smoothstep(0.66, 0.74, hsv.y))
+            * smoothstep(0.25, 0.32, hsv.y) * smoothstep(0.18, 0.26, hsv.z);
+    vec3 tone = col.rgb * (1.0 + 0.22 * skin_tone) * vec3(1.0 + 0.06 * skin_warm, 1.0, 1.0 - 0.1 * skin_warm);
+    col.rgb = mix(col.rgb, tone, skin);
+    // Lo oscuro y sin color, de a poco (si no, el pelo con textura se ve granulado); lo casi negro,
+    // aunque tenga algo de color (ahí la saturación no dice nada)
+    float hair = (1.0 - smoothstep(0.0, 0.4, hsv.z)) * (1.0 - smoothstep(0.35, 0.55, hsv.y) * smoothstep(0.08, 0.2, hsv.z));
+    col.rgb += hair_color * hair;
     float lum = dot(col.rgb, vec3(0.299, 0.587, 0.114));
     if (sick > 0.0) {
         // Descolorido y tirando a verde (más claro, como pálido)
