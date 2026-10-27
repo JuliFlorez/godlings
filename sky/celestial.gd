@@ -1,10 +1,11 @@
 extends Node2D
 class_name Celestial
-## Astro arrastrable (sol o luna). Si lo soltás cerca del horizonte se pone
-## y emite `has_set` para que salga el otro; si lo soltás en otro lado emite `released` (el
-## cielo cambia la hora según dónde quedó, ver Sky). Mientras está afuera, el cielo lo lleva
-## por su camino (ver follow). Si lo tocás varias veces seguidas se vuelve perturbador (y otra
-## tanda de toques lo calma), si `can_turn_creepy()` lo permite.
+## Astro arrastrable (sol o luna): se lo puede agarrar siempre que se vea (arriba del horizonte), aunque esté saliendo
+## o poniéndose (deja de hacerlo). Si lo soltás cerca del horizonte se pone y emite `has_set`
+## para que salga el otro; si lo soltás en otro lado se queda ahí y emite `released` (el cielo
+## cambia la hora según dónde quedó, ver Sky). Mientras está afuera, el cielo lo lleva por su
+## camino (ver follow). Si lo tocás varias veces seguidas se vuelve perturbador (y otra tanda de
+## toques lo calma), si `can_turn_creepy()` lo permite.
 
 signal has_set
 signal released
@@ -64,12 +65,13 @@ func _pointer_pos(event: InputEventMouse) -> Vector2:
 	return get_canvas_transform().affine_inverse() * event.position
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not is_up or dragging:
+	if dragging or not visible or position.y > horizon_y:   # Escondido detrás del mar, no se lo agarra
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var p := _pointer_pos(event)
 		if p.distance_to(position) <= pick_radius:
 			dragging = true
+			is_up = true   # Si estaba saliendo o poniéndose, ya no (abajo se mata el tween)
 			_moved = false
 			_press_pos = p
 			if _tween:

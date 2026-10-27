@@ -3,7 +3,8 @@ extends CanvasLayer
 ## despacio y al final del día (DAY_LENGTH) baja hasta el horizonte y se pone; sale la luna, y
 ## al final de la noche (NIGHT_LENGTH) se pone ella y vuelve a salir el sol (y es otro día, ver
 ## day). También se los puede arrastrar: bajás el sol hasta el horizonte y sale la luna (y al
-## revés), y soltándolo más arriba o más abajo cambia la hora (ver _on_released).
+## revés), y soltándolo más arriba o más abajo cambia la hora (ver _on_released: de mañana,
+## más abajo es más temprano; de tarde, más tarde); queda donde lo soltaste y sigue desde ahí.
 ## El color del cielo, el de las nubes y el tinte del mundo dependen de qué tan bajo está el sol.
 ## Con la Luna de Sangre en el cielo todo se tiñe de rojo, y cuanto más se la
 ## alimenta, más rojo. Cada rayo ilumina todo un instante (ver flash). Con el diluvio
@@ -33,7 +34,7 @@ const STORM_HIDE := 0.8          # Cuánto tapan las nubes de tormenta al sol y 
 ## El día y la noche solos
 const DAY_LENGTH := 240.0        # Segundos de día (de que sale el sol a que se pone)...
 const NIGHT_LENGTH := 120.0      # ...y de noche
-const RISE := 0.1                # Lo que tarda en salir el sol (o la luna), en parte del día (o de la noche)...
+const RISE := 0.1                # Lo que tarda en subir el sol (o la luna) desde el horizonte, en parte del día (o de la noche)...
 const DUSK := 0.7                # ...y desde dónde va bajando hasta el horizonte
 const PATH_X := Vector2(860.0, 990.0)   # Mientras tanto cruza el cielo de acá hasta acá
 
@@ -55,6 +56,7 @@ var running := false
 var clock := 0.0   # Segundos desde que salió el sol (o la luna)
 var day := 1       # Qué día es: sube con cada amanecer
 var resume := -1.0 # Al cargar una partida de noche: la hora de la noche (ver _start_night)
+var _drift := Vector2.ZERO   # Lo soltaste fuera de su camino: lo que se corrió (se le va pasando al bajar)
 ## Cuánto llueve (lo pone Storm): 0 despejado, 1 tormenta cerrada.
 var storm := 0.0
 var bank: CloudBank
@@ -136,27 +138,35 @@ func start_at_night(sunset: float) -> void:
 ## Se puso el sol: sale la luna.
 func _start_night() -> void:
 	is_night = true
+	_drift = Vector2.ZERO
 	clock = maxf(resume, 0.0)
 	resume = -1.0
-	moon.rise(_path(RISE), RISE * NIGHT_LENGTH if running else 2.0)
+	moon.rise(_path(0.0) if running else Vector2.INF)
 
 ## Se puso la luna: sale el sol, y es otro día.
 func _start_day() -> void:
 	is_night = false
+	_drift = Vector2.ZERO
 	clock = 0.0
 	day += 1
-	sun.rise(_path(RISE), RISE * DAY_LENGTH if running else 2.0)
+	sun.rise(_path(0.0) if running else Vector2.INF)
 
 ## Lo que va del día (o de la noche): 0 recién salido el sol (o la luna), 1 poniéndose.
 func phase() -> float:
 	return clampf(clock / (NIGHT_LENGTH if is_night else DAY_LENGTH), 0.0, 1.0)
 
-## Dónde va el sol (o la luna) a la hora u del día (o de la noche).
+## Dónde va el sol (o la luna) a la hora u del día (o de la noche): sube desde el horizonte
+## (hasta RISE), cruza alto y desde DUSK baja hasta el horizonte.
 func _path(u: float) -> Vector2:
-	var low := clampf((u - DUSK) / (1.0 - DUSK), 0.0, 1.0)
-	return Vector2(lerpf(PATH_X.x, PATH_X.y, u), lerpf(sun.rest_pos.y, horizon_y + 40.0, low))
+	var y := lerpf(horizon_y + 40.0, sun.rest_pos.y, clampf(u / RISE, 0.0, 1.0))
+	return Vector2(lerpf(PATH_X.x, PATH_X.y, u), lerpf(y, horizon_y + 40.0, _low(u)))
 
-## La hora avanza: el que está afuera sigue su camino y al final se pone solo.
+## Qué tanto bajó hacia el horizonte a la hora u: 0 hasta DUSK, 1 poniéndose.
+func _low(u: float) -> float:
+	return clampf((u - DUSK) / (1.0 - DUSK), 0.0, 1.0)
+
+## La hora avanza: el que está afuera sigue su camino (corrido a donde lo soltaste, hasta que
+## empieza a bajar) y al final se pone solo.
 func _advance(dt: float) -> void:
 	clock += dt
 	var body: Celestial = moon if is_night else sun
@@ -166,14 +176,22 @@ func _advance(dt: float) -> void:
 	if u >= 1.0:
 		body.sink()
 	else:
-		body.follow(_path(u), dt)
+		body.follow(_path(u) + _drift * (1.0 - _low(u)), dt)
 
-## Lo soltaste sin ponerlo: la hora pasa a ser la que le toca a esa altura (más abajo, más
-## tarde; arriba del todo, a lo sumo la hora en que empieza a bajar).
+## Lo soltaste sin ponerlo: la hora pasa a ser la que le toca a esa altura (de mañana, más
+## abajo es más temprano; de tarde, más tarde; arriba del todo, lo más alto del día), y se
+## queda donde lo soltaste: de ahí sigue su camino.
 func _on_released(body: Celestial) -> void:
 	var length := NIGHT_LENGTH if is_night else DAY_LENGTH
 	var h := body.height_t()
-	clock = length * (DUSK + (1.0 - DUSK) * h if h > 0.01 else minf(clock / length, DUSK))
+	var u := clock / length
+	if u < 0.5:
+		u = RISE * (1.0 - h) if h > 0.01 else maxf(u, RISE)
+	else:
+		u = DUSK + (1.0 - DUSK) * h if h > 0.01 else minf(u, DUSK)
+	clock = u * length
+	var low := _low(u)
+	_drift = (body.position - _path(u)) / (1.0 - low) if low < 0.99 else Vector2.ZERO
 
 ## Un rayo ilumina el cielo y la isla (también de noche). amount: 0..1.
 func flash(amount: float) -> void:
