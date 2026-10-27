@@ -12,6 +12,9 @@ class_name VillagerRig
 ## - Parpadea cada tantos segundos y los balazos dejan una marca en la parte alcanzada.
 ## - Electrocutado por un rayo: tieso con brazos y piernas abiertos, temblando, y en los
 ##   cuadros de rayos X se le ve el esqueleto (ver Villager.zap).
+## - Rezándote: de rodillas (el cuerpo baja y tapa las piernas) con los brazos en alto,
+##   meciéndolos. Agachado de miedo: más abajo, abrazándose y con la boca abierta. Si te
+##   teme, tiembla (ver Villager.pose).
 
 const GRAVITY := 1400.0
 const MAX_ACC := 7000.0       # Tope de aceleración medida (evita latigazos absurdos)
@@ -64,6 +67,17 @@ const SHOCK_ARM := 0.3        # Brazos un poco levantados
 const SHOCK_LEG := 0.22       # Piernas abiertas
 const SHOCK_JITTER := 0.15    # Temblor de cada miembro (rad)
 const SHOCK_SHAKE := 22.0     # Temblor de la cadera (px de la imagen)
+
+# Rezando o agachado de miedo (ver Villager.pose)
+const KNEEL_SPEED := 4.0      # Por segundo: de parado a de rodillas en 0.25 s
+const KNEEL_DROP := 85.0      # Cuánto baja el cuerpo de rodillas (px de la imagen)...
+const COWER_DROP := 105.0     # ...y agachado de miedo
+const KNEEL_SPLAY := 0.12     # Las rodillas un poco abiertas (rad)
+const PRAY_ARMS := 0.75       # Brazos en alto (rad desde la pose T, para arriba)...
+const PRAY_SWAY := 0.18       # ...meciéndose
+const PRAY_SWAY_RATE := 2.6
+const COWER_ARMS := -1.8      # Agachado, abrazándose (los brazos cruzados por delante)
+const TREMBLE := 6.0          # Temblor de la cadera si te teme (px de la imagen)
 
 # Aldeana: el mismo dibujo con pelo largo, trenzas y top de hojas, alineado con villager.png
 # (mismos huesos y recortes). La cabeza va en una textura aparte porque las trenzas cuelgan
@@ -135,6 +149,8 @@ var _female := false
 var _male_head_poly := PackedVector2Array()
 var _male_head_uv := PackedVector2Array()
 var _sneeze := 0.0            # Estornudando: la boca abierta un ratito
+var _kneel := 0.0             # 0 = parado, 1 = de rodillas (rezando o agachado de miedo)
+var _pose := Villager.Pose.NONE   # La última (para seguir con ella mientras se levanta)
 
 const MAX_MARKS := 10
 ## Alfa de cada textura del dibujo, para saber si un tiro cayó sobre el dibujo o en un hueco.
@@ -419,6 +435,17 @@ func _process(dt: float) -> void:
 	var hip_rot := SWAY * s * amt
 	var rise := absf(s) * BOB * amt + sin(_t * BREATH_RATE) * BREATH * still
 
+	# De rodillas: el cuerpo baja y las piernas se quedan donde están (el cuerpo las tapa)
+	if villager.pose != Villager.Pose.NONE:
+		_pose = villager.pose
+	_kneel = move_toward(_kneel, 1.0 if villager.pose != Villager.Pose.NONE else 0.0, KNEEL_SPEED * dt)
+	var kneel := smoothstep(0.0, 1.0, _kneel) * (1.0 - rag)
+	var cower := _pose == Villager.Pose.COWER
+	if kneel > 0.0:
+		rise -= (COWER_DROP if cower else KNEEL_DROP) * kneel
+		if villager.fear >= Villager.FEARS_AT:
+			rise += randf_range(-1.0, 1.0) * TREMBLE * kneel
+
 	hip.rotation = hip_rot
 	hip.position = hip_rest + Vector2(SHIFT * s * amt, -rise)
 	_place_leg(leg_l, leg_l_rest, lift_l)
@@ -435,6 +462,14 @@ func _process(dt: float) -> void:
 	j_arm_r.target =  ARM_DOWN + ARM_FWD * lift_l - ARM_BACK * lift_r - hip_rot
 	j_leg_l.target =  LEG_SPLAY * lift_l - hip_rot
 	j_leg_r.target = -LEG_SPLAY * lift_r - hip_rot
+	if kneel > 0.0:
+		var arms := COWER_ARMS if cower else PRAY_ARMS + sin(_t * PRAY_SWAY_RATE) * PRAY_SWAY
+		j_arm_l.target = lerpf(j_arm_l.target, arms, kneel)
+		j_arm_r.target = lerpf(j_arm_r.target, -arms, kneel)
+		j_leg_l.target = lerpf(j_leg_l.target, KNEEL_SPLAY, kneel)
+		j_leg_r.target = lerpf(j_leg_r.target, -KNEEL_SPLAY, kneel)
+		if cower:
+			_mouth.target = maxf(_mouth.target, 0.6 * kneel)
 
 	# --- Simulación de cada articulación ---
 	for j in joints:

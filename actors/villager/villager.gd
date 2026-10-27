@@ -229,6 +229,50 @@ var _chat_seek := 0.0
 var _talking := 0.0                     # Hablando: mueve la boca
 static var _babbles: Array[AudioStreamWAV] = []
 
+# --- Fe y miedo: cuánto creen en vos (el dios de la isla) y cuánto te temen, de 0 a 100. Con
+# eso son devotos, fanáticos, herejes o aterrados (ver creed). La fe sube con los milagros
+# (curarlos, rescatarlos del agua, o ver que curaste a otro) y baja de a poco si no hacés nada
+# por ellos, y de golpe si se les muere la pareja o un amigo. El miedo sube con lo que ven:
+# alguien que se muere cerca (más si lo querían), que los agarres o los revolees, el sol o la
+# luna perturbados; y se les va pasando (charlando, más rápido). Si pasás el mouse cerca, el
+# devoto se arrodilla y te reza, el fanático también pero temblando, el aterrado sale
+# corriendo y el hereje ni te mira; con un arma afuera, los que te temen se agachan. Rezando
+# dejan ofrendas según la fe y el miedo, y la fe recarga la devoción (ver World). Se ve en el
+# carnet y se guarda con la partida.
+enum Creed { DEVOUT, ZEALOT, HERETIC, TERRIFIED }
+enum Pose { NONE, PRAY, COWER }         # Ver VillagerRig
+const FAITH_START := Vector2(55.0, 75.0)
+const FEAR_START := Vector2(0.0, 10.0)
+const BELIEVES_AT := 40.0               # Con esta fe o más cree en vos...
+const FEARS_AT := 50.0                  # ...y con este miedo o más te teme
+const FAITH_DRIFT := 0.02               # Fe que pierde por segundo (1,2 por minuto) si no hacés nada
+const FEAR_FADE := 0.12                 # Miedo que se le pasa por segundo...
+const FEAR_FADE_CHAT := 3.0             # ...y charlando, el triple
+const WITNESS_RADIUS := 260.0           # Hasta dónde ve lo que pasa (de cerca, más le afecta)
+const WITNESS_STARE := 1.5              # Ve morir a alguien: se queda mirando, con la boca abierta
+const FEAR_DEATH := 25.0                # Ver morir a alguien bien de cerca (de gripe, menos)
+const FEAR_DEATH_GENTLE := 0.3
+const FEAR_LOVED := 15.0                # Y si era su pareja o un amigo, más
+const FAITH_LOST_PARTNER := 20.0        # Se le murió la pareja (lo haya visto o no)
+const FAITH_LOST_FRIEND := 8.0
+const FEAR_GRAB := 4.0                  # Que lo agarres...
+const FEAR_THROW := 12.0                # ...o lo revolees
+const FEAR_CREEPY := 0.4                # Por segundo, con el sol o la luna perturbados afuera
+const FAITH_CURED := 15.0
+const FAITH_RESCUED := 12.0             # Sacado del agua y dejado en la isla
+const FAITH_MIRACLE := 4.0              # Ver de cerca que curaste a alguien
+const THANKS_TIME := 1.6                # El corazoncito que pone al curarlo o rescatarlo
+const HAND_NEAR := 110.0                # El mouse (tu mano) así de cerca: te nota
+const SCRAM_TIME := 0.7                 # El aterrado sigue corriendo un poco después
+const SCRAM_SPEED := 2.2                # Veces speed
+const TRIBUTE_PAR := 70.0               # Fe más miedo que hacen 1 ofrenda por rezo
+var faith := 60.0
+var fear := 0.0
+var pose := Pose.NONE                   # Lo que está haciendo por vos (ver VillagerRig)
+var _scram := 0.0                       # Escapándose de tu mano
+var _from_water := false                # Lo agarraste del agua: si lo dejás en la isla, lo rescataste
+var _gentle_death := false              # Se murió de gripe (asusta menos a los que lo ven)
+
 # --- Carnet: nombre y apellido los pone el jugador en modo seleccionar (ver VillagerCard) ---
 enum Gender { MALE, FEMALE }
 static var ids_issued := 0       # Números de carnet repartidos (se guarda con la partida)
@@ -270,6 +314,8 @@ func _ready() -> void:
 	_pick_dir()
 	wander_timer = randf_range(1.5, 4.0)
 	_chat_cool = randf_range(2.0, CHAT_EVERY.y)
+	faith = randf_range(FAITH_START.x, FAITH_START.y)   # Las partidas guardadas traen la suya
+	fear = randf_range(FEAR_START.x, FEAR_START.y)
 	input_pickable = true
 
 	if rig:
@@ -466,14 +512,22 @@ func _physics_process(dt: float) -> void:
 	if chat_with != null and _chat_ai(dt):
 		return
 	_seek_chat(dt)
-	# Asustado (ve venir un meteorito) se queda quieto mirándolo; prendido fuego (o escapándose
-	# del agua) corre sin parar
-	var hurry := on_fire or _flee > 0.0
-	var stop := (_resting or is_scared()) and not hurry
+	# Asustado (ve venir un meteorito) se queda quieto mirándolo, y rezando o agachado de miedo
+	# también; prendido fuego (o escapándose del agua o de tu mano) corre sin parar
+	var hurry := on_fire or _flee > 0.0 or _scram > 0.0
+	var stop := (_resting or is_scared() or pose != Pose.NONE) and not hurry
 	_walk = move_toward(_walk, 0.0 if stop else 1.0, WALK_ACCEL * dt * (4.0 if hurry else 1.0))
 	# Al doblar va más despacio (y si vuelve para atrás, frena y arranca de nuevo)
 	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * (2.0 if hurry else 1.0) * dt))
-	var pace := speed * (PANIC_SPEED if on_fire else (FLOOD_FLEE_SPEED if _flee > 0.0 else (FLU_SPEED if flu == Flu.SICK else 1.0)))
+	var pace := speed
+	if on_fire:
+		pace *= PANIC_SPEED
+	elif _flee > 0.0:
+		pace *= FLOOD_FLEE_SPEED
+	elif _scram > 0.0:
+		pace *= SCRAM_SPEED
+	elif flu == Flu.SICK:
+		pace *= FLU_SPEED
 	velocity = _heading * pace * smoothstep(0.0, 1.0, _walk) + _separation() + shove_vel
 	var prev_pos := global_position
 	move_and_slide()
@@ -590,9 +644,11 @@ func _food_ai(dt: float) -> bool:
 	return true
 
 # --- CHARLAS ---
-## Tranquilo en la isla: sin quemarse, asustarse, comer ni escaparse del agua.
+## Tranquilo en la isla: sin quemarse, asustarse, comer, escaparse del agua o de tu mano, ni
+## rezarte o agacharse de miedo.
 func can_chat() -> bool:
-	return is_idle() and not on_fire and not is_scared() and _flee <= 0.0 and food == null
+	return is_idle() and not on_fire and not is_scared() and _flee <= 0.0 and food == null \
+			and _scram <= 0.0 and pose == Pose.NONE
 
 func wants_chat() -> bool:
 	return chat_with == null and _chat_cool <= 0.0 and can_chat()
@@ -822,20 +878,31 @@ func say(b: Bubble, time: float, talk := true) -> void:
 func talk_mouth() -> float:
 	return absf(sin(_talking * 18.0)) * 0.55 if _talking > 0.0 else 0.0
 
-## Se murió: su pareja y sus amigos lloran un rato, y deja de contar para los demás.
+## Se murió: los que lo vieron se asustan (más si lo querían) y se quedan mirando; su pareja y
+## sus amigos lloran un rato y pierden fe. Y deja de contar para los demás.
 func _mourn() -> void:
 	_ensure_hud()
+	var at := body_center()
+	var scary := FEAR_DEATH * (FEAR_DEATH_GENTLE if _gentle_death else 1.0)
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
 		if o == null or o == self or o.dead or o.eaten or o.is_queued_for_deletion():
 			continue
-		match Relations.kind(self, o):
+		var k := Relations.kind(self, o)
+		var seen := o._witness(at)
+		if seen > 0.0:
+			var loved := k == Relations.Kind.COUPLE or k == Relations.Kind.FRIEND
+			o.add_fear((scary + (FEAR_LOVED if loved else 0.0)) * seen)
+			o.scare(WITNESS_STARE, at)
+		match k:
 			Relations.Kind.COUPLE:
 				o.say(Bubble.TEAR, MOURN_TIME, false)
+				o.add_faith(-FAITH_LOST_PARTNER)
 				if hud:
 					hud.popup_text("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), HUD.C_MUTED)
 			Relations.Kind.FRIEND:
 				o.say(Bubble.TEAR, MOURN_TIME * 0.6, false)
+				o.add_faith(-FAITH_LOST_FRIEND)
 	Relations.forget(self)
 
 ## "Bla-bla-bla": unas sílabas cortitas con la vocal que sube y baja de tono.
@@ -856,6 +923,81 @@ static func _make_babble() -> AudioStreamWAV:
 		for i in int(rate * randf_range(0.02, 0.045)):   # Pausita entre sílabas
 			buf.append(0.0)
 	return Synth.wav(buf, rate, 0.9)
+
+# --- FE Y MIEDO ---
+## Devoto, fanático, hereje o aterrado, según cuánto cree en vos y cuánto te teme.
+func creed() -> Creed:
+	if faith >= BELIEVES_AT:
+		return Creed.ZEALOT if fear >= FEARS_AT else Creed.DEVOUT
+	return Creed.TERRIFIED if fear >= FEARS_AT else Creed.HERETIC
+
+func add_faith(amount: float) -> void:
+	faith = clampf(faith + amount, 0.0, 100.0)
+
+func add_fear(amount: float) -> void:
+	fear = clampf(fear + amount, 0.0, 100.0)
+
+## Lo que deja cada vez que reza (ver World): más cuanto más cree en vos y más te teme.
+func tribute() -> float:
+	return (faith + fear) / TRIBUTE_PAR
+
+## Cuánto le afecta algo que pasó en at: 1 bien de cerca, nada si no lo vio.
+func _witness(at: Vector2) -> float:
+	var d := body_center().distance_to(at)
+	return 0.0 if d > WITNESS_RADIUS else lerpf(1.0, 0.4, d / WITNESS_RADIUS)
+
+## Le hiciste un milagro (lo curaste o lo rescataste): te cree más y te lo agradece. Los que
+## lo vieron (si lo curaste) también te creen un poco más.
+func _thank(amount: float, seen_by_others: bool) -> void:
+	add_faith(amount)
+	say(Bubble.HEART, THANKS_TIME, false)
+	if not seen_by_others:
+		return
+	var at := body_center()
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o and o != self and not o.dead and not o.eaten:
+			o.add_faith(FAITH_MIRACLE * o._witness(at))
+
+## La fe se le va gastando y el miedo se le va pasando (o crece, con el cielo perturbado). Si
+## tu mano anda cerca reacciona según lo que cree: reza (pose), se escapa (_scram) o nada; y
+## si sacaste un arma, el que te teme se agacha.
+func _update_faith(dt: float) -> void:
+	_scram = maxf(0.0, _scram - dt)
+	pose = Pose.NONE
+	if dead or eaten or is_queued_for_deletion():
+		return
+	add_faith(-FAITH_DRIFT * dt)
+	add_fear(-FEAR_FADE * (FEAR_FADE_CHAT if chat_with else 1.0) * dt)
+	if _creepy_sky():
+		add_fear(FEAR_CREEPY * dt)
+	_ensure_hud()
+	if hud == null or not hud.visible or not is_idle() or on_fire or _flee > 0.0:
+		return
+	var hand := get_global_mouse_position()
+	var near := body_center().distance_to(hand) < HAND_NEAR
+	var c := creed()
+	if near and c == Creed.TERRIFIED:
+		# Sale corriendo para el otro lado (aunque estuviera comiendo)
+		_scram = SCRAM_TIME
+		dir = (global_position - hand).normalized()
+		_update_sprite_flip()
+		_resting = false
+		if food:
+			food.release_eater()
+	elif food:
+		return   # Comiendo, ni te mira
+	elif near and c != Creed.HERETIC:
+		pose = Pose.PRAY
+		if rig:
+			rig.set_facing_left(hand.x < global_position.x)
+	elif fear >= FEARS_AT and HUD.aiming():
+		pose = Pose.COWER
+
+## El sol o la luna perturbados (o la Luna de Sangre) a la vista.
+func _creepy_sky() -> bool:
+	var sky := get_tree().get_first_node_in_group("sky")
+	return sky != null and (sky.blood_moon or (sky.sun.creepy and sky.sun.is_up) or (sky.moon.creepy and sky.moon.is_up))
 
 ## Empuje suave para no quedar encimado con otros aldeanos en tierra.
 func _separation() -> Vector2:
@@ -1667,6 +1809,8 @@ func cure() -> bool:
 		_ensure_hud()
 		if hud and not flu_cured:
 			hud.popup_text("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
+	if flu_cured or burns:
+		_thank(FAITH_CURED, true)
 	return flu_cured or burns
 
 ## Enfermo de verdad (con síntomas, contagia y no reza).
@@ -1767,6 +1911,7 @@ func _die_of_flu() -> void:
 		hud.popup_text("Murió de gripe", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
 	if food:
 		food.release_eater()
+	_gentle_death = true
 	_die()
 	swing_vel = (1.0 if randf() < 0.5 else -1.0) * randf_range(2.5, 4.0)   # Se cae para un costado
 	corpse_vel = Vector2.ZERO
@@ -1885,6 +2030,7 @@ func _process(dt: float) -> void:
 	_update_fire(dt)
 	_update_zap(dt)
 	_update_flu(dt)
+	_update_faith(dt)
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)
 	_tornado_cool = maxf(0.0, _tornado_cool - dt)
@@ -1958,6 +2104,8 @@ func _start_drag() -> void:
 	if not dead:
 		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
 		_voice.play()
+		add_fear(FEAR_GRAB)
+	_from_water = not dead and (in_water or flooded)
 	if dead:
 		corpse_timer = 0.0
 		modulate.a = 1.0
@@ -1983,6 +2131,8 @@ func _stop_drag() -> void:
 	var throw := _throw_vel.limit_length(THROW_MAX_SPEED)
 	var on_island := island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly)
 	if throw.length() >= THROW_MIN_SPEED:
+		if not dead:
+			add_fear(FEAR_THROW)
 		_launch(throw, on_island)
 	elif on_island:
 		# Rescatado o depositado en tierra firme
@@ -2051,3 +2201,6 @@ func _land_on_island() -> void:
 	_walk = 0.0   # Arranca a caminar de a poco
 	_heading = Vector2.ZERO
 	_pick_dir()
+	if _from_water:
+		_from_water = false
+		_thank(FAITH_RESCUED, false)   # Lo rescataste

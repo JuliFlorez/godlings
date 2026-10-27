@@ -3,6 +3,8 @@ class_name VillagerCard
 ## Carnet del aldeano: se abre con un click sobre él en modo seleccionar.
 ## Foto tipo carnet con el género abajo, número, y nombre y apellido para escribir
 ## (se ven arriba de su cabeza, ver NameTag), y su estado: sano, con gripe, curado o muerto.
+## Después, cuánto cree en vos y cuánto te teme (ver Villager.faith y fear), y qué es por eso:
+## devoto, fanático, hereje o aterrado.
 ## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos. Un click en
 ## un nombre abre el carnet de ese aldeano.
 ## La foto es un rig propio del aldeano (así parpadea) que copia su cara: la boca de
@@ -28,6 +30,15 @@ const RELATIONS := [
 	[Relations.Kind.ENEMY, "Enemigos", Villager.Bubble.ANGER],
 ]
 const REL_CAPTION_W := 66.0
+## Lo que es según su fe y su miedo: [varón, aldeana, color]
+const CREEDS := {
+	Villager.Creed.DEVOUT: ["Devoto", "Devota", HUD.C_HOLY],
+	Villager.Creed.ZEALOT: ["Fanático", "Fanática", HUD.C_METEOR],
+	Villager.Creed.HERETIC: ["Hereje", "Hereje", HUD.C_MUTED],
+	Villager.Creed.TERRIFIED: ["Aterrado", "Aterrada", HUD.C_WARN],
+}
+const C_FAITH := HUD.C_HOLY
+const C_FEAR := HUD.C_EVIL
 const MAX_LISTED_NAME := 18      # Los nombres más largos se cortan con "…"
 
 var villager: Villager
@@ -38,6 +49,9 @@ var _last: LineEdit
 var _photo: Control
 var _photo_rig: VillagerRig
 var _status: Label
+var _creed: Label
+var _faith_bar: ProgressBar
+var _fear_bar: ProgressBar
 var _relations: Array[HFlowContainer] = []   # Una fila por cada tipo de relación (RELATIONS)
 var _relations_key := ""        # Lo que se está mostrando: se rearma solo si cambia
 
@@ -109,6 +123,7 @@ func _ready() -> void:
 	fields.add_child(_caption("Estado"))
 	_status = HUD.make_label("", 15, HUD.C_TEXT)
 	fields.add_child(_status)
+	_build_creed(col)
 	_build_relations(col)
 	_first.text_changed.connect(func(t: String):
 		if villager:
@@ -155,6 +170,7 @@ func _process(_dt: float) -> void:
 	if villager.rig:
 		_photo_rig.copy_face(villager.rig)
 	_update_status()
+	_update_creed()
 	_update_relations()
 	_place()
 
@@ -180,6 +196,19 @@ func _update_status() -> void:
 	_status.text = text
 	_status.add_theme_color_override("font_color", col)
 	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
+
+## Cuánto cree en vos, cuánto te teme y qué es por eso.
+func _update_creed() -> void:
+	var v := villager
+	_faith_bar.value = v.faith
+	_fear_bar.value = v.fear
+	var c: Array = CREEDS[v.creed()]
+	_creed.text = c[1] if v.gender == Villager.Gender.FEMALE else c[0]
+	_creed.add_theme_color_override("font_color", c[2])
+	# Muerto ya no siente nada
+	_creed.visible = not v.dead
+	for bar: ProgressBar in [_faith_bar, _fear_bar]:
+		bar.modulate.a = 0.4 if v.dead else 1.0
 
 ## Su pareja, sus amigos y sus enemigos (los vivos), con el nombre de cada uno (o su número
 ## si no tiene) en el color de la relación.
@@ -266,13 +295,51 @@ func _new_photo() -> void:
 	_photo.add_child(_photo_rig)
 
 # ---- Construcción ----
-func _build_relations(parent: Control) -> void:
+func _build_creed(parent: Control) -> void:
+	_separator(parent)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	parent.add_child(box)
+	var head := HBoxContainer.new()
+	box.add_child(head)
+	head.add_child(_caption("Creencia"))
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(spacer)
+	_creed = HUD.make_label("", 14, HUD.C_TEXT)
+	head.add_child(_creed)
+	_faith_bar = _bar(box, "Fe", C_FAITH)
+	_fear_bar = _bar(box, "Miedo", C_FEAR)
+
+## Una barrita de 0 a 100 con su nombre adelante.
+func _bar(parent: Control, title: String, col: Color) -> ProgressBar:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	parent.add_child(row)
+	var caption := HUD.make_label(title, 13, HUD.C_MUTED)
+	caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
+	row.add_child(caption)
+	var bar := ProgressBar.new()
+	bar.show_percentage = false
+	bar.max_value = 100.0
+	bar.custom_minimum_size = Vector2(0, 10)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bar.add_theme_stylebox_override("background", HUD.make_box(HUD.C_TRACK, 5))
+	bar.add_theme_stylebox_override("fill", HUD.make_box(col, 5, col.lightened(0.35), 1))
+	row.add_child(bar)
+	return bar
+
+func _separator(parent: Control) -> void:
 	var sep := HSeparator.new()
 	var line := StyleBoxLine.new()
 	line.color = Color(1, 1, 1, 0.10)
 	line.thickness = 1
 	sep.add_theme_stylebox_override("separator", line)
 	parent.add_child(sep)
+
+func _build_relations(parent: Control) -> void:
+	_separator(parent)
 	var box := VBoxContainer.new()   # Más apretado que el resto del carnet
 	box.add_theme_constant_override("separation", 3)
 	parent.add_child(box)

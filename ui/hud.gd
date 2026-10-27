@@ -43,6 +43,8 @@ var shark_on: Array[bool] = []
 var select_mode := false
 var _points_earned: int = 0
 var _refill_rate: float = 0.0  # puntos de energía por segundo
+## Lo que rinde la recarga de devoción según cuánto creen en vos (ver World._devotion_rate).
+var faith_rate := 1.0
 
 var _population := -1
 var _capacity := -1
@@ -193,7 +195,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	# Recarga suave de Devoción (no durante el menú de pausa)
 	if energy < energy_max and not get_tree().paused:
-		energy = min(energy_max, energy + _refill_rate * delta)
+		energy = min(energy_max, energy + _refill_rate * faith_rate * delta)
 		_refresh()
 
 	# Las barras siguen a su valor con suavidad

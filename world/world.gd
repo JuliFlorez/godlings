@@ -41,8 +41,13 @@ const HEIGHT_MAX := 1.05
 @export var spawn_devotion_cost: float = 10.0
 @export var start_level: int = 0
 @export var starting_villagers: int = 4
-## Cada tantos segundos, cada aldeano vivo reza y deja una ofrenda.
+## Cada tantos segundos, cada aldeano vivo y sano reza y deja ofrendas: más cuanto más cree
+## en vos y más te teme (ver Villager.tribute).
 @export var worship_interval: float = 10.0
+## Con esta fe promedio en la isla la devoción se recarga a velocidad normal (ver HUD.faith_rate):
+## con más, más rápido; con menos, más lento (sin parar del todo, así siempre se puede invocar).
+const DEVOTION_FAITH := 65.0
+const DEVOTION_RATE := Vector2(0.25, 1.5)
 
 var island_level := 0
 var island_poly_global: PackedVector2Array
@@ -61,6 +66,7 @@ var props: Node2D
 ## Manchas en el piso (charcos de sangre): siempre debajo de aldeanos y decoraciones.
 var ground: Node2D
 var _worship_t := 0.0
+var _tribute := 0.0   # Lo que va quedando de ofrendas sueltas (cada rezo suma fracciones)
 ## Brotes de gripe (ver Villager.catch_flu): cada tanto, si hay suficientes aldeanos.
 const OUTBREAK_EVERY := Vector2(90.0, 180.0)
 const OUTBREAK_MIN := 3
@@ -299,10 +305,13 @@ func _process(dt: float) -> void:
 	_update_zoom(dt)
 	if hud:
 		hud.set_population(alive_villagers(), capacity())
+		hud.faith_rate = _devotion_rate()
 		_worship_t += dt
 		if _worship_t >= worship_interval:
 			_worship_t = 0.0
-			var n := alive_villagers() - sick_villagers()   # Los enfermos no rezan
+			_tribute += _prayers()
+			var n := int(_tribute)
+			_tribute -= n
 			if n > 0:
 				hud.add_offerings(n)
 		_update_outbreak(dt)
@@ -390,6 +399,28 @@ func alive_villagers() -> int:
 		if villager and not villager.eaten and not villager.drowning and not villager.dead and not villager.is_queued_for_deletion():
 			n += 1
 	return n
+
+## Lo que dejan de ofrendas los que rezan (los vivos y sanos, ver Villager.tribute).
+func _prayers() -> float:
+	var sum := 0.0
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v and not v.eaten and not v.drowning and not v.dead and not v.is_sick() and not v.is_queued_for_deletion():
+			sum += v.tribute()
+	return sum
+
+## Cuánto rinde la recarga de devoción según la fe promedio de la isla (sin nadie, normal).
+func _devotion_rate() -> float:
+	var sum := 0.0
+	var n := 0
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v and not v.eaten and not v.drowning and not v.dead and not v.is_queued_for_deletion():
+			sum += v.faith
+			n += 1
+	if n == 0:
+		return 1.0
+	return clampf(sum / n / DEVOTION_FAITH, DEVOTION_RATE.x, DEVOTION_RATE.y)
 
 func sick_villagers() -> int:
 	var n := 0
@@ -612,6 +643,8 @@ func save_game() -> void:
 			"gender": v.gender,
 			"flu": v.flu,
 			"flu_t": v.flu_t,
+			"faith": v.faith,
+			"fear": v.fear,
 		})
 		ids.append(v.id_number)
 	var decorations := []
@@ -660,6 +693,8 @@ func _load_game() -> bool:
 		v.last_name = d.get("last_name", "")
 		v.gender = d.get("gender", Villager.Gender.MALE)
 		v.set_flu(d.get("flu", Villager.Flu.HEALTHY) as Villager.Flu, d.get("flu_t", 0.0))
+		v.faith = d.get("faith", v.faith)
+		v.fear = d.get("fear", v.fear)
 	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
 	Relations.load_state(cfg.get_value("island", "relations", []))
 	Relations.load_history(cfg.get_value("island", "history", []))

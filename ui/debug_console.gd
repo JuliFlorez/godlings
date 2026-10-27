@@ -20,6 +20,8 @@ const COMMANDS := [
 	["aldeanos / villagers [n]", "Invoca aldeanos gratis (por defecto hasta llenar la isla)"],
 	["gripe / flu [n]", "Contagia de gripe a n aldeanos sanos (por defecto 1)"],
 	["charlas / chats [n]", "Simula n charlas al azar (por defecto 30) y les da ganas de charlar a todos"],
+	["fe / faith [n]", "Pone la fe de todos en n, de 0 a 100 (por defecto 100)"],
+	["miedo / fear [n]", "Pone el miedo de todos en n, de 0 a 100 (por defecto 100)"],
 	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, peste, curar, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
 	["limpiar / clear", "Borra la consola"],
@@ -154,6 +156,12 @@ func run(text: String) -> void:
 			_ok(tr("%d aldeanos con gripe") % world.debug_infect(arg if arg > 0 else 1))
 		"charlas", "chats", "charlar", "chat":
 			_ok(tr("%d charlas: %d amistades, %d enemistades y %d parejas") % _simulate_chats(arg if arg > 0 else 30))
+		"fe", "faith":
+			var n := clampi(arg if arg >= 0 else 100, 0, 100)
+			_ok(tr("%d aldeanos con fe %d") % [_set_all("faith", n), n])
+		"miedo", "fear":
+			var n := clampi(arg if arg >= 0 else 100, 0, 100)
+			_ok(tr("%d aldeanos con miedo %d") % [_set_all("fear", n), n])
 		"desbloquear", "unlock":
 			_unlock_all()
 		"todo", "all":
@@ -166,6 +174,16 @@ func run(text: String) -> void:
 			_log.clear()
 		_:
 			_print("[color=#ff8c73]%s[/color]" % (tr("No conozco \"%s\". Escribí ayuda (o help).") % cmd))
+
+## A todos los vivos les pone value en prop (faith o fear). Devuelve a cuántos.
+func _set_all(prop: String, value: float) -> int:
+	var n := 0
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v and not v.dead and not v.eaten and not v.is_queued_for_deletion():
+			v.set(prop, value)
+			n += 1
+	return n
 
 ## n charlas entre dos aldeanos vivos al azar, de una (sin que se junten). Después todos
 ## quedan con ganas de charlar. Devuelve [charlas, amistades, enemistades, parejas] que
