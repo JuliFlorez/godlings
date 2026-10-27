@@ -47,6 +47,7 @@ func set_armed(on: bool) -> void:
 	if on == armed:
 		return
 	armed = on
+	queue_redraw()   # Al guardarlo, que se borre la mira (guardado ya no se redibuja solo)
 	armed_changed.emit(on)
 	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
