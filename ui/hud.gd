@@ -18,6 +18,7 @@ signal tornado_toggled(on: bool)
 signal storm_toggled(on: bool)
 signal plague_toggled(on: bool)
 signal cure_toggled(on: bool)
+signal charm_toggled(kind: Charm.Kind, on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
@@ -84,8 +85,13 @@ const TOOLS := [
 	["tornado", "Tornado", "T", true, "Sacar o guardar el tornado [T]", false],
 	["rain", "Diluvio", "D", true, "Desatar o calmar el diluvio [D]", false],
 	["plague", "Peste", "P", true, "Sacar o guardar la peste [P]", false],
+	["discord", "Discordia", "E", true, "Sacar o guardar la manzana de la discordia [E]", false],
 	["cure", "Curar", "C", true, "Sacar o guardar curar [C]", true],
+	["cupid", "Cupido", "A", true, "Sacar o guardar el arco de Cupido [A]", true],
+	["friendship", "Amistad", "B", true, "Sacar o guardar la pelota de la amistad [B]", true],
 ]
+## El ícono de cada Charm (Cupido, la Discordia y la Amistad).
+const CHARM_ICONS := {"cupid": Charm.Kind.CUPID, "discord": Charm.Kind.DISCORD, "friendship": Charm.Kind.FRIENDSHIP}
 const C_EVIL := Color(0.92, 0.3, 0.26)
 const C_HOLY := Color(1.0, 0.86, 0.4)
 const TAB_SIZE := 38.0
@@ -118,6 +124,10 @@ var _cure_btn: Button
 var _cure_armed := false
 var _slot_plague: StyleBoxFlat
 var _slot_cure: StyleBoxFlat
+## Cupido, la Discordia y la Amistad (ver Charm), por tipo.
+var _charm_btns: Array[Button] = [null, null, null]
+var _charm_armed: Array[bool] = [false, false, false]
+var _slot_charms: Array[StyleBoxFlat] = []
 ## Pestañas de la barra de poderes: qué slots van en cada una y cuál se ve.
 var _good_tab := false
 var _tab_evil: Button
@@ -301,6 +311,11 @@ func set_cure_armed(on: bool) -> void:
 	_cure_armed = on
 	_armed_changed(_cure_btn, on)
 
+## (k va último: World lo conecta con bind, que agrega al final.)
+func set_charm_armed(on: bool, k: Charm.Kind) -> void:
+	_charm_armed[k] = on
+	_armed_changed(_charm_btns[k], on)
+
 ## Sacado con su tecla desde la otra pestaña: la barra pasa a la suya, así se ve resaltado.
 func _armed_changed(btn: Button, on: bool) -> void:
 	if on:
@@ -316,7 +331,8 @@ func reveal(duration: float) -> void:
 ## Si hay un arma o poder afuera: el click es para eso (no para agarrar aldeanos, el
 ## tiburón, cocos ni decoraciones).
 static func aiming() -> bool:
-	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed or Plague.armed or Cure.armed
+	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed or Plague.armed or Cure.armed \
+			or Charm.any_armed()
 
 ## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
 func flash_screen(amount: float) -> void:
@@ -417,6 +433,15 @@ func unlock_cure() -> bool:
 	_refresh()
 	return true
 
+func unlock_charm(k: Charm.Kind) -> bool:
+	var info: Dictionary = Charm.KINDS[k]
+	if Charm.unlocked[k] or not spend_offerings(info.price):
+		return false
+	Charm.unlocked[k] = true
+	popup_text(info.unlocked, get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), info.color)
+	_refresh()
+	return true
+
 func unlock_blood_moon() -> bool:
 	if Moon.blood_unlocked or not spend_offerings(Moon.PRICE):
 		return false
@@ -493,6 +518,7 @@ func save_state() -> Dictionary:
 		"storm": Storm.unlocked,
 		"plague": Plague.unlocked,
 		"cure": Cure.unlocked,
+		"charms": Charm.unlocked.duplicate(),
 		"blood_moon": Moon.blood_unlocked,
 		"shark_owned": shark_owned,
 		"shark_on": shark_on,
@@ -511,6 +537,9 @@ func load_state(d: Dictionary) -> void:
 	Storm.unlocked = d.get("storm", false)
 	Plague.unlocked = d.get("plague", false)
 	Cure.unlocked = d.get("cure", false)
+	var charms: Array = d.get("charms", [])
+	for k in Charm.unlocked.size():
+		Charm.unlocked[k] = k < charms.size() and charms[k]
 	Moon.blood_unlocked = d.get("blood_moon", false)
 	var owned: Array = d.get("shark_owned", [])
 	var on: Array = d.get("shark_on", [])
@@ -622,6 +651,12 @@ func _refresh() -> void:
 			"Sacar o guardar la peste [P]", "Desbloqueala en la tienda (%d ofrendas)", Plague.PRICE)
 	_sync_weapon(_cure_btn, Cure.unlocked, _cure_armed, _slot_cure,
 			"Sacar o guardar curar [C]", "Desbloquealo en la tienda (%d ofrendas)", Cure.PRICE)
+	var charm_hint := ""
+	for k: Charm.Kind in Charm.KINDS:
+		var info: Dictionary = Charm.KINDS[k]
+		_sync_weapon(_charm_btns[k], Charm.unlocked[k], _charm_armed[k], _slot_charms[k], info.tip, info.locked_tip, info.price)
+		if _charm_armed[k]:
+			charm_hint = info.hint
 
 	_drag_btn.add_theme_stylebox_override("normal", _slot_idle if select_mode else _slot_mode)
 	_drag_btn.add_theme_stylebox_override("hover", _slot_hover if select_mode else _slot_mode)
@@ -642,6 +677,8 @@ func _refresh() -> void:
 		_hint.text = tr("Click sobre los aldeanos para enfermarlos de gripe · click derecho, Esc o P para guardarla.")
 	elif _cure_armed:
 		_hint.text = tr("Click sobre un aldeano para curarlo de la gripe o de las quemaduras · click derecho, Esc o C para guardarlo.")
+	elif charm_hint != "":
+		_hint.text = tr(charm_hint)
 	elif _decor_edit == DecorPlacer.Edit.MOVING:
 		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
 	elif _decor_edit == DecorPlacer.Edit.HOVER:
@@ -777,6 +814,9 @@ func _build_toolbar() -> void:
 	_slot_rain = make_box(Color(C_RAIN, 0.34), 12, C_RAIN.lightened(0.3), 2)
 	_slot_plague = make_box(Color(C_PLAGUE, 0.3), 12, C_PLAGUE.lightened(0.3), 2)
 	_slot_cure = make_box(Color(C_CURE, 0.3), 12, C_CURE.lightened(0.3), 2)
+	for k: Charm.Kind in Charm.KINDS:
+		var col: Color = Charm.KINDS[k].color
+		_slot_charms.append(make_box(Color(col, 0.32), 12, col.lightened(0.3), 2))
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -856,6 +896,10 @@ func _build_toolbar() -> void:
 			"cure":
 				_cure_btn = _weapon_slot(slot, _slot_cure, func(): return Cure.unlocked,
 						func(): cure_toggled.emit(not _cure_armed))
+			"cupid", "discord", "friendship":
+				var k: Charm.Kind = CHARM_ICONS[t[0]]
+				_charm_btns[k] = _weapon_slot(slot, _slot_charms[k], func(): return Charm.unlocked[k],
+						func(): charm_toggled.emit(k, not _charm_armed[k]))
 	# Del ancho de la pestaña más llena: así la barra no salta al cambiar de pestaña
 	var most := 0
 	for good: bool in [false, true]:
@@ -1225,6 +1269,8 @@ class HudIcon extends Control:
 					# Ojitos cerrados, contentos
 					draw_arc(face + Vector2(side * 0.13, -0.02) * s, s * 0.06, PI, TAU, 6, ink, maxf(1.2, s * 0.05), true)
 				draw_arc(face + Vector2(0, 0.06) * s, s * 0.13, 0.15 * PI, 0.85 * PI, 8, ink, maxf(1.2, s * 0.05), true)
+			"cupid", "discord", "friendship":
+				Charm.paint_icon(self, HUD.CHARM_ICONS[kind], s)
 			"cure":
 				# Cruz dorada con brillo
 				draw_circle(c, s * 0.46, Color(HUD.C_CURE, 0.25), true, -1.0, true)

@@ -125,7 +125,7 @@ func _target_at(at: Vector2) -> Object:
 	for r in get_world_2d().direct_space_state.intersect_point(q, 16):
 		var c: Object = r.collider
 		if c is Villager and not c.eaten:
-			if best == null or _drawn_in_front(c, best):
+			if best == null or drawn_in_front(c, best):
 				best = c
 		elif c is Area2D and c.has_method("get_global_rect"):
 			water = c
@@ -135,9 +135,10 @@ func _target_at(at: Vector2) -> Object:
 			return shark
 	return best if best else water
 
-## Props ordena por Y (el índice es solo el orden en que aparecieron), y volando
-## los aldeanos suben su z_index para pasar por delante de todo.
-func _drawn_in_front(a: Villager, b: Villager) -> bool:
+## Si a se ve por delante de b. Props ordena por Y (el índice es solo el orden en que
+## aparecieron), y volando los aldeanos suben su z_index para pasar por delante de todo.
+## (Charm también lo usa.)
+static func drawn_in_front(a: Villager, b: Villager) -> bool:
 	if a.z_index != b.z_index:
 		return a.z_index > b.z_index
 	if a.global_position.y != b.global_position.y:

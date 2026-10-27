@@ -8,7 +8,8 @@ class_name Relations
 ## Cada dos aldeanos tienen además su química (si se caen bien de entrada) y su atracción,
 ## fijas: salen de sus números de carnet, así no hace falta guardarlas.
 ## Se guarda con la partida (ver World.save_game) y se ve en el carnet (ver VillagerCard).
-## Cada cambio queda anotado en el historial (ver HistoryPanel).
+## Cada cambio queda anotado en el historial (ver HistoryPanel). Los poderes de Cupido, la
+## Discordia y la Amistad los cambian de una, sin charlar (ver make y Charm).
 
 enum Kind { NONE, FRIEND, ENEMY, COUPLE }
 ## Lo que cambió con una charla (para avisar con un cartel y anotarlo en el historial).
@@ -34,6 +35,11 @@ const COLORS := {
 }
 
 const HISTORY_MAX := 100         # Los más viejos se van borrando
+## Lo que quedan queriéndose cuando lo decide un poder (ver make): de ahí en más siguen
+## charlando, y si no tienen química capaz que se les pasa.
+const MADE_COUPLE := 80.0
+const MADE_FRIEND := 50.0
+const MADE_ENEMY := -50.0
 
 static var _affinity := {}       # Vector2i(carnet menor, carnet mayor) -> float
 static var _bonds := {}          # Vector2i -> Kind (los que no son NONE)
@@ -111,18 +117,80 @@ static func chat_weight(a: Villager, b: Villager) -> float:
 static func change(a: Villager, b: Villager, delta: float) -> Event:
 	var ev := _change(a, b, delta)
 	if ev != Event.NONE:
-		history.append({
-			"time": World.play_time,
-			"event": ev,
-			"a": a.id_number,
-			"b": b.id_number,
-			"a_name": a.full_name(),
-			"b_name": b.full_name(),
-		})
-		if history.size() > HISTORY_MAX:
-			history.pop_front()
-		history_version += 1
+		_note(ev, a, b)
 	return ev
+
+## Un poder lo decide (ver Charm): a y b pasan a ser k (NONE: nada), sin importar cuánto se
+## querían ni si se gustan. Si dejan de ser pareja se separan y si dejan de ser enemigos hacen
+## las paces; todo queda en el historial. Devuelve el último cambio (NONE si ya eran eso).
+static func make(a: Villager, b: Villager, k: Kind) -> Event:
+	var key := _key(a, b)
+	var was := kind(a, b)
+	var aff := affinity(a, b)
+	match k:
+		Kind.COUPLE:
+			aff = maxf(aff, MADE_COUPLE)
+		Kind.FRIEND:
+			aff = maxf(aff, MADE_FRIEND)
+		Kind.ENEMY:
+			aff = minf(aff, MADE_ENEMY)
+		_:
+			aff = clampf(aff, ENEMY_KEEP + 1.0, FRIEND_KEEP - 1.0)
+	_affinity[key] = aff
+	if k == was:
+		return Event.NONE
+	if k == Kind.NONE:
+		_bonds.erase(key)
+	else:
+		_bonds[key] = k
+	var events: Array[Event] = []
+	match was:
+		Kind.COUPLE:
+			events.append(Event.BROKE_UP)
+		Kind.ENEMY:
+			events.append(Event.MADE_UP)
+		Kind.FRIEND:
+			if k == Kind.NONE:
+				events.append(Event.DRIFTED)
+	match k:
+		Kind.COUPLE:
+			events.append(Event.COUPLE)
+		Kind.FRIEND:
+			events.append(Event.FRIENDS)
+		Kind.ENEMY:
+			events.append(Event.ENEMIES)
+	for ev in events:
+		_note(ev, a, b)
+	return events.back()
+
+## Lo anota en el historial.
+static func _note(ev: Event, a: Villager, b: Villager) -> void:
+	history.append({
+		"time": World.play_time,
+		"event": ev,
+		"a": a.id_number,
+		"b": b.id_number,
+		"a_name": a.full_name(),
+		"b_name": b.full_name(),
+	})
+	if history.size() > HISTORY_MAX:
+		history.pop_front()
+	history_version += 1
+
+## El cartel que sale cuando cambia lo que son: [texto, color] (texto vacío: sin cartel).
+static func news(ev: Event) -> Array:
+	match ev:
+		Event.FRIENDS:
+			return ["¡Se hicieron amigos!", color(Kind.FRIEND)]
+		Event.ENEMIES:
+			return ["¡Ahora son enemigos!", color(Kind.ENEMY)]
+		Event.MADE_UP:
+			return ["Hicieron las paces", HUD.C_DEVOTION]
+		Event.COUPLE:
+			return ["¡Son pareja!", color(Kind.COUPLE)]
+		Event.BROKE_UP:
+			return ["Se separaron", HUD.C_MUTED]
+	return ["", HUD.C_TEXT]
 
 static func _change(a: Villager, b: Villager, delta: float) -> Event:
 	var k := _key(a, b)

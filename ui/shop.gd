@@ -1,8 +1,14 @@
 extends Control
 class_name Shop
 ## Tienda: se gastan ofrendas en decoraciones para la isla, el cielo (Luna de Sangre),
-## armas/poderes (pistola, rayo, meteorito, tornado, diluvio, peste y curar) y tiburones.
-## Las decoraciones se cobran recién al colocarlas (ver DecorPlacer).
+## tiburones y poderes: los malos (pistola, rayo, meteorito, tornado, diluvio, peste y la
+## manzana de la discordia) y los buenos (curar, el arco de Cupido y la pelota de la amistad).
+## Arriba van las decoraciones, el cielo y los tiburones, y abajo los poderes, como en las
+## pestañas de la barra. Las decoraciones se cobran recién al colocarlas (ver DecorPlacer).
+
+const CARD_W := 96.0
+const CARD_GAP := 8
+const PREVIEW_SIZE := Vector2(76, 60)
 
 var hud: HUD
 var _balance: Label
@@ -15,6 +21,7 @@ var _storm_btn: Button
 var _plague_btn: Button
 var _cure_btn: Button
 var _moon_btn: Button
+var _charm_btns := {}         # Charm.Kind -> Button
 var _sharks: Array[Dictionary] = []   # Por tarjeta: {btn, icon, price, status}
 
 func _ready() -> void:
@@ -60,7 +67,7 @@ func _ready() -> void:
 	head.add_child(close_btn)
 	col.add_child(HUD.make_label("Ganás ofrendas con cada sacrificio y cuando tus aldeanos rezan.", 12, HUD.C_MUTED))
 
-	# Decoración y cielo comparten fila (igual que armas y tiburones abajo)
+	# Decoración, cielo y tiburones comparten fila (y abajo, los poderes malos y los buenos)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 22)
 	col.add_child(top)
@@ -69,7 +76,7 @@ func _ready() -> void:
 	top.add_child(deco_col)
 	deco_col.add_child(_section("Decoración para la isla"))
 	var deco_row := HBoxContainer.new()
-	deco_row.add_theme_constant_override("separation", 10)
+	deco_row.add_theme_constant_override("separation", CARD_GAP)
 	deco_col.add_child(deco_row)
 	for kind: String in Decoration.KINDS:
 		var info: Dictionary = Decoration.KINDS[kind]
@@ -86,7 +93,7 @@ func _ready() -> void:
 	top.add_child(sky_col)
 	sky_col.add_child(_section("Cielo"))
 	var sky_row := HBoxContainer.new()
-	sky_row.add_theme_constant_override("separation", 10)
+	sky_row.add_theme_constant_override("separation", CARD_GAP)
 	sky_col.add_child(sky_row)
 	var moon_icon := CenterContainer.new()
 	moon_icon.add_child(HUD.HudIcon.make("blood_moon", 44))
@@ -97,18 +104,47 @@ func _ready() -> void:
 	sun_icon.modulate = Color(1, 1, 1, 0.45)
 	_card(sky_row, sun_icon, "Sol de Sangre", -1, "Próximamente").disabled = true
 
-	# Armas/poderes y tiburones comparten fila para que la tienda no quede muy alta
+	var shark_col := VBoxContainer.new()
+	shark_col.add_theme_constant_override("separation", 10)
+	top.add_child(shark_col)
+	shark_col.add_child(_section(tr("Tiburones (máx. %d)") % Shark.MAX))
+	var shark_row := HBoxContainer.new()
+	shark_row.add_theme_constant_override("separation", CARD_GAP)
+	shark_col.add_child(shark_row)
+	for i in Shark.MAX:
+		var icon := CenterContainer.new()
+		icon.add_child(HUD.HudIcon.make("shark", 40))
+		var b := _card(shark_row, icon, tr("Tiburón %d") % (i + 1), Shark.PRICE, "Comprar")
+		var card := b.get_parent()
+		var price: Control = card.get_node("Price")
+		var status := HUD.make_label("", 12, HUD.C_TEXT)
+		status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		card.add_child(status)
+		card.move_child(status, price.get_index())
+		b.pressed.connect(func():
+			if hud.shark_owned[i]:
+				hud.set_shark_on(i, not hud.shark_on[i])
+			else:
+				hud.buy_shark()
+			_sync())
+		_sharks.append({"btn": b, "icon": icon, "price": price, "status": status})
+
+	# Los poderes, malos y buenos (como las pestañas de la barra)
 	var bottom := HBoxContainer.new()
 	bottom.add_theme_constant_override("separation", 22)
 	col.add_child(bottom)
-	var power_col := VBoxContainer.new()
-	power_col.add_theme_constant_override("separation", 10)
-	bottom.add_child(power_col)
-	power_col.add_child(_section("Armas y poderes"))
-	var power_row := HBoxContainer.new()
-	power_row.add_theme_constant_override("separation", 10)
-	power_col.add_child(power_row)
+	var power_rows := {}   # bueno -> fila
+	for good: bool in [false, true]:
+		var power_col := VBoxContainer.new()
+		power_col.add_theme_constant_override("separation", 10)
+		bottom.add_child(power_col)
+		power_col.add_child(_section("Poderes buenos" if good else "Poderes malos"))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", CARD_GAP)
+		power_col.add_child(row)
+		power_rows[good] = row
 	for t in HUD.TOOLS:
+		var power_row: HBoxContainer = power_rows[t[5]]
 		var icon := CenterContainer.new()
 		icon.add_child(HUD.HudIcon.make(t[0], 40))
 		match t[0]:
@@ -132,35 +168,14 @@ func _ready() -> void:
 			"cure":
 				_cure_btn = _unlock_card(power_row, icon, t[1], Cure.PRICE,
 						"Un haz de luz que cura la gripe (y deja inmune un rato) y apaga y sana a los que se queman.", hud.unlock_cure)
+			"cupid", "discord", "friendship":
+				var k: Charm.Kind = HUD.CHARM_ICONS[t[0]]
+				_charm_btns[k] = _unlock_card(power_row, icon, t[1], Charm.KINDS[k].price, Charm.KINDS[k].shop,
+						hud.unlock_charm.bind(k))
 			_:
 				icon.modulate = Color(1, 1, 1, 0.45)
 				var b := _card(power_row, icon, t[1], -1, "Próximamente")
 				b.disabled = true
-
-	var shark_col := VBoxContainer.new()
-	shark_col.add_theme_constant_override("separation", 10)
-	bottom.add_child(shark_col)
-	shark_col.add_child(_section(tr("Tiburones (máx. %d)") % Shark.MAX))
-	var shark_row := HBoxContainer.new()
-	shark_row.add_theme_constant_override("separation", 10)
-	shark_col.add_child(shark_row)
-	for i in Shark.MAX:
-		var icon := CenterContainer.new()
-		icon.add_child(HUD.HudIcon.make("shark", 40))
-		var b := _card(shark_row, icon, tr("Tiburón %d") % (i + 1), Shark.PRICE, "Comprar")
-		var card := b.get_parent()
-		var price: Control = card.get_node("Price")
-		var status := HUD.make_label("", 12, HUD.C_TEXT)
-		status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		card.add_child(status)
-		card.move_child(status, price.get_index())
-		b.pressed.connect(func():
-			if hud.shark_owned[i]:
-				hud.set_shark_on(i, not hud.shark_on[i])
-			else:
-				hud.buy_shark()
-			_sync())
-		_sharks.append({"btn": b, "icon": icon, "price": price, "status": status})
 
 func open() -> void:
 	visible = true
@@ -190,6 +205,8 @@ func _sync() -> void:
 	_sync_unlock(_plague_btn, Plague.unlocked, Plague.PRICE, "Desbloqueada")
 	_sync_unlock(_cure_btn, Cure.unlocked, Cure.PRICE, "Desbloqueado")
 	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada")
+	for k: Charm.Kind in _charm_btns:
+		_sync_unlock(_charm_btns[k], Charm.unlocked[k], Charm.KINDS[k].price, Charm.KINDS[k].done)
 	var next := hud.shark_owned.find(false)   # Se compran en orden: el primero que falta
 	for i in _sharks.size():
 		var s: Dictionary = _sharks[i]
@@ -232,14 +249,14 @@ func _section(title: String) -> Label:
 ## Tarjeta de un artículo; devuelve el botón de comprar. price < 0: sin precio.
 func _card(parent: Control, preview: Control, title: String, price: int, action: String) -> Button:
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(108, 0)
+	card.custom_minimum_size = Vector2(CARD_W, 0)
 	card.add_theme_stylebox_override("panel", HUD.make_box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1, Vector4(10, 10, 10, 10)))
 	parent.add_child(card)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 5)
 	card.add_child(v)
 
-	preview.custom_minimum_size = Vector2(84, 64)
+	preview.custom_minimum_size = PREVIEW_SIZE
 	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(preview)
 	var name_l := HUD.make_label(title, 13, HUD.C_TEXT)

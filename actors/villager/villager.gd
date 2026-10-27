@@ -798,24 +798,9 @@ func _finish_chat(o: Villager) -> void:
 	if face != Bubble.NONE:
 		say(face, REACT_TIME, false)
 		o.say(face, REACT_TIME, false)
-	var news := ""
-	var color := HUD.C_TEXT
-	match ev:
-		Relations.Event.FRIENDS:
-			news = "¡Se hicieron amigos!"
-			color = Relations.color(Relations.Kind.FRIEND)
-		Relations.Event.ENEMIES:
-			news = "¡Ahora son enemigos!"
-			color = Relations.color(Relations.Kind.ENEMY)
-		Relations.Event.MADE_UP:
-			news = "Hicieron las paces"
-			color = HUD.C_DEVOTION
-		Relations.Event.COUPLE:
-			news = "¡Son pareja!"
-			color = Relations.color(Relations.Kind.COUPLE)
-		Relations.Event.BROKE_UP:
-			news = "Se separaron"
-			color = HUD.C_MUTED
+	var n := Relations.news(ev)
+	var news: String = n[0]
+	var color: Color = n[1]
 	# Los enemigos que se pelearon a veces terminan a los empujones
 	if k == Relations.Kind.ENEMY and _chat_delta < 0.0 and randf() < FIGHT_CHANCE:
 		var pusher: Villager = self if randf() < 0.5 else o

@@ -59,6 +59,7 @@ var tornado: Tornado
 var storm: Storm
 var plague: Plague
 var cure: Cure
+var charms: Array[Charm] = []   # Cupido, la Discordia y la Amistad (por Charm.Kind)
 var placer: DecorPlacer
 var sharks: Array[Shark] = []
 ## Aldeanos y decoraciones, ordenados por Y para que el de adelante tape al de atrás.
@@ -195,6 +196,11 @@ func _ready() -> void:
 	add_child(plague)
 	cure = Cure.new()
 	add_child(cure)
+	for k: Charm.Kind in Charm.KINDS:
+		var c := Charm.new()
+		c.kind = k
+		add_child(c)
+		charms.append(c)
 	placer = DecorPlacer.new()
 	placer.hud = hud
 	placer.props = props
@@ -213,6 +219,9 @@ func _ready() -> void:
 		plague.armed_changed.connect(hud.set_plague_armed)
 		hud.cure_toggled.connect(cure.set_armed)
 		cure.armed_changed.connect(hud.set_cure_armed)
+		hud.charm_toggled.connect(func(k: Charm.Kind, on: bool): charms[k].set_armed(on))
+		for c in charms:
+			c.armed_changed.connect(hud.set_charm_armed.bind(c.kind))
 		# El diluvio no se apunta: no guarda las armas ni ellas a él
 		hud.storm_toggled.connect(storm.set_active)
 		storm.active_changed.connect(hud.set_raining)
@@ -252,7 +261,9 @@ func _ready() -> void:
 	title.open()
 
 func _weapons() -> Array[Node]:
-	return [gun, lightning, meteor, tornado, plague, cure]
+	var all: Array[Node] = [gun, lightning, meteor, tornado, plague, cure]
+	all.append_array(charms)
+	return all
 
 ## Guarda las armas y poderes (menos keep).
 func _disarm(keep: Node = null) -> void:

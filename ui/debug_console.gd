@@ -22,7 +22,7 @@ const COMMANDS := [
 	["charlas / chats [n]", "Simula n charlas al azar (por defecto 30) y les da ganas de charlar a todos"],
 	["fe / faith [n]", "Pone la fe de todos en n, de 0 a 100 (por defecto 100)"],
 	["miedo / fear [n]", "Pone el miedo de todos en n, de 0 a 100 (por defecto 100)"],
-	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, peste, curar, Luna de Sangre y todos los tiburones"],
+	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, peste, discordia, curar, Cupido, amistad, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
 	["limpiar / clear", "Borra la consola"],
 ]
@@ -216,6 +216,8 @@ func _unlock_all() -> void:
 	Storm.unlocked = true
 	Plague.unlocked = true
 	Cure.unlocked = true
+	for k in Charm.unlocked.size():
+		Charm.unlocked[k] = true
 	Moon.blood_unlocked = true
 	for i in Shark.MAX:
 		if not hud.shark_owned[i]:
@@ -223,4 +225,4 @@ func _unlock_all() -> void:
 			hud.shark_on[i] = true
 			hud.shark_changed.emit(i, true)
 	hud._refresh()
-	_ok(tr("Desbloqueado: pistola, rayo, meteorito, tornado, diluvio, peste, curar, Luna de Sangre y %d tiburones") % Shark.MAX)
+	_ok(tr("Desbloqueado: pistola, rayo, meteorito, tornado, diluvio, peste, discordia, curar, Cupido, amistad, Luna de Sangre y %d tiburones") % Shark.MAX)
