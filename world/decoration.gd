@@ -1,7 +1,9 @@
 extends Node2D
 class_name Decoration
-## Decoración de la isla (palmera, arbusto de bayas, flores, roca, antorcha), dibujada por
-## código. De noche las antorchas iluminan la isla alrededor (PointLight2D); la
+## Decoración de la isla (palmera, arbusto de bayas, flores, roca, antorcha, choza), dibujada
+## por código. En las chozas viven los aldeanos (ver Villager.home): de noche duermen adentro
+## (con la puerta iluminada y unas zetas saliendo del techo) y de día entran cada tanto a
+## descansar; las parejas que están adentro juntas cada tanto tienen un bebé (ver _try_birth). De noche las antorchas iluminan la isla alrededor (PointLight2D); la
 ## lluvia del diluvio las apaga hasta que para (ver Storm). A las palmeras les crecen cocos y
 ## a los arbustos de bayas, bayas: los aldeanos con hambre las vienen a comer solos (ver
 ## BerryPick y Villager._seek_food).
@@ -17,6 +19,7 @@ const KINDS := {
 	"flowers": {"name": "Flores", "price": 6, "icon_scale": 1.7},
 	"rock": {"name": "Roca", "price": 5, "icon_scale": 1.5},
 	"torch": {"name": "Antorcha", "price": 12, "icon_scale": 0.62},
+	"hut": {"name": "Choza", "price": 40, "icon_scale": 0.85},
 }
 
 const FLOWER_COLORS: Array[Color] = [
@@ -57,6 +60,7 @@ const HIT_RECTS := {
 	"flowers": Rect2(-15, -20, 30, 23),
 	"rock": Rect2(-21, -22, 42, 25),
 	"torch": Rect2(-12, -78, 24, 81),
+	"hut": Rect2(-32, -58, 64, 60),
 }
 
 ## Cocos de la palmera: crecen de a uno en los lugares libres de la copa y se pueden arrancar.
@@ -76,6 +80,13 @@ const BERRY_FOOD := 20.0            # El hambre que saca cada una
 ## Para paint: todos los cocos (o bayas) grandes, como en la tienda y en la vista previa. Tiene
 ## que ser con tipo: un [] suelto no entra donde se espera un Array[float].
 const ALL_FRUIT: Array[float] = []
+## Choza: los que viven ahí (ver residents), y una pareja que está adentro junta cada tanto
+## tiene un bebé, si hay lugar en la choza y en la isla.
+const HUT_BEDS := 4
+const BIRTH_CHECK := 4.0            # Cada cuánto se fija
+const BIRTH_CHANCE := 0.2           # Y la probabilidad cada vez
+const HUT_LIGHT_SCALE := 0.4        # La luz de la puerta, de noche (más chica que la de la antorcha)
+const HUT_LIGHT_ENERGY := 0.9
 var hover_coconut := -1             # Coco de la copa bajo el mouse (se resalta)
 ## Los cocos de la palmera o las bayas del arbusto: si hay uno en cada lugar, y su tamaño
 ## (0..1: los nuevos crecen de a poco). Las bayas reservadas son las que alguien viene a comer.
@@ -87,6 +98,10 @@ var _grow_t := 0.0
 var _light: PointLight2D
 var _sky: Node
 var _lit := 1.0             # Antorcha: 1 prendida, 0 apagada por la lluvia del diluvio (ver Storm)
+var _glow := 0.0            # Choza: la puerta iluminada (alguien adentro, de noche)
+var _door_light: PointLight2D
+var _sleepers := 0          # Choza: los que están adentro
+var _birth_t := BIRTH_CHECK
 
 func _ready() -> void:
 	if not ghost:
@@ -102,6 +117,17 @@ func _ready() -> void:
 		if not ghost:
 			add_to_group("berry_bush")   # Los aldeanos con hambre los buscan
 	valid = valid
+	if kind == "hut" and not ghost:
+		add_to_group("hut")   # Los aldeanos buscan dónde vivir
+		_sky = get_tree().get_first_node_in_group("sky")
+		# La puerta iluminada tiene que verse aunque la noche oscurezca todo
+		_door_light = PointLight2D.new()
+		_door_light.texture = _torch_light_texture()
+		_door_light.texture_scale = HUT_LIGHT_SCALE
+		_door_light.color = TORCH_LIGHT_COLOR
+		_door_light.position = Vector2(0, LIFT - 10.0)
+		_door_light.enabled = false
+		add_child(_door_light)
 	if kind == "torch" and not ghost:
 		add_to_group("torch")   # Los aldeanos la buscan para saber si los tienen arriba del fuego
 		_sky = get_tree().get_first_node_in_group("sky")
@@ -197,6 +223,8 @@ func _process(dt: float) -> void:
 		queue_redraw()
 	if (kind == "palm" or kind == "berries") and not ghost:
 		_grow_fruit(dt)
+	if kind == "hut" and not ghost:
+		_update_hut(dt)
 	if _light:
 		# La lluvia la apaga enseguida; cuando para, se vuelve a prender de a poco
 		_lit = move_toward(_lit, 0.0 if Storm.wet() else 1.0, dt * (2.0 if Storm.wet() else 0.6))
@@ -243,7 +271,15 @@ func _grow_fruit(dt: float) -> void:
 
 func _draw() -> void:
 	draw_set_transform(Vector2(0, LIFT))
-	paint(self, kind, variant, Time.get_ticks_msec() / 1000.0, ALL_FRUIT if ghost else _fruit_size, _lit)
+	paint(self, kind, variant, Time.get_ticks_msec() / 1000.0, ALL_FRUIT if ghost else _fruit_size,
+			_glow if kind == "hut" else _lit)
+	if kind == "hut" and _sleepers > 0 and _glow > 0.5:
+		# Durmiendo: zetas que suben del techo
+		var t := Time.get_ticks_msec() / 1000.0
+		for i in 3:
+			var k := fposmod(t * 0.4 + i / 3.0, 1.0)
+			var c := Vector2(10.0 + k * 14.0 + sin(k * 6.0 + i) * 3.0, -56.0 - k * 26.0)
+			SpeechBubble._text(self, "z", c, 9.0 + k * 6.0, Color(1, 1, 1, 0.9 * (1.0 - k)))
 	if hover_coconut >= 0:
 		var c := palm_top(variant) + COCONUT_SLOTS[hover_coconut]
 		draw_arc(c, COCONUT_R + 2.5, 0.0, TAU, 20, Color(1.0, 0.95, 0.6, 0.9), 1.5, true)
@@ -266,6 +302,7 @@ static func paint(ci: CanvasItem, k: String, v: float, t: float, fruit: Array[fl
 		"flowers": _paint_flowers(ci, v)
 		"rock": _paint_rock(ci, v)
 		"torch": _paint_torch(ci, t, lit)
+		"hut": _paint_hut(ci, v, t, lit)
 
 static func _paint_palm(ci: CanvasItem, v: float, t: float, nuts: Array[float]) -> void:
 	var top := palm_top(v)
@@ -347,6 +384,37 @@ static func _paint_rock(ci: CanvasItem, v: float) -> void:
 	ci.draw_colored_polygon(_ellipse(Vector2(-5, -13), 6, 3), Color(0.72, 0.72, 0.76))
 	ci.draw_circle(Vector2(16, -3), 4.0, Color(0.5, 0.5, 0.54), true, -1.0, true)
 
+## Choza de barro con techo de paja. glow: la puerta iluminada (0..1), de noche con alguien adentro.
+static func _paint_hut(ci: CanvasItem, v: float, t: float, glow: float) -> void:
+	var wall := Color(0.74, 0.54, 0.34).lerp(Color(0.68, 0.5, 0.32), v)
+	ci.draw_colored_polygon(PackedVector2Array([Vector2(-25, 0), Vector2(25, 0), Vector2(22, -28), Vector2(-22, -28)]), wall)
+	for y: float in [-8.0, -17.0]:   # Junturas del barro
+		ci.draw_line(Vector2(-23, y), Vector2(23, y), wall.darkened(0.12), 1.2, true)
+	# La puerta: un arco oscuro que de noche, con alguien adentro, se ilumina
+	var door := PackedVector2Array([Vector2(-7, 0), Vector2(7, 0)])
+	for i in 9:
+		var a := TAU * 0.5 * i / 8.0
+		door.append(Vector2(cos(a) * 7.0, -14.0 - sin(a) * 7.0))
+	if glow > 0.01:
+		ci.draw_circle(Vector2(0, -9), 16.0 * glow, Color(1.0, 0.65, 0.25, 0.18 * glow), true, -1.0, true)
+	ci.draw_colored_polygon(door, Color(0.2, 0.12, 0.07).lerp(Color(1.0, 0.72, 0.32), glow))
+	# El techo de paja, con flecos abajo
+	var straw := Color(0.88, 0.72, 0.34).lerp(Color(0.82, 0.66, 0.3), v)
+	var roof := PackedVector2Array([Vector2(-33, -22), Vector2(0, -60), Vector2(33, -22)])
+	for i in 9:   # Flecos
+		var x := lerpf(33.0, -33.0, i / 8.0)
+		roof.append(Vector2(x, -18.0 if i % 2 == 0 else -22.0))
+	ci.draw_colored_polygon(roof, straw)
+	for i in 5:   # Las líneas de la paja
+		var x := lerpf(-24.0, 24.0, i / 4.0)
+		ci.draw_line(Vector2(0, -56), Vector2(x, -24), straw.darkened(0.18), 1.2, true)
+	ci.draw_line(Vector2(-6, -60), Vector2(6, -60), straw.darkened(0.3), 3.0, true)   # El atado de arriba
+	if glow > 0.01:
+		# Humito de la chimenea, de noche
+		for i in 3:
+			var k := fposmod(t * 0.25 + i / 3.0, 1.0)
+			ci.draw_circle(Vector2(-4.0 + sin(k * 5.0 + i) * 3.0, -62.0 - k * 22.0), 2.5 + k * 3.0, Color(0.85, 0.85, 0.9, 0.35 * glow * (1.0 - k)), true, -1.0, true)
+
 ## lit: 1 prendida, 0 apagada (la llama se achica hacia la copa y quedan las brasas).
 static func _paint_torch(ci: CanvasItem, t: float, lit := 1.0) -> void:
 	var flick := 1.0 + sin(t * 17.0) * 0.08 + sin(t * 29.0) * 0.05
@@ -368,6 +436,76 @@ static func _ellipse(c: Vector2, rx: float, ry: float, n := 16) -> PackedVector2
 		var a := TAU * i / n
 		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
 	return pts
+
+## Choza: el piso frente a la puerta, donde entra y sale el que vive ahí.
+func door() -> Vector2:
+	return global_position + Vector2(0, LIFT)
+
+## Choza: los que viven ahí (vivos).
+func residents() -> Array[Villager]:
+	var out: Array[Villager] = []
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v and v.home == self and not v.dead and not v.eaten and not v.is_queued_for_deletion():
+			out.append(v)
+	return out
+
+## Choza: cuántos más entran.
+func free_beds() -> int:
+	return HUT_BEDS - residents().size()
+
+## Choza: la puerta se ilumina de noche si hay alguien adentro, y cada tanto se fija si la
+## pareja que está adentro tiene un bebé.
+func _update_hut(dt: float) -> void:
+	var inside := residents().filter(func(v: Villager): return v.inside)
+	_sleepers = inside.size()
+	var night: float = _sky.night if _sky else 0.0
+	_glow = move_toward(_glow, 1.0 if _sleepers > 0 and night > 0.5 else 0.0, dt * 1.5)
+	_door_light.enabled = _glow > 0.01
+	_door_light.energy = HUT_LIGHT_ENERGY * _glow
+	queue_redraw()
+	_birth_t -= dt
+	if _birth_t > 0.0:
+		return
+	_birth_t = BIRTH_CHECK
+	_try_birth(inside)
+
+## Una pareja adentro (los dos grandes, sin gripe ni muertos de hambre y sin bebé reciente),
+## con lugar en la choza y en la isla: a veces tiene un bebé, que nace adentro y vive con ellos.
+func _try_birth(inside: Array) -> void:
+	var world := get_parent().get_parent() as World   # La choza está en Props, adentro de World
+	if world == null or free_beds() < 1 or world.alive_villagers() >= world.capacity():
+		return
+	for i in inside.size():
+		for j in range(i + 1, inside.size()):
+			var a: Villager = inside[i]
+			var b: Villager = inside[j]
+			if Relations.kind(a, b) == Relations.Kind.COUPLE and a.can_have_baby() and b.can_have_baby() \
+					and randf() < BIRTH_CHANCE:
+				_birth(world, a, b)
+				return
+
+func _birth(world: World, a: Villager, b: Villager) -> void:
+	var baby := world.add_villager(door())
+	baby.set_age(0.0)
+	baby.parents.assign([a.id_number, b.id_number])
+	baby.faith = (a.faith + b.faith) * 0.5   # Cree en vos como sus padres
+	baby.fear = 0.0
+	baby.hunger = 0.0
+	baby.last_name = a.last_name if a.last_name != "" else b.last_name
+	baby.home = self
+	baby.enter_home()   # Nace adentro
+	for p: Villager in [a, b]:
+		p.baby_cool = Villager.BABY_COOLDOWN
+	Relations.note_birth(a, b)
+	var hud := get_tree().get_first_node_in_group("hud") as HUD
+	if hud:
+		hud.popup_text("¡Nació un bebé!", get_global_transform_with_canvas().origin + Vector2(0, -60), Relations.color(Relations.Kind.COUPLE))
+	for i in 4:
+		var h := Coconut.Heart.new()
+		get_parent().add_child(h)
+		h.global_position = global_position + Vector2(randf_range(-16.0, 16.0), -20.0)
+		h.delay = i * 0.15
 
 ## Una baya del arbusto que un aldeano viene a comerse (ver Food). La dibuja el arbusto: esto
 ## solo la reserva mientras tanto, y se va cuando se la comen o cuando se queda sin quien se
@@ -391,7 +529,7 @@ class BerryPick extends Food:
 	## Al costado del arbusto.
 	func eat_spot(v: Villager) -> Vector2:
 		var side := 1.0 if v.global_position.x >= point().x else -1.0
-		return point() + Vector2(side * 24.0, -Villager.BODY_BOTTOM)
+		return point() + Vector2(side * 24.0, -Villager.BODY_BOTTOM * v.scale.y)
 
 	## La baya se va achicando.
 	func nibble(progress: float) -> void:

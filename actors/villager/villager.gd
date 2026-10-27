@@ -213,6 +213,34 @@ var _starve_t := 0.0
 var _hungry_say := 0.0
 var _rig_rest := Vector2.ZERO
 
+# --- Casa y familia: cada uno se busca una choza donde vivir (ver Decoration "hut"): con su
+# pareja si tiene (en la de alguno de los dos, o en una con lugar para los dos) y si no, en
+# cualquiera con lugar. De noche se van a dormir adentro hasta que se hace de día, y de día
+# entran cada tanto a descansar un rato (las parejas, juntas). Adentro no se lo ve ni lo alcanza
+# nada (ni rayos ni meteoritos ni la peste); si le agarra hambre de verdad sale a comer. Las
+# parejas que están adentro juntas a veces tienen un bebé (ver Decoration._try_birth): nace
+# chiquito y crece hasta ser grande (ADULT_AGE); de chico no se pone de novio ni tiene hijos.
+const ADULT_AGE := 300.0          # Segundos que tarda un bebé en ser grande
+const BABY_SIZE := 0.5            # El tamaño al nacer (veces el de un grande)
+const BABY_COOLDOWN := 180.0      # Después de tener un bebé, lo que tarda una pareja en tener otro
+const SLEEP_AT := 0.6             # Con la noche así de cerrada (ver Sky.night) se van a dormir...
+const WAKE_AT := 0.4              # ...y salen cuando aclara
+const REST_EVERY := Vector2(70.0, 140.0)   # De día, cada cuánto entran a descansar...
+const REST_INSIDE := Vector2(12.0, 25.0)   # ...y lo que se quedan
+const HOME_CHECK := 2.0           # Cada cuánto se fija dónde vivir
+const HOME_REACH := 6.0
+const HOME_GIVE_UP := 15.0        # Si no llega a la puerta en este tiempo, lo deja
+var home: Decoration              # Su choza (null: sin casa)
+var inside := false               # Está adentro de su choza
+var age := ADULT_AGE              # Segundos de vida (los de la partida nueva ya son grandes)
+var parents: Array[int] = []      # Números de carnet de sus padres (si nació en la isla)
+var baby_cool := 0.0
+var _going_home := false
+var _home_t := 0.0
+var _inside_t := 0.0
+var _rest_t := 0.0
+var _home_check := 0.0
+
 # --- Charlas: cada tanto, dos que andan cerca y con ganas se juntan a charlar un rato. El que
 # la empieza va hasta el lado del otro, se miran y hablan por turnos (con un globito arriba de
 # la cabeza y un bla-bla con su voz). Según cómo les fue se quieren más o menos (ver
@@ -337,6 +365,8 @@ func _ready() -> void:
 	fear = randf_range(FEAR_START.x, FEAR_START.y)
 	hunger = randf_range(HUNGER_START.x, HUNGER_START.y)
 	_hungry_say = randf_range(HUNGRY_SAY_EVERY.x, HUNGRY_SAY_EVERY.y)
+	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
+	_home_check = randf_range(0.0, HOME_CHECK)
 	input_pickable = true
 
 	if rig:
@@ -414,6 +444,9 @@ func _physics_process(dt: float) -> void:
 		return
 	if dragging:
 		velocity = Vector2.ZERO
+		return
+	if inside:
+		_inside_ai(dt)
 		return
 	if tornado:
 		# Girando en el tornado: lo mueve él (ver Tornado)
@@ -532,7 +565,10 @@ func _physics_process(dt: float) -> void:
 		return
 	if chat_with != null and _chat_ai(dt):
 		return
+	if _going_home and _walk_home(dt):
+		return
 	_seek_food(dt)
+	_seek_home(dt)
 	_seek_chat(dt)
 	# Asustado (ve venir un meteorito) se queda quieto mirándolo, y rezando o agachado de miedo
 	# también; prendido fuego (o escapándose del agua o de tu mano) corre sin parar
@@ -598,14 +634,15 @@ func _physics_process(dt: float) -> void:
 				wander_timer = randf_range(2.0, 5.0)
 
 # --- COMIDA ---
-## Parado o caminando en la isla (no agarrado, volando, en el agua, en un tornado ni muerto).
+## Parado o caminando en la isla (no agarrado, volando, en el agua, en un tornado, adentro de su
+## choza ni muerto).
 func is_idle() -> bool:
-	return not (dragging or falling or in_water or eaten or dead or tornado)
+	return not (dragging or falling or in_water or eaten or dead or tornado or inside)
 
 ## Con hambre (aunque sea un poco), libre y tranquilo en la isla.
 func wants_food() -> bool:
 	return food == null and chat_with == null and is_idle() and not on_fire and _food_cooldown <= 0.0 \
-			and hunger >= SNACK_AT
+			and hunger >= SNACK_AT and not _going_home
 
 ## Muerto de hambre (ver STARVING_AT).
 func starving() -> bool:
@@ -713,7 +750,7 @@ func _food_ai(dt: float) -> bool:
 ## rezarte o agacharse de miedo.
 func can_chat() -> bool:
 	return is_idle() and not on_fire and not is_scared() and _flee <= 0.0 and food == null \
-			and _scram <= 0.0 and pose == Pose.NONE
+			and _scram <= 0.0 and pose == Pose.NONE and not _going_home
 
 func wants_chat() -> bool:
 	return chat_with == null and _chat_cool <= 0.0 and can_chat()
@@ -974,6 +1011,187 @@ static func _make_babble() -> AudioStreamWAV:
 			buf.append(0.0)
 	return Synth.wav(buf, rate, 0.9)
 
+# --- CASA Y FAMILIA ---
+## Todavía es chico (ver ADULT_AGE).
+func is_child() -> bool:
+	return age < ADULT_AGE
+
+## Para cargar la partida (y al nacer): la edad, y el tamaño que le toca.
+func set_age(a: float) -> void:
+	age = a
+	scale = Vector2.ONE * lerpf(BABY_SIZE, 1.0, clampf(age / ADULT_AGE, 0.0, 1.0))
+
+## Grande, sano, no muerto de hambre y sin un bebé reciente.
+func can_have_baby() -> bool:
+	return not is_child() and not dead and not is_sick() and not starving() and baby_cool <= 0.0
+
+## Crece (si es chico), se le va pasando lo del último bebé y cada tanto se fija dónde vivir.
+func _update_family(dt: float) -> void:
+	if dead or eaten:
+		return
+	baby_cool = maxf(0.0, baby_cool - dt)
+	if is_child():
+		set_age(age + dt)
+		if not is_child():
+			_ensure_hud()
+			if hud and visible:
+				hud.popup_text("¡Ya es grande!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SHOP)
+	_home_check -= dt
+	if _home_check <= 0.0:
+		_home_check = HOME_CHECK
+		_update_home()
+
+## Su choza sigue estando (no la quitaron).
+func _home_ok() -> bool:
+	return is_instance_valid(home) and home.is_in_group("hut") and not home.is_queued_for_deletion()
+
+## Su pareja (viva), o null.
+func _partner() -> Villager:
+	var id := Relations.partner_id(self)
+	if id == 0:
+		return null
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v and v.id_number == id and not v.dead and not v.eaten:
+			return v
+	return null
+
+## Dónde vivir: con su pareja (en la choza de alguno de los dos, si hay lugar, o en una con
+## lugar para los dos) y si no, en cualquier choza con lugar. Adentro no se muda.
+func _update_home() -> void:
+	if home and not _home_ok():
+		home = null
+	if inside:
+		return
+	var p := _partner()
+	if p and p.home != home:
+		if p._home_ok() and p.home.free_beds() >= 1:
+			home = p.home
+		elif home and home.free_beds() >= 1 and not p.inside:
+			p.home = home
+		elif not p.inside:
+			var h := _free_hut(2)
+			if h:
+				home = h
+				p.home = h
+		return
+	if home == null:
+		home = _free_hut(1)
+
+## La choza más cerca con al menos beds lugares libres, o null.
+func _free_hut(beds: int) -> Decoration:
+	var best: Decoration = null
+	var best_d := INF
+	for node in get_tree().get_nodes_in_group("hut"):
+		var h := node as Decoration
+		var d := h.door().distance_to(global_position)
+		if h and not h.moving and h.free_beds() >= beds and d < best_d:
+			best = h
+			best_d = d
+	return best
+
+## De noche, o de día cada tanto, se va a su choza (si está tranquilo y sin hambre de verdad).
+## Las parejas que viven juntas se van juntas.
+func _seek_home(dt: float) -> void:
+	_rest_t -= dt
+	if not _can_go_home():
+		return
+	if _night() >= SLEEP_AT or _rest_t <= 0.0:
+		_go_home()
+		var p := _partner()
+		if p and p.home == home and p._can_go_home():
+			p._go_home()
+
+func _can_go_home() -> bool:
+	return _home_ok() and not _going_home and is_idle() and not on_fire and food == null \
+			and chat_with == null and _flee <= 0.0 and _scram <= 0.0 and pose == Pose.NONE \
+			and hunger < HUNGRY_AT and not home.moving
+
+func _go_home() -> void:
+	_going_home = true
+	_home_t = 0.0
+	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
+	_resting = false
+
+## Dónde se para para entrar: con los pies en la puerta.
+func _door_spot() -> Vector2:
+	return home.door() - Vector2(0, (FEET - 2.0) * scale.y)
+
+## Camina hasta la puerta de su choza y entra. false si ya no va.
+func _walk_home(dt: float) -> bool:
+	if not _home_ok() or not is_idle() or home.moving:
+		_going_home = false
+		return false
+	_home_t += dt
+	if _home_t > HOME_GIVE_UP:
+		_going_home = false
+		return false
+	var to := _door_spot() - global_position
+	if to.length() <= HOME_REACH:
+		_going_home = false
+		enter_home()
+		return true
+	dir = to.normalized()
+	_update_sprite_flip()
+	velocity = (dir * speed + shove_vel).limit_length(maxf(to.length() / dt, shove_vel.length()))
+	var prev_pos := global_position
+	move_and_slide()
+	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
+		if shove_timer > 0.0:
+			_going_home = false
+			_fall_from_shove()
+			return true
+		global_position = prev_pos
+		if to.length() < 30.0:   # La puerta queda en la orilla: entra desde ahí
+			_going_home = false
+			enter_home()
+	return true
+
+## Entra a su choza: no se lo ve ni lo alcanza nada hasta que sale.
+func enter_home() -> void:
+	inside = true
+	_going_home = false
+	visible = false
+	$CollisionShape2D.set_deferred("disabled", true)
+	velocity = Vector2.ZERO
+	_inside_t = randf_range(REST_INSIDE.x, REST_INSIDE.y)
+	if chat_with:
+		_end_chat()
+	if food:
+		food.release_eater()
+
+## Sale por la puerta (o donde estaba, si le quitaron la choza).
+func _leave_home() -> void:
+	inside = false
+	visible = true
+	$CollisionShape2D.set_deferred("disabled", false)
+	if _home_ok():
+		global_position = _door_spot() + Vector2(0, 4)
+	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
+	dir = Vector2(randf_range(-0.8, 0.8), 1.0).normalized()
+	_update_sprite_flip()
+	_walk = 0.0
+	_heading = Vector2.ZERO
+	wander_timer = randf_range(1.5, 3.0)
+
+## Adentro: se queda hasta que se hace de día (o, de día, hasta que descansó), o hasta que le
+## agarra hambre de verdad. Si le quitaron la choza, sale.
+func _inside_ai(dt: float) -> void:
+	velocity = Vector2.ZERO
+	if not _home_ok():
+		_leave_home()
+		home = null
+		return
+	global_position = _door_spot()   # Si mueven la choza, va con ella
+	_inside_t -= dt
+	if hunger >= HUNGRY_AT or (_inside_t <= 0.0 and _night() < WAKE_AT):
+		_leave_home()
+
+## Qué tan de noche es (0 mediodía, 1 noche cerrada; ver Sky.night).
+func _night() -> float:
+	var sky := get_tree().get_first_node_in_group("sky")
+	return sky.night if sky else 0.0
+
 # --- FE Y MIEDO ---
 ## Devoto, fanático, hereje o aterrado, según cuánto cree en vos y cuánto te teme.
 func creed() -> Creed:
@@ -993,6 +1211,8 @@ func tribute() -> float:
 
 ## Cuánto le afecta algo que pasó en at: 1 bien de cerca, nada si no lo vio.
 func _witness(at: Vector2) -> float:
+	if inside:
+		return 0.0   # Adentro de su choza no ve nada
 	var d := body_center().distance_to(at)
 	return 0.0 if d > WITNESS_RADIUS else lerpf(1.0, 0.4, d / WITNESS_RADIUS)
 
@@ -1054,7 +1274,7 @@ func _separation() -> Vector2:
 	var push := Vector2.ZERO
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten or o.tornado:
+		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten or o.tornado or o.inside:
 			continue
 		var d := global_position - o.global_position
 		var dist := d.length()
@@ -1078,7 +1298,7 @@ func _shove_others() -> void:
 	var mine := _body_segment()
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten or o.tornado:
+		if o == null or o == self or o.dragging or o.falling or o.in_water or o.eaten or o.tornado or o.inside:
 			continue
 		var theirs := o._body_segment()
 		var pts := Geometry2D.get_closest_points_between_segments(mine[0], mine[1], theirs[0], theirs[1])
@@ -1497,7 +1717,7 @@ class AshPile extends Node2D:
 # --- METEORITO ---
 ## Si lo puede alcanzar una explosión (vivo o cadáver; no si se está friendo por un rayo).
 func can_blast() -> bool:
-	return not eaten and zap_state == Zap.NONE and not is_queued_for_deletion()
+	return not eaten and not inside and zap_state == Zap.NONE and not is_queued_for_deletion()
 
 ## Ve venir un meteorito desde from: lo mira, con la boca abierta, durante time segundos.
 func scare(time: float, from: Vector2) -> void:
@@ -1746,8 +1966,8 @@ func ground_point() -> Vector2:
 	if in_water and not flooded:
 		return global_position + Vector2(0, WATERLINE_DEPTH)
 	if dead and corpse_grounded and not in_water:
-		return global_position + Vector2(0, FEET - 2.0 - FEET_DROP)   # Acostado
-	return global_position + Vector2(0, FEET - 2.0)
+		return global_position + Vector2(0, (FEET - 2.0 - FEET_DROP) * scale.y)   # Acostado
+	return global_position + Vector2(0, (FEET - 2.0) * scale.y)   # (Los chicos son más bajos)
 
 # --- TORNADO ---
 ## Si un tornado lo puede chupar (vivo o cadáver; no si se está friendo por un rayo, ni
@@ -1834,7 +2054,7 @@ func set_flu(state: Flu, time_left: float) -> void:
 
 ## La peste (ver Plague): se enferma ya, sin incubarla y aunque estuviera inmune.
 func infect() -> void:
-	if dead or eaten or flu == Flu.SICK:
+	if dead or eaten or inside or flu == Flu.SICK:
 		return
 	flu = Flu.SICK
 	flu_t = randf_range(SICK_TIME.x, SICK_TIME.y)
@@ -1844,7 +2064,7 @@ func infect() -> void:
 ## El poder de curar (ver Cure): se le va la gripe (queda inmune) y, si se estaba quemando,
 ## se apaga y se le va el tizne. true si tenía algo que curar.
 func cure() -> bool:
-	if dead or eaten or zap_state != Zap.NONE:
+	if dead or eaten or inside or zap_state != Zap.NONE:
 		return false
 	var flu_cured := flu == Flu.INCUBATING or flu == Flu.SICK
 	if flu_cured:
@@ -2112,6 +2332,7 @@ func _process(dt: float) -> void:
 	_update_zap(dt)
 	_update_flu(dt)
 	_update_hunger(dt)
+	_update_family(dt)
 	_update_faith(dt)
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)

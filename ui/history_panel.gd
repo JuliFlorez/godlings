@@ -11,7 +11,7 @@ const FILTERS := [
 	["Todo", [], Relations.Kind.NONE],
 	["Amistades", [Relations.Event.FRIENDS, Relations.Event.DRIFTED], Relations.Kind.FRIEND],
 	["Enemistades", [Relations.Event.ENEMIES, Relations.Event.MADE_UP], Relations.Kind.ENEMY],
-	["Parejas", [Relations.Event.COUPLE, Relations.Event.BROKE_UP], Relations.Kind.COUPLE],
+	["Parejas", [Relations.Event.COUPLE, Relations.Event.BROKE_UP, Relations.Event.BIRTH], Relations.Kind.COUPLE],
 ]
 ## Cómo se cuenta cada cosa: [lo que hicieron, dibujito]
 const EVENTS := {
@@ -21,6 +21,7 @@ const EVENTS := {
 	Relations.Event.MADE_UP: ["hicieron las paces", Villager.Bubble.SUN],
 	Relations.Event.COUPLE: ["se pusieron de novios", Villager.Bubble.HEART],
 	Relations.Event.BROKE_UP: ["se separaron", Villager.Bubble.TEAR],
+	Relations.Event.BIRTH: ["tuvieron un bebé", Villager.Bubble.HEART],
 }
 const LIST_SIZE := Vector2(540, 330)
 const TIME_W := 76.0
@@ -261,7 +262,7 @@ static func _color(ev: Relations.Event) -> Color:
 			return Relations.color(Relations.Kind.FRIEND)
 		Relations.Event.ENEMIES:
 			return Relations.color(Relations.Kind.ENEMY)
-		Relations.Event.COUPLE:
+		Relations.Event.COUPLE, Relations.Event.BIRTH:
 			return Relations.color(Relations.Kind.COUPLE)
 		Relations.Event.MADE_UP:
 			return HUD.C_DEVOTION

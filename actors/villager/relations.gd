@@ -13,7 +13,7 @@ class_name Relations
 
 enum Kind { NONE, FRIEND, ENEMY, COUPLE }
 ## Lo que cambió con una charla (para avisar con un cartel y anotarlo en el historial).
-enum Event { NONE, FRIENDS, ENEMIES, MADE_UP, COUPLE, BROKE_UP, DRIFTED }
+enum Event { NONE, FRIENDS, ENEMIES, MADE_UP, COUPLE, BROKE_UP, DRIFTED, BIRTH }
 
 const FRIEND_AT := 35.0
 const FRIEND_KEEP := 20.0
@@ -165,6 +165,10 @@ static func make(a: Villager, b: Villager, k: Kind) -> Event:
 		_note(ev, a, b)
 	return events.back()
 
+## La pareja a y b tuvo un bebé (ver Decoration._try_birth): queda en el historial.
+static func note_birth(a: Villager, b: Villager) -> void:
+	_note(Event.BIRTH, a, b)
+
 ## Lo anota en el historial.
 static func _note(ev: Event, a: Villager, b: Villager) -> void:
 	history.append({
@@ -192,6 +196,8 @@ static func news(ev: Event) -> Array:
 			return ["¡Son pareja!", color(Kind.COUPLE)]
 		Event.BROKE_UP:
 			return ["Se separaron", HUD.C_MUTED]
+		Event.BIRTH:
+			return ["¡Nació un bebé!", color(Kind.COUPLE)]
 	return ["", HUD.C_TEXT]
 
 static func _change(a: Villager, b: Villager, delta: float) -> Event:
@@ -204,7 +210,8 @@ static func _change(a: Villager, b: Villager, delta: float) -> Event:
 				_bonds.erase(k)
 				return Event.BROKE_UP
 		Kind.FRIEND:
-			if aff >= COUPLE_AT and partner_id(a) == 0 and partner_id(b) == 0 and attraction(a, b) >= ROMANCE:
+			if aff >= COUPLE_AT and partner_id(a) == 0 and partner_id(b) == 0 and attraction(a, b) >= ROMANCE \
+					and not a.is_child() and not b.is_child():
 				_bonds[k] = Kind.COUPLE
 				return Event.COUPLE
 			if aff < FRIEND_KEEP:

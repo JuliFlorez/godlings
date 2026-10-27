@@ -34,7 +34,7 @@ func claim(v: Villager) -> void:
 ## Dónde se para el aldeano (su centro) para comerlo: al costado, con los pies a su altura.
 func eat_spot(v: Villager) -> Vector2:
 	var side := 1.0 if v.global_position.x >= point().x else -1.0
-	return point() + Vector2(side * 17.0, -Villager.BODY_BOTTOM)
+	return point() + Vector2(side * 17.0, -Villager.BODY_BOTTOM * v.scale.y)
 
 ## progress: 0..1 de lo que lleva comiendo.
 func nibble(_progress: float) -> void:

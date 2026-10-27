@@ -237,8 +237,12 @@ func _land_arrow(s: Shot) -> void:
 	else:
 		_puff(s.pos, Color(0.85, 0.95, 1.0), 12)   # Al agua
 
-## La primera flecha deja flechado a v; la siguiente que le da a otro los enamora.
+## La primera flecha deja flechado a v; la siguiente que le da a otro los enamora. A los chicos
+## no les hace nada.
 func _pierce(v: Villager) -> void:
+	if v.is_child():
+		_popup("Es muy chico para eso", v.global_position, HUD.C_MUTED)
+		return
 	if _alive(_pierced) and _pierced != v:
 		var a := _pierced
 		_pierced = null

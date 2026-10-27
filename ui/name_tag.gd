@@ -54,7 +54,7 @@ func _process(dt: float) -> void:
 		queue_redraw()   # La flechita sube y baja (o se borra al deseleccionarlo)
 	var talking := villager.bubble != Villager.Bubble.NONE and villager.bubble_t > 0.0
 	visible = (full != "" or _selected or _rel != Relations.Kind.NONE or talking) \
-			and not villager.eaten and villager.rig != null
+			and not villager.eaten and not villager.inside and villager.rig != null
 	if not visible:
 		return
 

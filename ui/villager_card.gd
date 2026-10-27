@@ -6,8 +6,9 @@ class_name VillagerCard
 ## Debajo del estado, cuánta hambre tiene (ver Villager.hunger; muerto de hambre, en rojo).
 ## Después, cuánto cree en vos y cuánto te teme (ver Villager.faith y fear), y qué es por eso:
 ## devoto, fanático, hereje o aterrado.
-## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos. Un click en
-## un nombre abre el carnet de ese aldeano.
+## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos; su familia (sus
+## padres y sus hijos) y su casa (la choza donde vive y con quién). Un click en un nombre abre
+## el carnet de ese aldeano. Los chicos dicen "Nene" o "Nena" en vez del género.
 ## La foto es un rig propio del aldeano (así parpadea) que copia su cara: la boca de
 ## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto.
 
@@ -25,6 +26,11 @@ const GENDERS := {
 	Villager.Gender.MALE: "Masculino",
 	Villager.Gender.FEMALE: "Femenino",
 }
+const KIDS := {
+	Villager.Gender.MALE: "Nene",
+	Villager.Gender.FEMALE: "Nena",
+}
+const C_FAMILY := Color(1.0, 0.78, 0.45)
 const RELATIONS := [
 	[Relations.Kind.COUPLE, "Pareja", Villager.Bubble.HEART],
 	[Relations.Kind.FRIEND, "Amigos", Villager.Bubble.SMILE],
@@ -56,6 +62,8 @@ var _faith_bar: ProgressBar
 var _fear_bar: ProgressBar
 var _hunger_bar: ProgressBar
 var _relations: Array[HFlowContainer] = []   # Una fila por cada tipo de relación (RELATIONS)
+var _family: HFlowContainer     # Sus padres y sus hijos
+var _home: HFlowContainer       # Su choza y los que viven con él
 var _relations_key := ""        # Lo que se está mostrando: se rearma solo si cambia
 
 func _ready() -> void:
@@ -199,6 +207,7 @@ func _update_status() -> void:
 				col = HUD.C_DEVOTION
 	_status.text = text
 	_status.add_theme_color_override("font_color", col)
+	_gender.text = (KIDS if v.is_child() else GENDERS)[v.gender]   # Crece con el carnet abierto
 	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
 
 ## Cuánto cree en vos, cuánto te teme y qué es por eso.
@@ -222,6 +231,7 @@ func _update_relations() -> void:
 	var lists := {}
 	for r: Array in RELATIONS:
 		lists[r[0]] = []
+	var family: Array[Villager] = []
 	for node in villager.get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
 		if o == null or o.dead or o.eaten or o.is_queued_for_deletion():
@@ -229,24 +239,47 @@ func _update_relations() -> void:
 		var k := Relations.kind(villager, o)
 		if lists.has(k):
 			lists[k].append(o)
+		if o.id_number in villager.parents or villager.id_number in o.parents:
+			family.append(o)
+	var housemates: Array[Villager] = []
+	if villager._home_ok():
+		housemates.assign(villager.home.residents().filter(func(o: Villager): return o != villager))
 	var key := TranslationServer.get_locale()   # Los que no tienen nombre dicen "N.º" en el idioma
 	for k in lists:
 		lists[k].sort_custom(func(a: Villager, b: Villager): return a.id_number < b.id_number)
 		for o: Villager in lists[k]:
 			key += "%d:%d:%s;" % [k, o.id_number, o.full_name()]
+	key += "|%s|%s|" % [villager._home_ok(), villager.inside]
+	for o: Villager in family + housemates:
+		key += "%d:%s;" % [o.id_number, o.full_name()]
 	if key == _relations_key:
 		return
 	_relations_key = key
+	_fill(_family, family, C_FAMILY)
+	for c in _home.get_children():
+		c.queue_free()
+	if not villager._home_ok():
+		_home.add_child(HUD.make_label("Sin casa", 14, Color(HUD.C_MUTED, 0.6)))
+	else:
+		var hut := tr("Choza")
+		if villager.inside:
+			hut += " · " + tr("adentro")
+		var l := HUD.make_label(hut, 14, HUD.C_TEXT)
+		l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		_home.add_child(l)
+		for o in housemates:
+			_home.add_child(_person_button(o, HUD.C_MUTED))
 	for i in RELATIONS.size():
-		var flow := _relations[i]
-		for c in flow.get_children():
-			c.queue_free()
-		var people: Array = lists[RELATIONS[i][0]]
-		if people.is_empty():
-			var none := HUD.make_label("—", 14, Color(HUD.C_MUTED, 0.6))
-			flow.add_child(none)
-		for o: Villager in people:
-			flow.add_child(_person_button(o, Relations.color(RELATIONS[i][0])))
+		_fill(_relations[i], lists[RELATIONS[i][0]], Relations.color(RELATIONS[i][0]))
+
+## Pone en la fila los nombres de people (o una raya si no hay nadie).
+func _fill(flow: HFlowContainer, people: Array, col: Color) -> void:
+	for c in flow.get_children():
+		c.queue_free()
+	if people.is_empty():
+		flow.add_child(HUD.make_label("—", 14, Color(HUD.C_MUTED, 0.6)))
+	for o: Villager in people:
+		flow.add_child(_person_button(o, col))
 
 ## El nombre de alguien con quien tiene una relación: un click abre su carnet.
 func _person_button(o: Villager, col: Color) -> Button:
@@ -351,22 +384,30 @@ func _build_relations(parent: Control) -> void:
 	parent.add_child(box)
 	box.add_child(_caption("Relaciones"))
 	for r: Array in RELATIONS:
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
-		box.add_child(row)
-		var icon := RelationIcon.new()
-		icon.kind = r[2]
-		row.add_child(icon)
-		var caption := HUD.make_label(r[1], 13, HUD.C_MUTED)
-		caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
-		caption.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		row.add_child(caption)
-		var flow := HFlowContainer.new()
-		flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		flow.add_theme_constant_override("h_separation", 6)
-		flow.add_theme_constant_override("v_separation", 3)
-		row.add_child(flow)
-		_relations.append(flow)
+		_relations.append(_relation_row(box, r[1], r[2]))
+	_family = _relation_row(box, "Familia", Villager.Bubble.SUN)
+	_home = _relation_row(box, "Casa", Villager.Bubble.NONE, true)
+
+## Una fila: el dibujito, el título y los nombres (devuelve dónde van los nombres). hut: el
+## dibujito es una choza.
+func _relation_row(box: Control, title: String, bubble: Villager.Bubble, hut := false) -> HFlowContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	box.add_child(row)
+	var icon := RelationIcon.new()
+	icon.kind = bubble
+	icon.hut = hut
+	row.add_child(icon)
+	var caption := HUD.make_label(title, 13, HUD.C_MUTED)
+	caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
+	caption.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	row.add_child(caption)
+	var flow := HFlowContainer.new()
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow.add_theme_constant_override("h_separation", 6)
+	flow.add_theme_constant_override("v_separation", 3)
+	row.add_child(flow)
+	return flow
 
 func _caption(text: String) -> Label:
 	var l := HUD.make_label(text, 11, HUD.C_MUTED)
@@ -393,6 +434,7 @@ func _field(parent: Control, caption: String, placeholder: String) -> LineEdit:
 ## El dibujito de cada tipo de relación (ver SpeechBubble.draw_icon).
 class RelationIcon extends Control:
 	var kind := Villager.Bubble.NONE
+	var hut := false              # Una choza chiquita (la fila de la casa)
 
 	func _ready() -> void:
 		custom_minimum_size = Vector2(20, 22)
@@ -400,4 +442,8 @@ class RelationIcon extends Control:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func _draw() -> void:
+		if hut:
+			draw_set_transform(Vector2(size.x * 0.5, size.y - 2.0), 0.0, Vector2.ONE * 0.3)
+			Decoration.paint(self, "hut", 0.5, 0.0)
+			return
 		SpeechBubble.draw_icon(self, kind, size * 0.5, 0.72)

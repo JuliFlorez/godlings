@@ -279,6 +279,7 @@ func _remove(d: Decoration) -> void:
 	# Fuera de Props: ya no cuenta para el espacio libre ni se puede volver a agarrar (ni
 	# comerle las bayas)
 	d.remove_from_group("berry_bush")
+	d.remove_from_group("hut")   # Los que vivían ahí se quedan sin casa (ver Villager._home_ok)
 	d.reparent(get_parent())
 	var tw := d.create_tween()
 	tw.tween_property(d, "scale", Vector2.ZERO, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)

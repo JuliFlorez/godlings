@@ -485,9 +485,10 @@ func _spawn_villagers(n: int) -> void:
 	if island_poly_global.size() == 0:
 		return
 	for i in n:
-		_add_villager(_island_point())
+		add_villager(_island_point())
 
-func _add_villager(pos: Vector2) -> Villager:
+## Un aldeano nuevo en pos (también los bebés que nacen en las chozas, ver Decoration).
+func add_villager(pos: Vector2) -> Villager:
 	var v: Villager = VILLAGER.instantiate()
 	v.global_position = pos
 	v.island_poly = island_poly_global
@@ -648,6 +649,13 @@ func debug_spawn_villagers(n: int) -> void:
 func save_game() -> void:
 	if not playing or hud == null:
 		return
+	var decorations := []
+	var deco_index := {}   # Decoration -> lugar en la lista (para saber en qué choza vive cada uno)
+	for c in props.get_children():
+		var d := c as Decoration
+		if d:
+			deco_index[d] = decorations.size()
+			decorations.append({"kind": d.kind, "pos": placer.resting_position(d), "variant": d.variant})
 	var villagers := []
 	var ids := []
 	for node in get_tree().get_nodes_in_group("villager"):
@@ -666,13 +674,11 @@ func save_game() -> void:
 			"faith": v.faith,
 			"fear": v.fear,
 			"hunger": v.hunger,
+			"age": v.age,
+			"parents": v.parents,
+			"home": deco_index.get(v.home, -1) if v._home_ok() else -1,
 		})
 		ids.append(v.id_number)
-	var decorations := []
-	for c in props.get_children():
-		var d := c as Decoration
-		if d:
-			decorations.append({"kind": d.kind, "pos": placer.resting_position(d), "variant": d.variant})
 
 	var sky := $Sky
 	var cfg := ConfigFile.new()
@@ -699,18 +705,21 @@ func _load_game() -> bool:
 	play_time = cfg.get_value("meta", "play_time", 0.0)
 	hud.load_state(cfg.get_value("game", "hud", {}))
 	set_island_level(cfg.get_value("island", "level", island_level))
+	var decos := []   # En el mismo orden que la lista guardada (null las que ya no existen)
 	for d: Dictionary in cfg.get_value("island", "decorations", []):
 		# Los arbustos comunes ya no están: los de las partidas de antes pasan a ser de bayas
 		var kind: String = "berries" if d.get("kind") == "bush" else d.get("kind", "")
 		if not Decoration.KINDS.has(kind):
+			decos.append(null)
 			continue
 		var deco := Decoration.new()
 		deco.kind = kind
 		props.add_child(deco)
 		deco.global_position = d.get("pos", _island_point())
 		deco.variant = d.get("variant", deco.variant)   # Después de _ready, que elige una al azar
+		decos.append(deco)
 	for d: Dictionary in cfg.get_value("island", "villagers", []):
-		var v := _add_villager(d.get("pos", _island_point()))
+		var v := add_villager(d.get("pos", _island_point()))
 		v.id_number = d.get("id", v.id_number)
 		v.first_name = d.get("first_name", "")
 		v.last_name = d.get("last_name", "")
@@ -719,6 +728,11 @@ func _load_game() -> bool:
 		v.faith = d.get("faith", v.faith)
 		v.fear = d.get("fear", v.fear)
 		v.hunger = d.get("hunger", v.hunger)
+		v.set_age(d.get("age", Villager.ADULT_AGE))
+		v.parents.assign(d.get("parents", []))
+		var h: int = d.get("home", -1)
+		if h >= 0 and h < decos.size() and decos[h] != null and decos[h].kind == "hut":
+			v.home = decos[h]
 	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
 	Relations.load_state(cfg.get_value("island", "relations", []))
 	Relations.load_history(cfg.get_value("island", "history", []))
