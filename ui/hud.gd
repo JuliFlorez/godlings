@@ -1,8 +1,10 @@
 extends CanvasLayer
 class_name HUD
 ## Panel superior izquierdo: XP (progreso al próximo punto de expansión),
-## Devoción, población de la isla, botones de Invocar / Expandir, Ofrendas, Tienda e Historial
-## (quién se hizo amigo, enemigo o pareja de quién, ver HistoryPanel).
+## Devoción, población de la isla, botón de Expandir, Tienda e Historial (quién se hizo amigo,
+## enemigo o pareja de quién, ver HistoryPanel).
+## Arriba al medio, un + grande para invocar aldeanos; arriba a la derecha (al lado del sol), las
+## monedas: las ofrendas y los sacrificios (con la cabeza de un aldeano muerto, como el logo).
 ## Menú inferior: modo del click (arrastrar aldeanos, seleccionarlos o editar la isla) y armas
 ## y poderes (los que todavía no existen dicen "Próximamente").
 ## Toda la interfaz se construye por código. Debajo de todo va overlay: lo que se dibuja
@@ -38,6 +40,8 @@ var xp: int = 0
 var energy: float = 100.0
 var expansion_points: int = 0
 var offerings: int = 0
+## Cuántos aldeanos murieron (cualquier muerte cuenta como sacrificio, ver Villager).
+var sacrifices: int = 0
 ## Por tiburón (Shark.MAX): si está comprado y si está prendido.
 ## Si lo matan de un tiro deja de estar comprado: hay que volver a comprarlo.
 var shark_owned: Array[bool] = []
@@ -104,6 +108,11 @@ const C_EVIL := Color(0.92, 0.3, 0.26)
 const C_HOLY := Color(1.0, 0.86, 0.4)
 const TAB_SIZE := 38.0
 const SLOT_SIZE := Vector2(76, 62)
+const SUMMON_SIZE := 78.0       # El + de invocar
+const COIN_W := 118.0           # Ancho de cada moneda de arriba a la derecha
+const COIN_ICON := 34.0          # Alto del ícono de cada moneda
+const SACRIFICE_ICON := preload("res://icon.png")
+const SACRIFICE_HEAD := Rect2(15, 78, 481, 357)   # Donde está la cabeza en el logo
 
 var _root: Control
 var _xp_bar: ProgressBar
@@ -158,6 +167,9 @@ var _slot_active: StyleBoxFlat
 var _hint: Label
 var _offer_value: Label
 var _offer_chip: Control
+var _sacrifice_value: Label
+var _sacrifice_chip: Control
+var _spawn_cost_label: Label   # El costo abajo del +
 var _shop_btn: Button
 var _shop: Shop
 var _history_btn: Button
@@ -360,10 +372,16 @@ func flash_screen(amount: float) -> void:
 	_flash_amount = maxf(_flash_amount, amount)
 	_flash_rect.color.a = _flash_amount
 
-# ---- Ofrendas y tienda ----
+# ---- Ofrendas, sacrificios y tienda ----
 func add_offerings(amount: int) -> void:
 	offerings += amount
 	_flash(_offer_chip)
+	_refresh()
+
+## Se murió un aldeano (ver Villager._grant_sacrifice_xp).
+func add_sacrifice() -> void:
+	sacrifices += 1
+	_flash(_sacrifice_chip)
 	_refresh()
 
 func can_afford(amount: int) -> bool:
@@ -560,6 +578,7 @@ func save_state() -> Dictionary:
 		"xp": xp,
 		"energy": energy,
 		"offerings": offerings,
+		"sacrifices": sacrifices,
 		"expansion_points": expansion_points,
 		"points_earned": _points_earned,
 		"gun": Gun.unlocked,
@@ -579,6 +598,7 @@ func load_state(d: Dictionary) -> void:
 	xp = d.get("xp", xp)
 	energy = clampf(d.get("energy", energy), 0.0, energy_max)
 	offerings = d.get("offerings", offerings)
+	sacrifices = d.get("sacrifices", 0)
 	expansion_points = d.get("expansion_points", expansion_points)
 	_points_earned = d.get("points_earned", _points_earned)
 	Gun.unlocked = d.get("gun", false)
@@ -676,7 +696,10 @@ func _refresh() -> void:
 
 	var has_energy := energy >= _spawn_cost
 	_spawn_btn.disabled = full or not has_energy
-	_spawn_btn.text = tr("Invocar aldeano\n−%d devoción") % int(_spawn_cost)
+	_spawn_btn.tooltip_text = tr("Invocar aldeano (−%d devoción)") % int(_spawn_cost)
+	_spawn_btn.get_meta("icon").modulate.a = 0.45 if _spawn_btn.disabled else 1.0
+	_spawn_cost_label.text = str(int(_spawn_cost))
+	_spawn_cost_label.add_theme_color_override("font_color", C_TEXT if has_energy else C_WARN)
 
 	var island_maxed := _island_level >= _island_max
 	_expand_btn.disabled = expansion_points <= 0 or island_maxed
@@ -688,6 +711,7 @@ func _refresh() -> void:
 		_expand_btn.text = tr("Expandir isla\n%d puntos") % expansion_points
 
 	_offer_value.text = str(offerings)
+	_sacrifice_value.text = str(sacrifices)
 
 	_sync_weapon(_gun_btn, Gun.unlocked, _gun_armed, _slot_active,
 			"Sacar o guardar la pistola [G]", "Desbloqueala en la tienda (%d ofrendas)", Gun.PRICE)
@@ -829,19 +853,12 @@ func _build_ui() -> void:
 	_level_value = _stat_chip(stats, "island", "Isla")
 	_points_value = _stat_chip(stats, "point", "Puntos")
 
-	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 8)
-	col.add_child(buttons)
-	_spawn_btn = _action_button(buttons, C_SPAWN)
-	_spawn_btn.pressed.connect(func(): spawn_pressed.emit())
-	_expand_btn = _action_button(buttons, C_EXPAND)
+	_expand_btn = _action_button(col, C_EXPAND)
 	_expand_btn.pressed.connect(func(): expand_pressed.emit())
 
 	var shop_row := HBoxContainer.new()
 	shop_row.add_theme_constant_override("separation", 8)
 	col.add_child(shop_row)
-	_offer_value = _stat_chip(shop_row, "coin", "Ofrendas")
-	_offer_chip = _offer_value.get_parent().get_parent()
 	_shop_btn = _action_button(shop_row, C_SHOP)
 	_shop_btn.text = "Tienda"
 	_shop_btn.pressed.connect(open_shop)
@@ -857,6 +874,7 @@ func _build_ui() -> void:
 	_hint.custom_minimum_size = Vector2(268, 0)
 	col.add_child(_hint)
 
+	_build_top()
 	_build_toolbar()
 
 	_card = VillagerCard.new()
@@ -865,6 +883,93 @@ func _build_ui() -> void:
 	_hut_card = HutCard.new()
 	_hut_card.hud = self
 	_root.add_child(_hut_card)
+
+## Arriba al medio, el + grande para invocar aldeanos (con lo que cuesta abajo); arriba a la
+## derecha, las ofrendas y los sacrificios.
+func _build_top() -> void:
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	center.offset_top = 10.0
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(center)
+	var summon := VBoxContainer.new()
+	summon.add_theme_constant_override("separation", -12)   # El costo se apoya en el borde del +
+	summon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(summon)
+	_spawn_btn = Button.new()
+	_spawn_btn.custom_minimum_size = Vector2(SUMMON_SIZE, SUMMON_SIZE)
+	_spawn_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_spawn_btn.pivot_offset = Vector2(SUMMON_SIZE, SUMMON_SIZE) * 0.5
+	_spawn_btn.focus_mode = Control.FOCUS_NONE
+	var r := int(SUMMON_SIZE * 0.5)
+	for state: Array in [["normal", C_SPAWN, C_SPAWN.lightened(0.45)], ["hover", C_SPAWN.lightened(0.12), Color.WHITE],
+			["pressed", C_SPAWN.darkened(0.15), C_SPAWN.darkened(0.3)], ["disabled", Color(C_PANEL, 0.55), Color(1, 1, 1, 0.18)]]:
+		var box := make_box(state[1], r, state[2], 3)
+		box.shadow_color = Color(0, 0, 0, 0.28)
+		box.shadow_size = 6
+		box.shadow_offset = Vector2(0, 3)
+		_spawn_btn.add_theme_stylebox_override(state[0], box)
+	var plus := HudIcon.make("plus", int(SUMMON_SIZE * 0.62))
+	plus.position = Vector2(SUMMON_SIZE, SUMMON_SIZE) * 0.19
+	_spawn_btn.add_child(plus)
+	_spawn_btn.set_meta("icon", plus)
+	_spawn_btn.pressed.connect(func():
+		var tw := _spawn_btn.create_tween()
+		_spawn_btn.scale = Vector2.ONE * 1.15
+		tw.tween_property(_spawn_btn, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		spawn_pressed.emit())
+	summon.add_child(_spawn_btn)
+	# Lo que cuesta: una gotita de devoción y el número
+	var cost := PanelContainer.new()
+	cost.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	cost.mouse_filter = Control.MOUSE_FILTER_IGNORE   # Que no le saque clicks al +
+	cost.add_theme_stylebox_override("panel", make_box(Color(0.06, 0.09, 0.16, 0.92), 10, C_DEVOTION.darkened(0.2), 1, Vector4(7, 1, 9, 1)))
+	summon.add_child(cost)
+	var cost_row := HBoxContainer.new()
+	cost_row.add_theme_constant_override("separation", 3)
+	cost_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cost.add_child(cost_row)
+	cost_row.add_child(HudIcon.make("devotion", 13))
+	_spawn_cost_label = make_label("", 13, C_TEXT)
+	cost_row.add_child(_spawn_cost_label)
+
+	var coins := VBoxContainer.new()
+	coins.add_theme_constant_override("separation", 6)
+	_root.add_child(coins)
+	_offer_value = _coin(coins, HudIcon.make("coin", int(COIN_ICON)), "Ofrendas")
+	_offer_chip = _offer_value.get_parent().get_parent()
+	var head := TextureRect.new()
+	var trimmed := AtlasTexture.new()   # Sin el margen vacío del logo: que la cabeza llene la moneda
+	trimmed.atlas = SACRIFICE_ICON
+	trimmed.region = SACRIFICE_HEAD
+	head.texture = trimmed
+	head.custom_minimum_size = Vector2(COIN_ICON * SACRIFICE_HEAD.size.aspect(), COIN_ICON)
+	head.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	head.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	head.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sacrifice_value = _coin(coins, head, "Sacrificios")
+	_sacrifice_chip = _sacrifice_value.get_parent().get_parent()
+	coins.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 14)
+	coins.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+
+## Una moneda de arriba a la derecha: el ícono y cuántas hay (devuelve el número).
+func _coin(parent: Control, icon: Control, tip: String) -> Label:
+	var chip := PanelContainer.new()
+	chip.custom_minimum_size = Vector2(COIN_W, 0)
+	chip.tooltip_text = tip
+	chip.add_theme_stylebox_override("panel", make_box(C_PANEL, 21, C_PANEL_BORDER, 1, Vector4(6, 4, 14, 4)))
+	parent.add_child(chip)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_child(row)
+	row.add_child(icon)
+	var value := make_label("", 21, C_TEXT)
+	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(value)
+	return value
 
 func _build_toolbar() -> void:
 	_slot_idle = make_box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1)
@@ -1252,6 +1357,16 @@ class HudIcon extends Control:
 				draw_colored_polygon(arrow, Color.WHITE)
 				arrow.append(arrow[0])
 				draw_polyline(arrow, Color(0.1, 0.13, 0.22), maxf(1.5, s * 0.06), true)
+			"plus":
+				# Una cruz gorda blanca con borde
+				var a := 0.12
+				var b := 0.42
+				var cross := _pts([0.5 - a, 0.5 - b, 0.5 + a, 0.5 - b, 0.5 + a, 0.5 - a, 0.5 + b, 0.5 - a, 0.5 + b, 0.5 + a,
+						0.5 + a, 0.5 + a, 0.5 + a, 0.5 + b, 0.5 - a, 0.5 + b, 0.5 - a, 0.5 + a, 0.5 - b, 0.5 + a, 0.5 - b, 0.5 - a,
+						0.5 - a, 0.5 - a])
+				draw_colored_polygon(cross, Color.WHITE)
+				cross.append(cross[0])
+				draw_polyline(cross, Color(0.45, 0.2, 0.05), maxf(2.0, s * 0.05), true)
 			"coin":
 				draw_circle(c, s * 0.48, HUD.C_OFFERING.darkened(0.25), true, -1.0, true)
 				draw_circle(c, s * 0.38, HUD.C_OFFERING, true, -1.0, true)

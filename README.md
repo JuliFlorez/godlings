@@ -38,13 +38,13 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - ☠️ **Peste**: sacala con P y cada click suelta una nube verde de miasma: los aldeanos que alcanza se enferman de gripe al toque (sin incubarla y aunque estuvieran inmunes) y después se contagian solos entre ellos.
 - ✨ **Curar**: sacalo con C y cada click baja un haz de luz dorada: los aldeanos que alcanza se curan de la gripe (aunque la estuvieran incubando, y quedan inmunes un rato) y, si se estaban quemando, se apagan y se les va el tizne.
 - 🏝️ **Isla Expandible**: La isla tiene 7 tamaños. Empieza chica (5 aldeanos como máximo) y cada expansión sube la capacidad (hasta 26).
-- 🛍️ **Tienda y Ofrendas**: cada sacrificio deja +5 ofrendas y cada aldeano vivo, sano y no muerto de hambre reza cada 10 segundos y deja ofrendas según cuánto cree en vos y cuánto te teme (+1 al empezar). En la Tienda se gastan en:
+- 🛍️ **Tienda, Ofrendas y Sacrificios**: arriba a la derecha (al lado del sol) están las dos monedas: las **ofrendas** y los **sacrificios** (con la cabeza de un aldeano muerto, como el logo), que cuenta todos los que se murieron. Cada sacrificio deja +5 ofrendas y cada aldeano vivo, sano y no muerto de hambre reza cada 10 segundos y deja ofrendas según cuánto cree en vos y cuánto te teme (+1 al empezar). En la Tienda se gastan en:
   - **Decoración**: palmeras, arbustos de bayas (los aldeanos con hambre se comen las bayas; los arbustos comunes de las partidas de antes pasan a ser de bayas), flores, rocas, antorchas y chozas (donde viven). Se colocan con un click sobre la isla (se cobran al colocarlas) y los aldeanos pasan por delante o por detrás según la profundidad. Para moverlas o quitarlas (devuelve la mitad) hay que pasar al modo **Editar isla** (el lápiz de la barra de abajo, o la tecla I): así no se mueven sin querer. En ese modo los clicks no agarran aldeanos.
   - **Armas y poderes**: la pistola se desbloquea por 60 ofrendas, el rayo por 100, el meteorito por 150, el tornado por 200, el diluvio por 250, la peste por 120 y curar por 80.
 - ⚡ **Sistema de Fe / Devoción & XP**:
   - Cada sacrificio (ahogado o comido por el tiburón) da +1 XP.
   - Al llenar la barra de XP ganás un **punto de expansión**: aparecen orbes dorados "+" en los bordes de la isla. Tocá uno (o el botón "Expandir isla") y la isla crece.
-  - La invocación de aldeanos consume Devoción, la cual se recarga progresivamente con el tiempo. No se puede invocar si la isla está llena.
+  - La invocación de aldeanos (el **+** grande de arriba al medio) consume Devoción, la cual se recarga progresivamente con el tiempo. No se puede invocar si la isla está llena: el + se apaga.
 - 💾 **Partidas guardadas**: hay 3 (en `user://save_1.cfg`, `save_2.cfg` y `save_3.cfg`; la partida de antes, `user://save.cfg`, pasa a ser la 1). Cada una se guarda sola cada 20 segundos, al salir y al volver al menú, y al elegirla se sigue donde quedó: progreso, ofrendas, compras, tamaño de la isla, aldeanos con su nombre, su número de carnet, su fe, su miedo, su hambre y lo que se quieren entre ellos, decoraciones, y si era de día o de noche (con la Luna de Sangre incluida). Los aldeanos que estaban volando o en el agua aparecen en la isla; los cadáveres y los cocos sueltos no se guardan. "Menú principal" en el menú de pausa guarda y vuelve al cielo, a elegir partida.
 - ⚙️ **Configuración** (en el menú de inicio y en el de pausa): volumen general, música, idioma (español o inglés), pantalla completa y un contador de fotogramas por segundo (FPS) en la esquina de abajo a la derecha. Se guarda aparte de las partidas (`user://settings.cfg`).
 - 🎨 **Arte 2D**: Sprites y texturas originales.
@@ -68,7 +68,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - **Soltar en el agua / vacío**: El aldeano cae y comienza a flotar / ahogarse.
 - **Arrastrar el sol (o la luna) hasta el horizonte**: Se pone y sale el otro astro (día ↔ noche).
 - **Tocar el sol (o la luna) 5 veces seguidas**: Activa/desactiva su versión perturbadora.
-- **Botón "Invocar aldeano"**: Invoca un nuevo aldeano consumiendo 10 puntos de Devoción (si hay lugar en la isla).
+- **Botón + (arriba al medio)**: Invoca un nuevo aldeano consumiendo 10 puntos de Devoción (lo dice abajo del +), si hay lugar en la isla.
 - **Orbe "+" en la isla / Botón "Expandir isla"**: Gasta un punto de expansión para agrandar la isla.
 - **Botón "Tienda"**: en pestañas (Isla, Poderes malos, Poderes buenos, y Cielo y tiburones): comprar decoraciones (click en la isla para colocarlas, click derecho o Esc para terminar) y desbloquear armas y poderes. Tocar un poder bloqueado en la barra abre la tienda en su pestaña.
 - **Click en la aleta del tiburón + Arrastrar**: Sacarlo del agua (soltalo en el agua, tiralo o dejalo en la isla).
