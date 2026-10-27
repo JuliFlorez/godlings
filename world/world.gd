@@ -41,8 +41,8 @@ const HEIGHT_MAX := 1.05
 @export var spawn_devotion_cost: float = 10.0
 @export var start_level: int = 0
 @export var starting_villagers: int = 4
-## Cada tantos segundos, cada aldeano vivo y sano reza y deja ofrendas: más cuanto más cree
-## en vos y más te teme (ver Villager.tribute).
+## Cada tantos segundos, cada aldeano vivo, sano y no muerto de hambre reza y deja ofrendas:
+## más cuanto más cree en vos y más te teme (ver Villager.tribute).
 @export var worship_interval: float = 10.0
 ## Con esta fe promedio en la isla la devoción se recarga a velocidad normal (ver HUD.faith_rate):
 ## con más, más rápido; con menos, más lento (sin parar del todo, así siempre se puede invocar).
@@ -59,6 +59,7 @@ var tornado: Tornado
 var storm: Storm
 var plague: Plague
 var cure: Cure
+var feed: Feed
 var charms: Array[Charm] = []   # Cupido, la Discordia y la Amistad (por Charm.Kind)
 var placer: DecorPlacer
 var sharks: Array[Shark] = []
@@ -196,6 +197,8 @@ func _ready() -> void:
 	add_child(plague)
 	cure = Cure.new()
 	add_child(cure)
+	feed = Feed.new()
+	add_child(feed)
 	for k: Charm.Kind in Charm.KINDS:
 		var c := Charm.new()
 		c.kind = k
@@ -219,6 +222,8 @@ func _ready() -> void:
 		plague.armed_changed.connect(hud.set_plague_armed)
 		hud.cure_toggled.connect(cure.set_armed)
 		cure.armed_changed.connect(hud.set_cure_armed)
+		hud.feed_toggled.connect(feed.set_armed)
+		feed.armed_changed.connect(hud.set_feed_armed)
 		hud.charm_toggled.connect(func(k: Charm.Kind, on: bool): charms[k].set_armed(on))
 		for c in charms:
 			c.armed_changed.connect(hud.set_charm_armed.bind(c.kind))
@@ -263,7 +268,7 @@ func _ready() -> void:
 	title.open()
 
 func _weapons() -> Array[Node]:
-	var all: Array[Node] = [gun, lightning, meteor, tornado, plague, cure]
+	var all: Array[Node] = [gun, lightning, meteor, tornado, plague, cure, feed]
 	all.append_array(charms)
 	return all
 
@@ -413,12 +418,14 @@ func alive_villagers() -> int:
 			n += 1
 	return n
 
-## Lo que dejan de ofrendas los que rezan (los vivos y sanos, ver Villager.tribute).
+## Lo que dejan de ofrendas los que rezan (los vivos, sanos y no muertos de hambre, ver
+## Villager.tribute).
 func _prayers() -> float:
 	var sum := 0.0
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and not v.eaten and not v.drowning and not v.dead and not v.is_sick() and not v.is_queued_for_deletion():
+		if v and not v.eaten and not v.drowning and not v.dead and not v.is_sick() and not v.starving() \
+				and not v.is_queued_for_deletion():
 			sum += v.tribute()
 	return sum
 
@@ -658,6 +665,7 @@ func save_game() -> void:
 			"flu_t": v.flu_t,
 			"faith": v.faith,
 			"fear": v.fear,
+			"hunger": v.hunger,
 		})
 		ids.append(v.id_number)
 	var decorations := []
@@ -708,6 +716,7 @@ func _load_game() -> bool:
 		v.set_flu(d.get("flu", Villager.Flu.HEALTHY) as Villager.Flu, d.get("flu_t", 0.0))
 		v.faith = d.get("faith", v.faith)
 		v.fear = d.get("fear", v.fear)
+		v.hunger = d.get("hunger", v.hunger)
 	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
 	Relations.load_state(cfg.get_value("island", "relations", []))
 	Relations.load_history(cfg.get_value("island", "history", []))

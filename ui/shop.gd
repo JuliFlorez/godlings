@@ -144,6 +144,8 @@ func _ready() -> void:
 		power_col.add_child(row)
 		power_rows[good] = row
 	for t in HUD.TOOLS:
+		if t[0] == "feed":
+			continue   # La comida no se compra: está desde el principio
 		var power_row: HBoxContainer = power_rows[t[5]]
 		var icon := CenterContainer.new()
 		icon.add_child(HUD.HudIcon.make(t[0], 40))
@@ -261,6 +263,9 @@ func _card(parent: Control, preview: Control, title: String, price: int, action:
 	v.add_child(preview)
 	var name_l := HUD.make_label(title, 13, HUD.C_TEXT)
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Los nombres largos ("Arbusto de bayas") en dos renglones, así la tienda entra a lo ancho
+	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_l.custom_minimum_size = Vector2(PREVIEW_SIZE.x, 0)
 	v.add_child(name_l)
 
 	var price_row := HBoxContainer.new()

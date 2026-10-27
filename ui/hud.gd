@@ -18,6 +18,7 @@ signal tornado_toggled(on: bool)
 signal storm_toggled(on: bool)
 signal plague_toggled(on: bool)
 signal cure_toggled(on: bool)
+signal feed_toggled(on: bool)
 signal charm_toggled(kind: Charm.Kind, on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
@@ -80,6 +81,7 @@ const C_SHOP := Color(0.46, 0.84, 0.52)
 const C_PLAGUE := Color(0.55, 0.85, 0.3)
 const C_CURE := Color(1.0, 0.88, 0.45)
 const C_HISTORY := Color(0.74, 0.66, 1.0)
+const C_FEED := Color(1.0, 0.68, 0.32)
 
 ## Menú inferior de armas y poderes: [ícono, nombre, tecla, disponible, descripción, bueno]
 ## Van en dos pestañas: los malos (la carita con cuernos) y los buenos (la de la aureola).
@@ -91,6 +93,7 @@ const TOOLS := [
 	["rain", "Diluvio", "D", true, "Desatar o calmar el diluvio [D]", false],
 	["plague", "Peste", "P", true, "Sacar o guardar la peste [P]", false],
 	["discord", "Discordia", "E", true, "Sacar o guardar la manzana de la discordia [E]", false],
+	["feed", "Comida", "F", true, "Tirarles comida [F]", true],
 	["cure", "Curar", "C", true, "Sacar o guardar curar [C]", true],
 	["cupid", "Cupido", "A", true, "Sacar o guardar el arco de Cupido [A]", true],
 	["friendship", "Amistad", "B", true, "Sacar o guardar la pelota de la amistad [B]", true],
@@ -129,6 +132,9 @@ var _cure_btn: Button
 var _cure_armed := false
 var _slot_plague: StyleBoxFlat
 var _slot_cure: StyleBoxFlat
+var _feed_btn: Button
+var _feed_armed := false
+var _slot_feed: StyleBoxFlat
 ## Cupido, la Discordia y la Amistad (ver Charm), por tipo.
 var _charm_btns: Array[Button] = [null, null, null]
 var _charm_armed: Array[bool] = [false, false, false]
@@ -321,6 +327,10 @@ func set_cure_armed(on: bool) -> void:
 	_cure_armed = on
 	_armed_changed(_cure_btn, on)
 
+func set_feed_armed(on: bool) -> void:
+	_feed_armed = on
+	_armed_changed(_feed_btn, on)
+
 ## (k va último: World lo conecta con bind, que agrega al final.)
 func set_charm_armed(on: bool, k: Charm.Kind) -> void:
 	_charm_armed[k] = on
@@ -342,7 +352,7 @@ func reveal(duration: float) -> void:
 ## tiburón, cocos ni decoraciones).
 static func aiming() -> bool:
 	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed or Plague.armed or Cure.armed \
-			or Charm.any_armed()
+			or Feed.armed or Charm.any_armed()
 
 ## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
 func flash_screen(amount: float) -> void:
@@ -677,6 +687,7 @@ func _refresh() -> void:
 			"Sacar o guardar la peste [P]", "Desbloqueala en la tienda (%d ofrendas)", Plague.PRICE)
 	_sync_weapon(_cure_btn, Cure.unlocked, _cure_armed, _slot_cure,
 			"Sacar o guardar curar [C]", "Desbloquealo en la tienda (%d ofrendas)", Cure.PRICE)
+	_sync_weapon(_feed_btn, true, _feed_armed, _slot_feed, "Tirarles comida [F]", "", 0)
 	var charm_hint := ""
 	for k: Charm.Kind in Charm.KINDS:
 		var info: Dictionary = Charm.KINDS[k]
@@ -703,6 +714,8 @@ func _refresh() -> void:
 		_hint.text = tr("Click sobre los aldeanos para enfermarlos de gripe · click derecho, Esc o P para guardarla.")
 	elif _cure_armed:
 		_hint.text = tr("Click sobre un aldeano para curarlo de la gripe o de las quemaduras · click derecho, Esc o C para guardarlo.")
+	elif _feed_armed:
+		_hint.text = tr("Click en la isla para tirarles comida, o sobre un aldeano para dársela a él (−%d devoción) · click derecho, Esc o F para guardarla.") % int(Feed.COST)
 	elif charm_hint != "":
 		_hint.text = tr(charm_hint)
 	elif _decor_edit == DecorPlacer.Edit.MOVING:
@@ -842,6 +855,7 @@ func _build_toolbar() -> void:
 	_slot_rain = make_box(Color(C_RAIN, 0.34), 12, C_RAIN.lightened(0.3), 2)
 	_slot_plague = make_box(Color(C_PLAGUE, 0.3), 12, C_PLAGUE.lightened(0.3), 2)
 	_slot_cure = make_box(Color(C_CURE, 0.3), 12, C_CURE.lightened(0.3), 2)
+	_slot_feed = make_box(Color(C_FEED, 0.32), 12, C_FEED.lightened(0.3), 2)
 	for k: Charm.Kind in Charm.KINDS:
 		var col: Color = Charm.KINDS[k].color
 		_slot_charms.append(make_box(Color(col, 0.32), 12, col.lightened(0.3), 2))
@@ -926,6 +940,9 @@ func _build_toolbar() -> void:
 			"cure":
 				_cure_btn = _weapon_slot(slot, _slot_cure, func(): return Cure.unlocked,
 						func(): cure_toggled.emit(not _cure_armed))
+			"feed":   # Está desde el principio
+				_feed_btn = _weapon_slot(slot, _slot_feed, func(): return true,
+						func(): feed_toggled.emit(not _feed_armed))
 			"cupid", "discord", "friendship":
 				var k: Charm.Kind = CHARM_ICONS[t[0]]
 				_charm_btns[k] = _weapon_slot(slot, _slot_charms[k], func(): return Charm.unlocked[k],
@@ -1301,6 +1318,8 @@ class HudIcon extends Control:
 				draw_arc(face + Vector2(0, 0.06) * s, s * 0.13, 0.15 * PI, 0.85 * PI, 8, ink, maxf(1.2, s * 0.05), true)
 			"cupid", "discord", "friendship":
 				Charm.paint_icon(self, HUD.CHARM_ICONS[kind], s)
+			"feed":
+				Manna.paint_bread(self, c + Vector2(0, 0.04) * s, s / 24.0)
 			"edit":
 				# Un lápiz sobre la isla
 				draw_colored_polygon(_pts([0.02, 0.96, 0.16, 0.8, 0.5, 0.74, 0.84, 0.8, 0.98, 0.96]), Color(1.0, 0.86, 0.42))

@@ -1,7 +1,7 @@
 extends Node2D
 class_name SpeechBubble
 ## Globito arriba de la cabeza de un aldeano con lo que está diciendo (ver Villager.say): un
-## dibujito (un corazón, una carita, una nota, el sol...) o unos signos. Aparece con un saltito
+## dibujito (un corazón, una carita, una nota, el sol, un muslo si tiene hambre...) o unos signos. Aparece con un saltito
 ## y se achica al irse. Lo pone NameTag; (0, 0) es la punta de la colita.
 ## Los dibujitos también los usan el carnet y NameTag para las relaciones (ver draw_icon).
 
@@ -115,6 +115,16 @@ static func draw_icon(ci: CanvasItem, k: Villager.Bubble, c: Vector2, s: float) 
 				drop.append(t + Vector2(cos(a), sin(a)) * 1.9 * s)
 			drop.append(t + Vector2(0, -4.0) * s)
 			ci.draw_colored_polygon(drop, C_TEAR)
+		Villager.Bubble.HUNGRY:
+			# Un muslo de pollo: tiene hambre
+			var bone := Color(0.97, 0.95, 0.88)
+			ci.draw_line(c + Vector2(1.0, 1.0) * s, c + Vector2(6.5, 6.5) * s, bone, 2.6 * s, true)
+			for o: Vector2 in [Vector2(6.0, 8.2), Vector2(8.2, 6.0)]:
+				ci.draw_circle(c + o * s, 1.7 * s, bone, true, -1.0, true)
+			ci.draw_set_transform(c + Vector2(-2.0, -2.0) * s, -PI * 0.25, Vector2(1.0, 0.72))
+			ci.draw_circle(Vector2.ZERO, 6.4 * s, Color(0.62, 0.32, 0.12), true, -1.0, true)
+			ci.draw_circle(Vector2(-1.5, -1.5) * s, 4.6 * s, Color(0.82, 0.48, 0.2), true, -1.0, true)
+			ci.draw_set_transform(Vector2.ZERO)
 
 ## Carita redonda con los ojos.
 static func _face(ci: CanvasItem, c: Vector2, s: float, col: Color) -> void:

@@ -27,7 +27,7 @@ const MOMENTUM := 0.06           # Los amigos charlan cada vez mejor y los enemi
 const LUCK := Vector2(-8.0, 12.0)
 const BAD_DAY := 0.1             # A veces discuten (hasta los amigos y las parejas)...
 const BAD_DAY_COST := Vector2(12.0, 22.0)
-const SICK_MOOD := 3.0           # ...y con gripe se anda de mal humor
+const SICK_MOOD := 3.0           # ...y con gripe (o muerto de hambre) se anda de mal humor
 const COLORS := {
 	Kind.FRIEND: Color(0.46, 0.84, 0.52),
 	Kind.ENEMY: Color(1.0, 0.45, 0.4),
@@ -98,6 +98,8 @@ static func chat_delta(a: Villager, b: Villager) -> float:
 	if randf() < BAD_DAY:
 		d -= randf_range(BAD_DAY_COST.x, BAD_DAY_COST.y)
 	if a.is_sick() or b.is_sick():
+		d -= SICK_MOOD
+	if a.starving() or b.starving():
 		d -= SICK_MOOD
 	return d
 

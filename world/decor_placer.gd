@@ -276,7 +276,9 @@ func _remove(d: Decoration) -> void:
 	hud.add_offerings(refund)
 	hud.popup_text(tr("+%d ofrendas") % refund, get_viewport().get_canvas_transform() * d.global_position + Vector2(0, -40), HUD.C_OFFERING)
 	_puff(d.global_position + Vector2(0, Decoration.LIFT))
-	# Fuera de Props: ya no cuenta para el espacio libre ni se puede volver a agarrar
+	# Fuera de Props: ya no cuenta para el espacio libre ni se puede volver a agarrar (ni
+	# comerle las bayas)
+	d.remove_from_group("berry_bush")
 	d.reparent(get_parent())
 	var tw := d.create_tween()
 	tw.tween_property(d, "scale", Vector2.ZERO, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)

@@ -1,7 +1,7 @@
-extends Node2D
+extends Food
 class_name Coconut
 ## Coco: se arranca de una palmera y se tira como a los aldeanos. Si le cae encima a un
-## aldeano se parte en dos mitades, y los aldeanos libres van corriendo a comérselas.
+## aldeano se parte en dos mitades, y los que tienen hambre van a comérselas (ver Food).
 ## Como las decoraciones, el origen del nodo queda LIFT px arriba del coco, así el orden
 ## por Y (quién tapa a quién) es parejo con los aldeanos. "point()" es el centro del coco.
 
@@ -17,6 +17,7 @@ const LAND_DROP := 40.0           # Soltado sobre la isla: cuánto baja antes de
 const BOUNCE_SPEED := 280.0       # Más rápido que esto rebota al tocar el piso
 const ROLL_FRICTION := 500.0
 const BITES := 3                  # Mordiscos para terminarse media cáscara
+const HALF_FOOD := 30.0           # El hambre que saca media cáscara
 
 const C_SHELL := Color(0.42, 0.27, 0.13)
 const C_SHELL_LIGHT := Color(0.58, 0.4, 0.22)
@@ -31,7 +32,6 @@ var half := 0                     # 0: entero. -1 / 1: mitad izquierda / derecha
 var vel := Vector2.ZERO
 var spin := 0.0
 var floor_y := INF                # Mitades: altura del piso donde van a caer
-var eater: Villager               # Aldeano que viene a comerse esta mitad
 var hovered := false:
 	set(v):
 		hovered = v
@@ -42,11 +42,13 @@ var _launch_y := 0.0
 var _left_island := false
 var _prev_mouse := Vector2.ZERO
 var _throw_vel := Vector2.ZERO
-var _claim_t := 0.0
 var _bites := 0
 
 func _ready() -> void:
 	add_to_group("coconut")
+	if half != 0:
+		add_to_group("food")
+		nutrition = HALF_FOOD
 
 func point() -> Vector2:
 	return global_position + Vector2(0, LIFT)
@@ -86,6 +88,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _process(dt: float) -> void:
+	check_eater()
 	match state:
 		State.HELD:
 			_hold(dt)
@@ -187,33 +190,10 @@ func _rest(dt: float) -> void:
 		floor_y = INF
 		_left_island = true
 		z_index = 10
-		return
-	if half != 0:
-		_find_eater(dt)
 
-## Las mitades llaman al aldeano libre más cercano para que venga a comérselas.
-func _find_eater(dt: float) -> void:
-	if eater and not (is_instance_valid(eater) and eater.food == self and eater.is_idle()):
-		release_eater()
-	if eater:
-		return
-	_claim_t -= dt
-	if _claim_t > 0.0:
-		return
-	_claim_t = 0.4
-	var best: Villager
-	for node in get_tree().get_nodes_in_group("villager"):
-		var v := node as Villager
-		if v and v.wants_food() and (best == null or v.global_position.distance_to(point()) < best.global_position.distance_to(point())):
-			best = v
-	if best:
-		eater = best
-		best.go_eat(self)
-
-func release_eater() -> void:
-	if is_instance_valid(eater) and eater.food == self:
-		eater.stop_eating()
-	eater = null
+## Las mitades tiradas en la isla se pueden comer.
+func available() -> bool:
+	return is_free() and half != 0 and state == State.GROUND
 
 ## Dónde se para el aldeano (su centro) para comer: al costado, con los pies a la altura del coco.
 func eat_spot(v: Villager) -> Vector2:
@@ -228,13 +208,13 @@ func nibble(progress: float) -> void:
 		_burst(point(), C_FLESH, 5, 70.0)
 
 func finish_eating(v: Villager) -> void:
+	super(v)
 	_burst(point(), C_FLESH, 8, 90.0)
 	for i in 3:
 		var h := Heart.new()
 		get_parent().add_child(h)
 		h.global_position = v.global_position + Vector2(randf_range(-12.0, 12.0), -40.0)
 		h.delay = i * 0.15
-	queue_free()
 
 # ---- Aldeanos ----
 func _bonkable(v: Villager) -> bool:

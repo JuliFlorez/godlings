@@ -3,6 +3,7 @@ class_name VillagerCard
 ## Carnet del aldeano: se abre con un click sobre él en modo seleccionar.
 ## Foto tipo carnet con el género abajo, número, y nombre y apellido para escribir
 ## (se ven arriba de su cabeza, ver NameTag), y su estado: sano, con gripe, curado o muerto.
+## Debajo del estado, cuánta hambre tiene (ver Villager.hunger; muerto de hambre, en rojo).
 ## Después, cuánto cree en vos y cuánto te teme (ver Villager.faith y fear), y qué es por eso:
 ## devoto, fanático, hereje o aterrado.
 ## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos. Un click en
@@ -39,6 +40,7 @@ const CREEDS := {
 }
 const C_FAITH := HUD.C_HOLY
 const C_FEAR := HUD.C_EVIL
+const C_HUNGER := HUD.C_FEED
 const MAX_LISTED_NAME := 18      # Los nombres más largos se cortan con "…"
 
 var villager: Villager
@@ -52,6 +54,7 @@ var _status: Label
 var _creed: Label
 var _faith_bar: ProgressBar
 var _fear_bar: ProgressBar
+var _hunger_bar: ProgressBar
 var _relations: Array[HFlowContainer] = []   # Una fila por cada tipo de relación (RELATIONS)
 var _relations_key := ""        # Lo que se está mostrando: se rearma solo si cambia
 
@@ -123,6 +126,7 @@ func _ready() -> void:
 	fields.add_child(_caption("Estado"))
 	_status = HUD.make_label("", 15, HUD.C_TEXT)
 	fields.add_child(_status)
+	_hunger_bar = _bar(fields, "Hambre", C_HUNGER)
 	_build_creed(col)
 	_build_relations(col)
 	_first.text_changed.connect(func(t: String):
@@ -202,12 +206,14 @@ func _update_creed() -> void:
 	var v := villager
 	_faith_bar.value = v.faith
 	_fear_bar.value = v.fear
+	_hunger_bar.value = v.hunger
+	_hunger_bar.modulate = Color(1.0, 0.55, 0.5) if v.starving() else Color.WHITE
 	var c: Array = CREEDS[v.creed()]
 	_creed.text = c[1] if v.gender == Villager.Gender.FEMALE else c[0]
 	_creed.add_theme_color_override("font_color", c[2])
 	# Muerto ya no siente nada
 	_creed.visible = not v.dead
-	for bar: ProgressBar in [_faith_bar, _fear_bar]:
+	for bar: ProgressBar in [_faith_bar, _fear_bar, _hunger_bar]:
 		bar.modulate.a = 0.4 if v.dead else 1.0
 
 ## Su pareja, sus amigos y sus enemigos (los vivos), con el nombre de cada uno (o su número
