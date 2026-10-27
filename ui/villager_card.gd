@@ -3,7 +3,8 @@ class_name VillagerCard
 ## Carnet del aldeano: se abre con un click sobre él en modo seleccionar.
 ## Foto tipo carnet con el género abajo, número, y nombre y apellido para escribir
 ## (se ven arriba de su cabeza, ver NameTag), y su estado: sano, con gripe, curado o muerto.
-## Debajo del estado, cuánta hambre tiene (ver Villager.hunger; muerto de hambre, en rojo).
+## Debajo del estado (que dice si está durmiendo), cuánta hambre tiene (ver Villager.hunger;
+## muerto de hambre, en rojo) y cuánto sueño (ver Villager.tiredness).
 ## Después, cuánto cree en vos y cuánto te teme (ver Villager.faith y fear), y qué es por eso:
 ## devoto, fanático, hereje o aterrado; y su ánimo (ver Villager.mood): qué tan contento está y
 ## por qué.
@@ -19,8 +20,8 @@ const MARGIN := 14.0
 const TOP := 196.0               # Debajo del sol...
 const BOTTOM := 96.0             # ...y arriba de la barra de poderes (si no entra, sube)
 const MAX_NAME := 16
-const PHOTO_SIZE := Vector2(104, 124)
-const PHOTO_SCALE := 0.15
+const PHOTO_SIZE := Vector2(96, 112)
+const PHOTO_SCALE := 0.138
 const PHOTO_FOCUS := Vector2(495, 330)   # Punto del dibujo (px de villager.png) en el centro de la foto
 const PHOTO_BG := Color(0.66, 0.82, 0.94)
 const PHOTO_FRAME := Color(0.96, 0.97, 1.0)
@@ -57,6 +58,7 @@ const MOODS := {
 const C_FAITH := HUD.C_HOLY
 const C_FEAR := HUD.C_EVIL
 const C_HUNGER := HUD.C_FEED
+const C_SLEEP := Color(0.6, 0.6, 1.0)
 const MAX_LISTED_NAME := 18      # Los nombres más largos se cortan con "…"
 const C_HUT := Color(0.9, 0.72, 0.46)
 
@@ -73,6 +75,7 @@ var _creed: Label
 var _faith_bar: ProgressBar
 var _fear_bar: ProgressBar
 var _hunger_bar: ProgressBar
+var _sleep_bar: ProgressBar
 var _mood_bar: ProgressBar
 var _mood_label: Label           # Deprimido, triste, tranquilo, contento o feliz...
 var _mood_why: Label             # ...y por qué
@@ -85,7 +88,7 @@ func _ready() -> void:
 	visible = false
 	add_theme_stylebox_override("panel", HUD.make_box(Color(0.06, 0.09, 0.16, 0.94), 16, HUD.C_PANEL_BORDER, 1, Vector4(16, 12, 16, 16)))
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
+	col.add_theme_constant_override("separation", 7)
 	add_child(col)
 
 	var head := HBoxContainer.new()
@@ -140,8 +143,10 @@ func _ready() -> void:
 	fields.add_child(gap4)
 	fields.add_child(caption("Estado"))
 	_status = HUD.make_label("", 15, HUD.C_TEXT)
+	_status.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_status (puede decir dos cosas)
 	fields.add_child(_status)
 	_hunger_bar = _bar(fields, "Hambre", C_HUNGER)
+	_sleep_bar = _bar(fields, "Sueño", C_SLEEP)
 	_build_creed(col)
 	_build_relations(col)
 	_first.text_changed.connect(func(t: String):
@@ -212,7 +217,9 @@ func _update_status() -> void:
 			Villager.Flu.IMMUNE:
 				text = "Curado (inmune)"
 				col = HUD.C_DEVOTION
-	_status.text = text
+	_status.text = tr(text)
+	if v.is_sleeping() and not v.dead:
+		_status.text += " · " + tr("durmiendo")
 	_status.add_theme_color_override("font_color", col)
 	_gender.text = (KIDS if v.is_child() else GENDERS)[v.gender]   # Crece con el carnet abierto
 	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
@@ -223,6 +230,8 @@ func _update_creed() -> void:
 	_faith_bar.value = v.faith
 	_fear_bar.value = v.fear
 	_hunger_bar.value = v.hunger
+	_sleep_bar.value = v.tiredness
+	_sleep_bar.modulate = Color(1.0, 0.55, 0.5) if v.tiredness >= Villager.EXHAUSTED_AT else Color.WHITE
 	_mood_bar.value = v.mood
 	var m: Array = MOODS[v.mood_level()]
 	_mood_label.text = m[1] if v.gender == Villager.Gender.FEMALE else m[0]
@@ -237,7 +246,7 @@ func _update_creed() -> void:
 	_creed.add_theme_color_override("font_color", c[2])
 	# Muerto ya no siente nada
 	_creed.visible = not v.dead
-	for bar: ProgressBar in [_faith_bar, _fear_bar, _hunger_bar, _mood_bar]:
+	for bar: ProgressBar in [_faith_bar, _fear_bar, _hunger_bar, _sleep_bar, _mood_bar]:
 		bar.modulate.a = 0.4 if v.dead else 1.0
 
 ## Su pareja, sus amigos y sus enemigos (los vivos), con el nombre de cada uno (o su número
@@ -470,7 +479,7 @@ static func field(parent: Control, title: String, placeholder: String, max_lengt
 	e.placeholder_text = placeholder
 	e.max_length = max_length
 	e.select_all_on_focus = true
-	e.custom_minimum_size = Vector2(176, 36)
+	e.custom_minimum_size = Vector2(176, 32)
 	e.add_theme_font_size_override("font_size", 15)
 	e.add_theme_color_override("font_color", HUD.C_TEXT)
 	e.add_theme_color_override("font_placeholder_color", Color(HUD.C_MUTED, 0.45))

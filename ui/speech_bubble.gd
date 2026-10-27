@@ -21,6 +21,7 @@ const BG := {
 	Villager.Bubble.HEART: Color(1.0, 0.9, 0.95, 0.97),
 	Villager.Bubble.ANGER: Color(1.0, 0.86, 0.83, 0.97),
 	Villager.Bubble.TEAR: Color(0.88, 0.93, 1.0, 0.97),
+	Villager.Bubble.SLEEP: Color(0.92, 0.92, 1.0, 0.97),
 }
 const POP := 0.2                     # Segundos en aparecer
 const SHRINK := 0.15                 # Lo que tarda en irse
@@ -115,6 +116,11 @@ static func draw_icon(ci: CanvasItem, k: Villager.Bubble, c: Vector2, s: float) 
 				drop.append(t + Vector2(cos(a), sin(a)) * 1.9 * s)
 			drop.append(t + Vector2(0, -4.0) * s)
 			ci.draw_colored_polygon(drop, C_TEAR)
+		Villager.Bubble.SLEEP:
+			# Zetas: duerme (o tiene sueño)
+			var col := Color(0.36, 0.38, 0.85)
+			_text(ci, "z", c + Vector2(-5.0, 3.0) * s, 11.0 * s, col)
+			_text(ci, "Z", c + Vector2(4.0, -2.0) * s, 16.0 * s, col)
 		Villager.Bubble.HUNGRY:
 			# Un muslo de pollo: tiene hambre
 			var bone := Color(0.97, 0.95, 0.88)

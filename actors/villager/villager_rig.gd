@@ -294,6 +294,8 @@ func set_xray(on: bool, mat: Material) -> void:
 func copy_face(from: VillagerRig) -> void:
 	_mouth.target = from._mouth.target
 	_mouth.mood = from._mouth.mood
+	if is_instance_valid(_blink) and is_instance_valid(from._blink):
+		_blink.asleep = from._blink.asleep
 	if from._dead_eyes.visible and not _dead_eyes.visible:
 		set_dead()
 
@@ -390,6 +392,8 @@ func _process(dt: float) -> void:
 		_mouth.target = absf(sin(villager._eat_t * 12.0)) * 0.45
 	else:
 		_mouth.target = villager.talk_mouth()
+	if is_instance_valid(_blink):
+		_blink.asleep = villager.asleep
 	# Cerrada, la boca dice cómo anda: sonríe contento y la tuerce para abajo triste
 	_mouth.mood = 0.0 if villager.dead else clampf((villager.mood - 50.0) / 30.0, -1.0, 1.0)
 
@@ -571,6 +575,7 @@ class Blink extends Node2D:
 	const OPEN := 0.09    # En volver a abrir
 	const COLS := 16
 
+	var asleep := false   # Durmiendo: los ojos se cierran y quedan cerrados
 	var _wait := 0.0
 	var _t := -1.0        # < 0: ojos abiertos, esperando
 	var _closed := 0.0    # 0 = abiertos, 1 = cerrados
@@ -579,6 +584,12 @@ class Blink extends Node2D:
 		_wait = randf_range(0.5, 4.0)  # Que no parpadeen todos juntos
 
 	func _process(dt: float) -> void:
+		if asleep or (_t < 0.0 and _closed > 0.0):
+			# Se le cierran despacio; al despertarse, los abre
+			_closed = move_toward(_closed, 1.0 if asleep else 0.0, dt * (1.5 if asleep else 4.0))
+			_t = -1.0
+			queue_redraw()
+			return
 		if _t < 0.0:
 			_wait -= dt
 			if _wait > 0.0:

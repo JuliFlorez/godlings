@@ -1,10 +1,13 @@
 extends Node2D
 class_name Celestial
 ## Astro arrastrable (sol o luna). Si lo soltás cerca del horizonte se pone
-## y emite `has_set` para que salga el otro. Si lo tocás varias veces seguidas
-## se vuelve perturbador (y otra tanda de toques lo calma), si `can_turn_creepy()` lo permite.
+## y emite `has_set` para que salga el otro; si lo soltás en otro lado emite `released` (el
+## cielo cambia la hora según dónde quedó, ver Sky). Mientras está afuera, el cielo lo lleva
+## por su camino (ver follow). Si lo tocás varias veces seguidas se vuelve perturbador (y otra
+## tanda de toques lo calma), si `can_turn_creepy()` lo permite.
 
 signal has_set
+signal released
 signal creepy_changed(is_creepy: bool)
 
 @export var pick_radius := 65.0
@@ -15,6 +18,7 @@ signal creepy_changed(is_creepy: bool)
 const HIDDEN_DEPTH := 220.0      # Qué tan abajo del horizonte queda escondido
 const TAP_SLOP := 8.0            # Si el puntero se mueve menos que esto, fue un toque y no un arrastre
 const TAP_WINDOW_MS := 500       # Tiempo máximo entre toques para que cuenten como seguidos
+const FOLLOW := 3.0              # Qué tan rápido va hacia donde lo lleva el cielo (vuelve, si lo soltaste lejos)
 
 var horizon_y := 408.0
 var rest_pos := Vector2.ZERO
@@ -92,6 +96,8 @@ func _input(event: InputEvent) -> void:
 			_register_tap()
 		elif position.y >= horizon_y - set_margin:
 			sink()
+		else:
+			released.emit()
 
 func _register_tap() -> void:
 	var now := Time.get_ticks_msec()
@@ -142,13 +148,23 @@ func sink(duration := 1.2) -> void:
 		hide()
 		has_set.emit())
 
-func rise() -> void:
-	position = Vector2(rest_pos.x, horizon_y + HIDDEN_DEPTH)
+## Sale desde abajo del horizonte hasta to (sin to, hasta su lugar), en duration segundos.
+func rise(to := Vector2.INF, duration := 2.0) -> void:
+	if not to.is_finite():
+		to = rest_pos
+	position = Vector2(to.x, horizon_y + HIDDEN_DEPTH)
 	show()
 	_restart_tween()
-	_tween.tween_property(self, "position", rest_pos, 2.0) \
+	_tween.tween_property(self, "position", to, duration) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	_tween.tween_callback(func(): is_up = true)
+
+## Va de a poco hacia to (lo lleva el cielo con la hora, ver Sky), salvo que lo estén
+## arrastrando o esté saliendo o poniéndose.
+func follow(to: Vector2, dt: float) -> void:
+	if not is_up or dragging or (_tween and _tween.is_running()):
+		return
+	position = position.lerp(to, 1.0 - exp(-FOLLOW * dt))
 
 ## Deja el astro en lo alto del cielo sin animación
 func show_up() -> void:

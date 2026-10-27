@@ -103,6 +103,7 @@ const SKIP_SPEED := 5.0        # Un click o una tecla mientras baja la apura
 ## Partida de noche: el sol se pone mientras la cámara se mete en las nubes, y termina
 ## antes de salir de ellas (si no, se lo vería bajando en el cielo ya de noche).
 const SUNSET_TIME := 1.8
+const NEW_GAME_HOUR := 0.3        # Una partida nueva arranca a media mañana (parte del día, ver Sky)
 const HUD_FADE := 0.6
 const MENU_FADE := 0.6         # Fundido a negro al volver al menú desde la pausa
 var title: TitleMenu
@@ -418,14 +419,14 @@ func alive_villagers() -> int:
 			n += 1
 	return n
 
-## Lo que dejan de ofrendas los que rezan (los vivos, sanos y no muertos de hambre, ver
-## Villager.tribute).
+## Lo que dejan de ofrendas los que rezan (los vivos, sanos, no muertos de hambre y despiertos,
+## ver Villager.tribute).
 func _prayers() -> float:
 	var sum := 0.0
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
 		if v and not v.eaten and not v.drowning and not v.dead and not v.is_sick() and not v.starving() \
-				and not v.is_queued_for_deletion():
+				and not v.is_sleeping() and not v.is_queued_for_deletion():
 			sum += v.tribute()
 	return sum
 
@@ -665,9 +666,10 @@ func save_game() -> void:
 		var v := node as Villager
 		if v == null or v.dead or v.eaten or v.drowning or v.is_queued_for_deletion():
 			continue
-		var standing := v.is_idle() and Geometry2D.is_point_in_polygon(v.global_position, island_poly_global)
+		var feet := v.global_position - Vector2(0, v._sleep_drop)   # Si está acostado durmiendo, parado
+		var standing := (v.is_idle() or v.asleep) and Geometry2D.is_point_in_polygon(feet, island_poly_global)
 		villagers.append({
-			"pos": v.global_position if standing else _island_point(),
+			"pos": feet if standing else _island_point(),
 			"id": v.id_number,
 			"first_name": v.first_name,
 			"last_name": v.last_name,
@@ -678,6 +680,7 @@ func save_game() -> void:
 			"fear": v.fear,
 			"hunger": v.hunger,
 			"mood": v.mood,
+			"tired": v.tiredness,
 			"age": v.age,
 			"parents": v.parents,
 			"home": deco_index.get(v.home, -1) if v._home_ok() else -1,
@@ -694,6 +697,8 @@ func save_game() -> void:
 	cfg.set_value("island", "history", Relations.history)
 	cfg.set_value("island", "decorations", decorations)
 	cfg.set_value("sky", "night", sky.is_night)
+	cfg.set_value("sky", "clock", sky.clock)
+	cfg.set_value("sky", "day", sky.day)
 	cfg.set_value("sky", "sun_creepy", sky.sun.creepy)
 	cfg.set_value("sky", "moon_creepy", sky.moon.creepy)
 	cfg.set_value("sky", "moon_fed", sky.moon.feed_level)
@@ -734,6 +739,7 @@ func _load_game() -> bool:
 		v.fear = d.get("fear", v.fear)
 		v.hunger = d.get("hunger", v.hunger)
 		v.mood = d.get("mood", v.mood)
+		v.tiredness = d.get("tired", v.tiredness)
 		v.set_age(d.get("age", Villager.ADULT_AGE))
 		v.parents.assign(d.get("parents", []))
 		var h: int = d.get("home", -1)
@@ -744,8 +750,12 @@ func _load_game() -> bool:
 	Relations.load_history(cfg.get_value("island", "history", []))
 
 	var sky := $Sky
+	sky.day = cfg.get_value("sky", "day", 1)
 	if cfg.get_value("sky", "night", false):
+		sky.resume = cfg.get_value("sky", "clock", 0.0)
 		sky.start_at_night(SUNSET_TIME)
+	else:
+		sky.clock = cfg.get_value("sky", "clock", NEW_GAME_HOUR * sky.DAY_LENGTH)
 	if cfg.get_value("sky", "sun_creepy", false):
 		sky.sun.set_creepy(true)
 	if cfg.get_value("sky", "moon_creepy", false):
@@ -760,6 +770,7 @@ func _start_slot(s: int) -> void:
 	slot = s
 	if not _load_game():
 		_spawn_villagers(mini(starting_villagers, capacity()))
+		$Sky.clock = NEW_GAME_HOUR * $Sky.DAY_LENGTH
 	_descent = create_tween()
 	_descent.tween_property(self, "lift", CLOUDS_EXIT, DIVE_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	_descent.tween_property(self, "lift", 0.0, LAND_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -767,6 +778,7 @@ func _start_slot(s: int) -> void:
 
 func _on_landed() -> void:
 	playing = true
+	$Sky.running = true   # Desde ahora el día y la noche pasan solos
 	title.landed()
 	if hud:
 		hud.reveal(HUD_FADE)
@@ -776,6 +788,7 @@ func _on_landed() -> void:
 func _to_title() -> void:
 	save_game()
 	playing = false
+	$Sky.running = false
 	# Todo con el juego en pausa (el menú de pausa sigue abierto mientras se oscurece)
 	if _music_tween:
 		_music_tween.kill()

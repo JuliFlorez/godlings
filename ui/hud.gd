@@ -1,6 +1,7 @@
 extends CanvasLayer
 class_name HUD
-## Panel superior izquierdo: XP (progreso al próximo punto de expansión), el tamaño de la isla
+## Panel superior izquierdo: qué día es (y cuánto le queda al día o a la noche, ver Sky), XP
+## (progreso al próximo punto de expansión), el tamaño de la isla
 ## con el botón de Expandir, Tienda e Historial (quién se hizo amigo, enemigo o pareja de quién,
 ## ver HistoryPanel).
 ## Arriba al medio, un + grande para invocar aldeanos, con la devoción en un anillo alrededor, lo
@@ -87,6 +88,8 @@ const C_PLAGUE := Color(0.55, 0.85, 0.3)
 const C_CURE := Color(1.0, 0.88, 0.45)
 const C_HISTORY := Color(0.74, 0.66, 1.0)
 const C_FEED := Color(1.0, 0.68, 0.32)
+const C_SUN := Color(1.0, 0.8, 0.3)
+const C_MOON := Color(0.72, 0.76, 1.0)
 
 ## Menú inferior de armas y poderes: [ícono, nombre, tecla, disponible, descripción, bueno]
 ## Van en dos pestañas: los malos (la carita con cuernos) y los buenos (la de la aureola).
@@ -120,6 +123,9 @@ const SACRIFICE_ICON := preload("res://icon.png")
 const SACRIFICE_HEAD := Rect2(15, 78, 481, 357)   # Donde está la cabeza en el logo
 
 var _root: Control
+var _day_icon: HudIcon
+var _day_label: Label
+var _day_bar: ProgressBar
 var _xp_bar: ProgressBar
 var _xp_value: Label
 var _devotion_ring: DevotionRing
@@ -246,6 +252,8 @@ func _process(delta: float) -> void:
 	_xp_bar.value = lerpf(_xp_bar.value, xp_target, k)
 	_devotion_ring.value = lerpf(_devotion_ring.value, energy, k)
 
+	_update_day()
+
 	if _flash_amount > 0.0:
 		_flash_amount = move_toward(_flash_amount, 0.0, 6.0 * delta)
 		_flash_rect.color.a = _flash_amount
@@ -257,6 +265,18 @@ func _process(delta: float) -> void:
 		_rain_charge.size.x = (SLOT_SIZE.x - 16.0) * Storm.charge
 	if Storm.unlocked:
 		_rain_btn.get_meta("icon").modulate = Color(1, 1, 1, 0.45) if charging else Color.WHITE
+
+## Qué día es y lo que va del día (o de la noche), con el sol o la luna.
+func _update_day() -> void:
+	var sky := get_tree().get_first_node_in_group("sky")
+	if sky == null:
+		return
+	var night: bool = sky.is_night
+	_day_icon.kind = "night" if night else "day"
+	_day_icon.queue_redraw()
+	_day_label.text = (tr("Noche %d") if night else tr("Día %d")) % sky.day
+	_day_bar.value = 1.0 - sky.phase()
+	(_day_bar.get_theme_stylebox("fill") as StyleBoxFlat).bg_color = C_MOON if night else C_SUN
 
 # ---- API para otros scripts ----
 func add_xp(amount: int) -> void:
@@ -830,6 +850,27 @@ func _build_ui() -> void:
 	col.add_theme_constant_override("separation", 8)
 	panel.add_child(col)
 
+	# Qué día es, y una barrita con lo que va del día (o de la noche)
+	var day_row := HBoxContainer.new()
+	day_row.add_theme_constant_override("separation", 7)
+	day_row.tooltip_text = "Lo que falta para que se haga de noche (o de día)"
+	col.add_child(day_row)
+	_day_icon = HudIcon.make("day", 16)
+	day_row.add_child(_day_icon)
+	_day_label = make_label("", 13, C_TEXT)
+	_day_label.custom_minimum_size = Vector2(62, 0)
+	day_row.add_child(_day_label)
+	_day_bar = ProgressBar.new()
+	_day_bar.show_percentage = false
+	_day_bar.max_value = 1.0
+	_day_bar.custom_minimum_size = Vector2(0, 6)
+	_day_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_day_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_day_bar.mouse_filter = Control.MOUSE_FILTER_PASS
+	_day_bar.add_theme_stylebox_override("background", make_box(C_TRACK, 3))
+	_day_bar.add_theme_stylebox_override("fill", make_box(C_SUN, 3))
+	day_row.add_child(_day_bar)
+
 	# XP: una barrita finita con lo que falta para el próximo punto de expansión
 	var xp_row := HBoxContainer.new()
 	xp_row.add_theme_constant_override("separation", 7)
@@ -1332,6 +1373,16 @@ class HudIcon extends Control:
 					var a := -PI / 2.0 + i * PI / 5.0
 					pts.append(c + Vector2(cos(a), sin(a)) * r)
 				draw_colored_polygon(pts, HUD.C_XP)
+			"day":
+				# Un solcito
+				for i in 8:
+					var a := TAU * i / 8.0
+					draw_line(c + Vector2.from_angle(a) * s * 0.33, c + Vector2.from_angle(a) * s * 0.5, HUD.C_SUN, maxf(1.5, s * 0.09), true)
+				draw_circle(c, s * 0.26, HUD.C_SUN, true, -1.0, true)
+			"night":
+				# Una medialuna
+				draw_circle(c, s * 0.42, HUD.C_MOON, true, -1.0, true)
+				draw_circle(c + Vector2(0.2, -0.12) * s, s * 0.36, Color(0.1, 0.13, 0.24), true, -1.0, true)
 			"devotion":
 				# Gota
 				var pts := PackedVector2Array()

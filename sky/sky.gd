@@ -1,5 +1,9 @@
 extends CanvasLayer
-## Ciclo día/noche: bajás el sol hasta el horizonte y sale la luna (y al revés).
+## Ciclo día/noche: mientras se juega (ver running) es automático: el sol sale, cruza el cielo
+## despacio y al final del día (DAY_LENGTH) baja hasta el horizonte y se pone; sale la luna, y
+## al final de la noche (NIGHT_LENGTH) se pone ella y vuelve a salir el sol (y es otro día, ver
+## day). También se los puede arrastrar: bajás el sol hasta el horizonte y sale la luna (y al
+## revés), y soltándolo más arriba o más abajo cambia la hora (ver _on_released).
 ## El color del cielo, el de las nubes y el tinte del mundo dependen de qué tan bajo está el sol.
 ## Con la Luna de Sangre en el cielo todo se tiñe de rojo, y cuanto más se la
 ## alimenta, más rojo. Cada rayo ilumina todo un instante (ver flash). Con el diluvio
@@ -26,6 +30,12 @@ const HIGH_DARK := 0.5
 const C_STORM_SKY := Color(0.33, 0.38, 0.45)
 const C_STORM_TINT := Color(0.62, 0.66, 0.74)   # Multiplica el tinte de ahora (de día y de noche)
 const STORM_HIDE := 0.8          # Cuánto tapan las nubes de tormenta al sol y a la luna
+## El día y la noche solos
+const DAY_LENGTH := 240.0        # Segundos de día (de que sale el sol a que se pone)...
+const NIGHT_LENGTH := 120.0      # ...y de noche
+const RISE := 0.1                # Lo que tarda en salir el sol (o la luna), en parte del día (o de la noche)...
+const DUSK := 0.7                # ...y desde dónde va bajando hasta el horizonte
+const PATH_X := Vector2(860.0, 990.0)   # Mientras tanto cruza el cielo de acá hasta acá
 
 @onready var background: ColorRect = $Background
 @onready var stars: Node2D = $Stars
@@ -40,6 +50,11 @@ var night := 0.0   # 0 = mediodía, 1 = noche cerrada
 ## hasta que se termina de poner la luna, o desde que se carga una partida de noche.
 var is_night := false
 var blood_moon := false
+## Lo pone World: el día y la noche pasan solos mientras se juega (en el menú de inicio, no).
+var running := false
+var clock := 0.0   # Segundos desde que salió el sol (o la luna)
+var day := 1       # Qué día es: sube con cada amanecer
+var resume := -1.0 # Al cargar una partida de noche: la hora de la noche (ver _start_night)
 ## Cuánto llueve (lo pone Storm): 0 despejado, 1 tormenta cerrada.
 var storm := 0.0
 var bank: CloudBank
@@ -98,10 +113,10 @@ func _ready() -> void:
 	clouds.max_y = horizon_y - 58.0
 	moon.hide_below()
 
-	sun.has_set.connect(moon.rise)
-	moon.has_set.connect(sun.rise)
-	sun.has_set.connect(func(): is_night = true)
-	moon.has_set.connect(func(): is_night = false)
+	sun.has_set.connect(_start_night)
+	moon.has_set.connect(_start_day)
+	sun.released.connect(_on_released.bind(sun))
+	moon.released.connect(_on_released.bind(moon))
 
 	# Encima de todo lo del cielo: al atravesarlo tapa también al sol y a la luna
 	bank = CloudBank.new()
@@ -118,11 +133,55 @@ func start_at_night(sunset: float) -> void:
 	is_night = true
 	sun.sink(sunset)
 
+## Se puso el sol: sale la luna.
+func _start_night() -> void:
+	is_night = true
+	clock = maxf(resume, 0.0)
+	resume = -1.0
+	moon.rise(_path(RISE), RISE * NIGHT_LENGTH if running else 2.0)
+
+## Se puso la luna: sale el sol, y es otro día.
+func _start_day() -> void:
+	is_night = false
+	clock = 0.0
+	day += 1
+	sun.rise(_path(RISE), RISE * DAY_LENGTH if running else 2.0)
+
+## Lo que va del día (o de la noche): 0 recién salido el sol (o la luna), 1 poniéndose.
+func phase() -> float:
+	return clampf(clock / (NIGHT_LENGTH if is_night else DAY_LENGTH), 0.0, 1.0)
+
+## Dónde va el sol (o la luna) a la hora u del día (o de la noche).
+func _path(u: float) -> Vector2:
+	var low := clampf((u - DUSK) / (1.0 - DUSK), 0.0, 1.0)
+	return Vector2(lerpf(PATH_X.x, PATH_X.y, u), lerpf(sun.rest_pos.y, horizon_y + 40.0, low))
+
+## La hora avanza: el que está afuera sigue su camino y al final se pone solo.
+func _advance(dt: float) -> void:
+	clock += dt
+	var body: Celestial = moon if is_night else sun
+	if not body.is_up or body.dragging:
+		return
+	var u := clock / (NIGHT_LENGTH if is_night else DAY_LENGTH)
+	if u >= 1.0:
+		body.sink()
+	else:
+		body.follow(_path(u), dt)
+
+## Lo soltaste sin ponerlo: la hora pasa a ser la que le toca a esa altura (más abajo, más
+## tarde; arriba del todo, a lo sumo la hora en que empieza a bajar).
+func _on_released(body: Celestial) -> void:
+	var length := NIGHT_LENGTH if is_night else DAY_LENGTH
+	var h := body.height_t()
+	clock = length * (DUSK + (1.0 - DUSK) * h if h > 0.01 else minf(clock / length, DUSK))
+
 ## Un rayo ilumina el cielo y la isla (también de noche). amount: 0..1.
 func flash(amount: float) -> void:
 	_flash = maxf(_flash, amount)
 
 func _process(dt: float) -> void:
+	if running:
+		_advance(dt)
 	_flash = move_toward(_flash, 0.0, FLASH_FADE * dt)
 	# Si el sol no está en el cielo, es de noche
 	night = sun.height_t() if sun.visible else 1.0
