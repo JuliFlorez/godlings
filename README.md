@@ -69,7 +69,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - **Tocar el sol (o la luna) 5 veces seguidas**: Activa/desactiva su versión perturbadora.
 - **Botón "Invocar aldeano"**: Invoca un nuevo aldeano consumiendo 10 puntos de Devoción (si hay lugar en la isla).
 - **Orbe "+" en la isla / Botón "Expandir isla"**: Gasta un punto de expansión para agrandar la isla.
-- **Botón "Tienda"**: Comprar decoraciones (click en la isla para colocarlas, click derecho o Esc para terminar) y desbloquear armas y poderes.
+- **Botón "Tienda"**: en pestañas (Isla, Poderes malos, Poderes buenos, y Cielo y tiburones): comprar decoraciones (click en la isla para colocarlas, click derecho o Esc para terminar) y desbloquear armas y poderes. Tocar un poder bloqueado en la barra abre la tienda en su pestaña.
 - **Click en la aleta del tiburón + Arrastrar**: Sacarlo del agua (soltalo en el agua, tiralo o dejalo en la isla).
 - **Tecla G / casilla "Pistola"**: Sacar o guardar la pistola (una vez desbloqueada en la tienda). Sirve para aldeanos y tiburones.
 - **Tecla R / botón "Rayo"**: Sacar o guardar el rayo (una vez desbloqueado en la tienda). Cada click lanza un rayo; click derecho o Esc lo guardan.

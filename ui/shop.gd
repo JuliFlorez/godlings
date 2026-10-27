@@ -1,17 +1,36 @@
 extends Control
 class_name Shop
-## Tienda: se gastan ofrendas en decoraciones para la isla, el cielo (Luna de Sangre),
-## tiburones y poderes: los malos (pistola, rayo, meteorito, tornado, diluvio, peste y la
-## manzana de la discordia) y los buenos (curar, el arco de Cupido y la pelota de la amistad).
-## Arriba van las decoraciones, el cielo y los tiburones, y abajo los poderes, como en las
-## pestañas de la barra. Las decoraciones se cobran recién al colocarlas (ver DecorPlacer).
+## Tienda: se gastan ofrendas. Va en pestañas, de a una por vez: la isla (decoraciones, que se
+## cobran recién al colocarlas, ver DecorPlacer), los poderes malos (pistola, rayo, meteorito,
+## tornado, diluvio, peste y la manzana de la discordia), los buenos (curar, el arco de Cupido y
+## la pelota de la amistad), y el cielo y los tiburones (la Luna de Sangre y los tiburones).
+## Tiene el tamaño de la pestaña más grande, así no salta al cambiar. Se vuelve a abrir en la
+## última que se miró, o en la del poder bloqueado que se tocó en la barra (ver HUD.open_shop).
 
+enum Tab { ISLAND, EVIL, GOOD, SKY }
+## Por pestaña: [título, ícono (ver HUD.HudIcon), color, lo que hay]
+const TABS := {
+	Tab.ISLAND: ["Isla", "island", Color(1.0, 0.86, 0.42),
+			"Decoraciones: se cobran recién al colocarlas. Las palmeras dan cocos y los arbustos, bayas para los que tienen hambre."],
+	Tab.EVIL: ["Poderes malos", "evil", HUD.C_EVIL, "Para castigar a tus aldeanos (y sacrificarlos)."],
+	Tab.GOOD: ["Poderes buenos", "holy", HUD.C_HOLY, "Para cuidar a tus aldeanos y juntarlos."],
+	Tab.SKY: ["Cielo y tiburones", "shark", HUD.C_DEVOTION,
+			"La Luna de Sangre se come a los que le soltás encima; los tiburones patrullan el agua."],
+}
+const TAB_H := 34.0
+const TAB_ICON := 18
 const CARD_W := 96.0
 const CARD_GAP := 8
 const PREVIEW_SIZE := Vector2(76, 60)
 
+## La pestaña que se está mirando (queda para la próxima vez, aunque se rearme la tienda).
+static var _tab := Tab.ISLAND
+
 var hud: HUD
 var _balance: Label
+var _desc: Label
+var _tab_btns := {}           # Tab -> Button
+var _pages := {}              # Tab -> Control
 var _deco_buttons := {}       # kind -> Button
 var _gun_btn: Button
 var _lightning_btn: Button
@@ -67,86 +86,52 @@ func _ready() -> void:
 	head.add_child(close_btn)
 	col.add_child(HUD.make_label("Ganás ofrendas con cada sacrificio y cuando tus aldeanos rezan.", 12, HUD.C_MUTED))
 
-	# Decoración, cielo y tiburones comparten fila (y abajo, los poderes malos y los buenos)
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 22)
-	col.add_child(top)
-	var deco_col := VBoxContainer.new()
-	deco_col.add_theme_constant_override("separation", 10)
-	top.add_child(deco_col)
-	deco_col.add_child(_section("Decoración para la isla"))
-	var deco_row := HBoxContainer.new()
-	deco_row.add_theme_constant_override("separation", CARD_GAP)
-	deco_col.add_child(deco_row)
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 6)
+	col.add_child(tabs)
+	for t: Tab in TABS:
+		_tab_btns[t] = _tab_button(tabs, t)
+	_desc = HUD.make_label("", 12, HUD.C_TEXT)
+	col.add_child(_desc)
+
+	# Las páginas, una encima de la otra: se ve la de la pestaña elegida
+	var pages := MarginContainer.new()
+	col.add_child(pages)
+	for t: Tab in TABS:
+		var page := HBoxContainer.new()
+		page.add_theme_constant_override("separation", 22)
+		pages.add_child(page)
+		_pages[t] = page
+	_build_island(_pages[Tab.ISLAND])
+	_build_powers(_pages[Tab.EVIL], _pages[Tab.GOOD])
+	_build_sky(_pages[Tab.SKY])
+	# Del tamaño de la más grande (las escondidas no cuentan para el tamaño)
+	var most := Vector2.ZERO
+	for page: Control in _pages.values():
+		most = most.max(page.get_combined_minimum_size())
+	pages.custom_minimum_size = most
+	_set_tab(_tab)
+
+## Decoraciones para la isla.
+func _build_island(page: Control) -> void:
+	var row := _row(page)
 	for kind: String in Decoration.KINDS:
 		var info: Dictionary = Decoration.KINDS[kind]
 		var preview := DecorPreview.new()
 		preview.kind = kind
-		var b := _card(deco_row, preview, info.name, info.price, "Colocar")
+		var b := _card(row, preview, info.name, info.price, "Colocar")
 		b.pressed.connect(func():
 			close()
 			hud.decoration_chosen.emit(kind))
 		_deco_buttons[kind] = b
 
-	var sky_col := VBoxContainer.new()
-	sky_col.add_theme_constant_override("separation", 10)
-	top.add_child(sky_col)
-	sky_col.add_child(_section("Cielo"))
-	var sky_row := HBoxContainer.new()
-	sky_row.add_theme_constant_override("separation", CARD_GAP)
-	sky_col.add_child(sky_row)
-	var moon_icon := CenterContainer.new()
-	moon_icon.add_child(HUD.HudIcon.make("blood_moon", 44))
-	_moon_btn = _unlock_card(sky_row, moon_icon, "Luna de Sangre", Moon.PRICE,
-			"De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla.", hud.unlock_blood_moon)
-	var sun_icon := CenterContainer.new()
-	sun_icon.add_child(HUD.HudIcon.make("blood_sun", 44))
-	sun_icon.modulate = Color(1, 1, 1, 0.45)
-	_card(sky_row, sun_icon, "Sol de Sangre", -1, "Próximamente").disabled = true
-
-	var shark_col := VBoxContainer.new()
-	shark_col.add_theme_constant_override("separation", 10)
-	top.add_child(shark_col)
-	shark_col.add_child(_section(tr("Tiburones (máx. %d)") % Shark.MAX))
-	var shark_row := HBoxContainer.new()
-	shark_row.add_theme_constant_override("separation", CARD_GAP)
-	shark_col.add_child(shark_row)
-	for i in Shark.MAX:
-		var icon := CenterContainer.new()
-		icon.add_child(HUD.HudIcon.make("shark", 40))
-		var b := _card(shark_row, icon, tr("Tiburón %d") % (i + 1), Shark.PRICE, "Comprar")
-		var card := b.get_parent()
-		var price: Control = card.get_node("Price")
-		var status := HUD.make_label("", 12, HUD.C_TEXT)
-		status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		card.add_child(status)
-		card.move_child(status, price.get_index())
-		b.pressed.connect(func():
-			if hud.shark_owned[i]:
-				hud.set_shark_on(i, not hud.shark_on[i])
-			else:
-				hud.buy_shark()
-			_sync())
-		_sharks.append({"btn": b, "icon": icon, "price": price, "status": status})
-
-	# Los poderes, malos y buenos (como las pestañas de la barra)
-	var bottom := HBoxContainer.new()
-	bottom.add_theme_constant_override("separation", 22)
-	col.add_child(bottom)
-	var power_rows := {}   # bueno -> fila
-	for good: bool in [false, true]:
-		var power_col := VBoxContainer.new()
-		power_col.add_theme_constant_override("separation", 10)
-		bottom.add_child(power_col)
-		power_col.add_child(_section("Poderes buenos" if good else "Poderes malos"))
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", CARD_GAP)
-		power_col.add_child(row)
-		power_rows[good] = row
+## Los poderes malos y los buenos (como las pestañas de la barra).
+func _build_powers(evil_page: Control, good_page: Control) -> void:
+	var rows := {false: _row(evil_page), true: _row(good_page)}   # bueno -> fila
 	for t in HUD.TOOLS:
 		if t[0] == "feed":
 			continue   # La comida no se compra: está desde el principio
-		var power_row: HBoxContainer = power_rows[t[5]]
+		var power_row: HBoxContainer = rows[t[5]]
 		var icon := CenterContainer.new()
 		icon.add_child(HUD.HudIcon.make(t[0], 40))
 		match t[0]:
@@ -179,9 +164,70 @@ func _ready() -> void:
 				var b := _card(power_row, icon, t[1], -1, "Próximamente")
 				b.disabled = true
 
-func open() -> void:
+## El cielo (la Luna de Sangre y, próximamente, el Sol de Sangre) y los tiburones.
+func _build_sky(page: Control) -> void:
+	var sky_col := VBoxContainer.new()
+	sky_col.add_theme_constant_override("separation", 10)
+	page.add_child(sky_col)
+	sky_col.add_child(_section("Cielo"))
+	var sky_row := _row(sky_col)
+	var moon_icon := CenterContainer.new()
+	moon_icon.add_child(HUD.HudIcon.make("blood_moon", 44))
+	_moon_btn = _unlock_card(sky_row, moon_icon, "Luna de Sangre", Moon.PRICE,
+			"De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla.", hud.unlock_blood_moon)
+	var sun_icon := CenterContainer.new()
+	sun_icon.add_child(HUD.HudIcon.make("blood_sun", 44))
+	sun_icon.modulate = Color(1, 1, 1, 0.45)
+	_card(sky_row, sun_icon, "Sol de Sangre", -1, "Próximamente").disabled = true
+
+	var shark_col := VBoxContainer.new()
+	shark_col.add_theme_constant_override("separation", 10)
+	page.add_child(shark_col)
+	shark_col.add_child(_section(tr("Tiburones (máx. %d)") % Shark.MAX))
+	var shark_row := _row(shark_col)
+	for i in Shark.MAX:
+		var icon := CenterContainer.new()
+		icon.add_child(HUD.HudIcon.make("shark", 40))
+		var b := _card(shark_row, icon, tr("Tiburón %d") % (i + 1), Shark.PRICE, "Comprar")
+		var card := b.get_parent()
+		var price: Control = card.get_node("Price")
+		var status := HUD.make_label("", 12, HUD.C_TEXT)
+		status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		card.add_child(status)
+		card.move_child(status, price.get_index())
+		b.pressed.connect(func():
+			if hud.shark_owned[i]:
+				hud.set_shark_on(i, not hud.shark_on[i])
+			else:
+				hud.buy_shark()
+			_sync())
+		_sharks.append({"btn": b, "icon": icon, "price": price, "status": status})
+
+## Abre la tienda (en la pestaña tab, o en la última que se miró).
+func open(tab := -1) -> void:
+	if tab >= 0:
+		_set_tab(tab)
 	visible = true
 	_sync()
+
+func _set_tab(t: Tab) -> void:
+	_tab = t
+	_desc.text = TABS[t][3]
+	for k: Tab in _pages:
+		_pages[k].visible = k == t
+	for k: Tab in _tab_btns:
+		var b: Button = _tab_btns[k]
+		var on := k == t
+		var c: Color = TABS[k][2]
+		var pad := Vector4(10 + TAB_ICON + 7, 2, 14, 2)
+		var box := HUD.make_box(Color(c, 0.24), 9, Color(c, 0.8), 2, pad) if on \
+				else HUD.make_box(Color(1, 1, 1, 0.06), 9, Color(1, 1, 1, 0.10), 1, pad)
+		b.add_theme_stylebox_override("normal", box)
+		b.add_theme_stylebox_override("hover", box if on else HUD.make_box(Color(c, 0.14), 9, Color(c, 0.5), 1, pad))
+		b.add_theme_stylebox_override("pressed", box)
+		for state in ["font_color", "font_hover_color", "font_pressed_color"]:
+			b.add_theme_color_override(state, c if on else HUD.C_MUTED)
+		b.get_meta("icon").modulate = Color.WHITE if on else Color(1, 1, 1, 0.55)
 
 func close() -> void:
 	visible = false
@@ -242,6 +288,29 @@ func _unlock_card(parent: Control, preview: Control, title: String, price: int, 
 		unlock.call()
 		_sync())
 	return b
+
+## Pestaña con su ícono adelante del título.
+func _tab_button(parent: Control, t: Tab) -> Button:
+	var b := Button.new()
+	b.text = TABS[t][0]
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, TAB_H)
+	b.add_theme_font_size_override("font_size", 14)
+	b.pressed.connect(_set_tab.bind(t))
+	parent.add_child(b)
+	var icon := HUD.HudIcon.make(TABS[t][1], TAB_ICON)
+	icon.position = Vector2(10, (TAB_H - TAB_ICON) * 0.5)
+	b.add_child(icon)
+	b.set_meta("icon", icon)
+	return b
+
+## Una fila de tarjetas (de su alto, aunque la página sea más alta: si no, se estiran).
+func _row(parent: Control) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", CARD_GAP)
+	row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	parent.add_child(row)
+	return row
 
 func _section(title: String) -> Label:
 	var l := HUD.make_label(title, 11, HUD.C_MUTED)

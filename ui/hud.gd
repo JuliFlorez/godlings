@@ -375,14 +375,15 @@ func spend_offerings(amount: int) -> bool:
 	_refresh()
 	return true
 
-func open_shop() -> void:
+## Abre la tienda (en la pestaña tab, o en la última que se miró; ver Shop.Tab).
+func open_shop(tab := -1) -> void:
 	if _shop == null:
 		_shop = Shop.new()
 		_shop.hud = self
 		_root.add_child(_shop)
 	if _history:
 		_history.close()
-	_shop.open()
+	_shop.open(tab)
 
 ## Abre o cierra el historial de quién se hizo amigo, enemigo o pareja de quién.
 func toggle_history() -> void:
@@ -989,7 +990,8 @@ func _tab_button(parent: Control, kind: String, tip: String) -> Button:
 	b.set_meta("icon", icon)
 	return b
 
-## Arma o poder que se compra en la tienda: lo saca o lo guarda, y bloqueado lleva a la tienda.
+## Arma o poder que se compra en la tienda: lo saca o lo guarda, y bloqueado lleva a la tienda
+## (a la pestaña de los poderes buenos o de los malos, según cuál sea).
 func _weapon_slot(slot: Button, active: StyleBoxFlat, unlocked: Callable, toggle: Callable) -> Button:
 	slot.add_theme_stylebox_override("pressed", active)
 	slot.set_meta("lock", _slot_badge(slot, "EN LA TIENDA", C_SHOP))
@@ -997,7 +999,7 @@ func _weapon_slot(slot: Button, active: StyleBoxFlat, unlocked: Callable, toggle
 		if unlocked.call():
 			toggle.call()
 		else:
-			open_shop())
+			open_shop(Shop.Tab.GOOD if _tool_slots.get(slot, false) else Shop.Tab.EVIL))
 	return slot
 
 ## Panel de la barra de abajo; devuelve la fila donde van los slots.
