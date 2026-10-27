@@ -81,7 +81,8 @@ var _autosave_t := 0.0
 var slot := 0
 ## Ya llegó la cámara a la isla: corren los rezos, el tiempo de juego y el guardado.
 var playing := false
-var _play_time := 0.0   # Segundos jugados en esta partida (se guarda con ella)
+## Segundos jugados en esta partida (se guarda con ella; ver Relations.history).
+static var play_time := 0.0
 
 ## Menú de inicio: la cámara arranca INTRO_HEIGHT px más arriba, con el colchón de nubes
 ## (ver CloudBank) abajo de la pantalla. Al elegir partida baja: primero acelerando hasta
@@ -226,6 +227,7 @@ func _ready() -> void:
 				placer.stop())
 
 	Villager.ids_issued = 0
+	play_time = 0.0
 	Relations.clear()
 	_start_music()
 
@@ -305,7 +307,7 @@ func _process(dt: float) -> void:
 				hud.add_offerings(n)
 		_update_outbreak(dt)
 
-	_play_time += dt
+	play_time += dt
 	_autosave_t += dt
 	if _autosave_t >= AUTOSAVE_INTERVAL:
 		_autosave_t = 0.0
@@ -586,8 +588,8 @@ func debug_spawn_villagers(n: int) -> void:
 
 # ---- Partida guardada ----
 ## Guarda lo que hace a la partida: progreso y compras (ver HUD.save_state), el tamaño
-## de la isla, los aldeanos con su carnet y lo que se quieren entre ellos (ver Relations),
-## las decoraciones y cómo está el cielo.
+## de la isla, los aldeanos con su carnet y lo que se quieren entre ellos (con el historial,
+## ver Relations), las decoraciones y cómo está el cielo.
 ## Lo que pasa en el momento no (cadáveres, cocos sueltos, aldeanos volando o en el
 ## agua): los vivos que no estaban parados en la isla aparecen en ella al cargar.
 ## Solo jugando: en el menú de inicio no hay partida, y mientras la cámara baja ya está
@@ -625,13 +627,14 @@ func save_game() -> void:
 	cfg.set_value("island", "villagers", villagers)
 	cfg.set_value("island", "next_id", Villager.ids_issued)
 	cfg.set_value("island", "relations", Relations.save_state(ids))
+	cfg.set_value("island", "history", Relations.history)
 	cfg.set_value("island", "decorations", decorations)
 	cfg.set_value("sky", "night", sky.is_night)
 	cfg.set_value("sky", "sun_creepy", sky.sun.creepy)
 	cfg.set_value("sky", "moon_creepy", sky.moon.creepy)
 	cfg.set_value("sky", "moon_fed", sky.moon.feed_level)
 	cfg.set_value("meta", "saved_at", Time.get_unix_time_from_system())   # Para el menú de inicio
-	cfg.set_value("meta", "play_time", _play_time)
+	cfg.set_value("meta", "play_time", play_time)
 	cfg.save(SaveSlots.path(slot))
 
 ## Sigue la partida guardada en la ranura. false si estaba vacía (arranca una nueva).
@@ -639,7 +642,7 @@ func _load_game() -> bool:
 	var cfg := ConfigFile.new()
 	if hud == null or cfg.load(SaveSlots.path(slot)) != OK:
 		return false
-	_play_time = cfg.get_value("meta", "play_time", 0.0)
+	play_time = cfg.get_value("meta", "play_time", 0.0)
 	hud.load_state(cfg.get_value("game", "hud", {}))
 	set_island_level(cfg.get_value("island", "level", island_level))
 	for d: Dictionary in cfg.get_value("island", "decorations", []):
@@ -659,6 +662,7 @@ func _load_game() -> bool:
 		v.set_flu(d.get("flu", Villager.Flu.HEALTHY) as Villager.Flu, d.get("flu_t", 0.0))
 	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
 	Relations.load_state(cfg.get_value("island", "relations", []))
+	Relations.load_history(cfg.get_value("island", "history", []))
 
 	var sky := $Sky
 	if cfg.get_value("sky", "night", false):

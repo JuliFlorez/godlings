@@ -1,7 +1,8 @@
 extends CanvasLayer
 class_name HUD
 ## Panel superior izquierdo: XP (progreso al próximo punto de expansión),
-## Devoción, población de la isla, botones de Invocar / Expandir, Ofrendas y Tienda.
+## Devoción, población de la isla, botones de Invocar / Expandir, Ofrendas, Tienda e Historial
+## (quién se hizo amigo, enemigo o pareja de quién, ver HistoryPanel).
 ## Menú inferior: modo del click (arrastrar o seleccionar aldeanos) y armas y poderes
 ## (los que todavía no existen dicen "Próximamente").
 ## Toda la interfaz se construye por código. Debajo de todo va overlay: lo que se dibuja
@@ -70,6 +71,7 @@ const C_OFFERING := Color(1.0, 0.84, 0.34)
 const C_SHOP := Color(0.46, 0.84, 0.52)
 const C_PLAGUE := Color(0.55, 0.85, 0.3)
 const C_CURE := Color(1.0, 0.88, 0.45)
+const C_HISTORY := Color(0.74, 0.66, 1.0)
 
 ## Menú inferior de armas y poderes: [ícono, nombre, tecla, disponible, descripción, bueno]
 ## Van en dos pestañas: los malos (la carita con cuernos) y los buenos (la de la aureola).
@@ -135,6 +137,8 @@ var _offer_value: Label
 var _offer_chip: Control
 var _shop_btn: Button
 var _shop: Shop
+var _history_btn: Button
+var _history: HistoryPanel
 var _placing := false
 var _decor_edit := DecorPlacer.Edit.NONE
 var _pause: PauseMenu
@@ -175,10 +179,16 @@ func _ready() -> void:
 		add_child(console)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_S \
-			and not get_tree().paused:
-		set_select_mode(not select_mode)
-		get_viewport().set_input_as_handled()
+	if not (event is InputEventKey and event.pressed and not event.echo) or get_tree().paused:
+		return
+	match event.keycode:
+		KEY_S:
+			set_select_mode(not select_mode)
+			get_viewport().set_input_as_handled()
+		KEY_H:
+			if visible:   # En el menú de inicio no (todavía no hay partida)
+				toggle_history()
+				get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	# Recarga suave de Devoción (no durante el menú de pausa)
@@ -332,7 +342,22 @@ func open_shop() -> void:
 		_shop = Shop.new()
 		_shop.hud = self
 		_root.add_child(_shop)
+	if _history:
+		_history.close()
 	_shop.open()
+
+## Abre o cierra el historial de quién se hizo amigo, enemigo o pareja de quién.
+func toggle_history() -> void:
+	if _history == null:
+		_history = HistoryPanel.new()
+		_history.hud = self
+		_root.add_child(_history)
+	if _history.visible:
+		_history.close()
+		return
+	if _shop:
+		_shop.close()
+	_history.open()
 
 func unlock_gun() -> bool:
 	if Gun.unlocked or not spend_offerings(Gun.PRICE):
@@ -492,7 +517,7 @@ func load_state(d: Dictionary) -> void:
 	expansion_points_changed.emit(expansion_points)
 	_refresh()
 
-## Si Esc puede abrir el menú de pausa (no la está usando la tienda, la colocación
+## Si Esc puede abrir el menú de pausa (no la está usando la tienda, el historial, la colocación
 ## de decoraciones, las armas y poderes ni el carnet, que la usan para cerrar/terminar/guardar).
 ## (El diluvio no: se calma con D.)
 ## Tampoco con el click apretado: en pausa se perdería el soltado de lo que se está
@@ -500,8 +525,8 @@ func load_state(d: Dictionary) -> void:
 func esc_is_free() -> bool:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return false
-	return not (_shop and _shop.visible) and not _placing and not aiming() \
-			and _decor_edit != DecorPlacer.Edit.MOVING and not _card.visible
+	return not (_shop and _shop.visible) and not (_history and _history.visible) and not _placing \
+			and not aiming() and _decor_edit != DecorPlacer.Edit.MOVING and not _card.visible
 
 ## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.
 func _on_locale_changed() -> void:
@@ -717,6 +742,10 @@ func _build_ui() -> void:
 	_shop_btn = _action_button(shop_row, C_SHOP)
 	_shop_btn.text = "Tienda"
 	_shop_btn.pressed.connect(open_shop)
+	_history_btn = _action_button(shop_row, C_HISTORY)
+	_history_btn.text = "Historial"
+	_history_btn.tooltip_text = "Quién se hizo amigo, enemigo o pareja de quién [H]"
+	_history_btn.pressed.connect(toggle_history)
 
 	_hint = Label.new()
 	_hint.add_theme_font_size_override("font_size", 12)

@@ -8,10 +8,11 @@ class_name Relations
 ## Cada dos aldeanos tienen además su química (si se caen bien de entrada) y su atracción,
 ## fijas: salen de sus números de carnet, así no hace falta guardarlas.
 ## Se guarda con la partida (ver World.save_game) y se ve en el carnet (ver VillagerCard).
+## Cada cambio queda anotado en el historial (ver HistoryPanel).
 
 enum Kind { NONE, FRIEND, ENEMY, COUPLE }
-## Lo que cambió con una charla (para avisar con un cartel).
-enum Event { NONE, FRIENDS, ENEMIES, MADE_UP, COUPLE, BROKE_UP }
+## Lo que cambió con una charla (para avisar con un cartel y anotarlo en el historial).
+enum Event { NONE, FRIENDS, ENEMIES, MADE_UP, COUPLE, BROKE_UP, DRIFTED }
 
 const FRIEND_AT := 35.0
 const FRIEND_KEEP := 20.0
@@ -32,13 +33,21 @@ const COLORS := {
 	Kind.COUPLE: Color(1.0, 0.52, 0.74),
 }
 
+const HISTORY_MAX := 100         # Los más viejos se van borrando
+
 static var _affinity := {}       # Vector2i(carnet menor, carnet mayor) -> float
 static var _bonds := {}          # Vector2i -> Kind (los que no son NONE)
+## Historial, del más viejo al más nuevo: {time (segundos jugados, ver World.play_time),
+## event, a, b (carnets), a_name, b_name (para cuando ya no estén)}.
+static var history: Array[Dictionary] = []
+static var history_version := 0  # Sube con cada cambio (para rearmar el panel solo si hace falta)
 
 ## Sin nadie (al arrancar el mundo, antes de cargar una partida).
 static func clear() -> void:
 	_affinity.clear()
 	_bonds.clear()
+	history.clear()
+	history_version += 1
 
 static func _key(a: Villager, b: Villager) -> Vector2i:
 	return Vector2i(mini(a.id_number, b.id_number), maxi(a.id_number, b.id_number))
@@ -97,8 +106,25 @@ static func chat_weight(a: Villager, b: Villager) -> float:
 			return 0.6
 	return 1.0
 
-## Terminó una charla: suma delta a lo que se quieren. Devuelve lo que cambió entre ellos.
+## Terminó una charla: suma delta a lo que se quieren. Devuelve lo que cambió entre ellos (y
+## lo anota en el historial).
 static func change(a: Villager, b: Villager, delta: float) -> Event:
+	var ev := _change(a, b, delta)
+	if ev != Event.NONE:
+		history.append({
+			"time": World.play_time,
+			"event": ev,
+			"a": a.id_number,
+			"b": b.id_number,
+			"a_name": a.full_name(),
+			"b_name": b.full_name(),
+		})
+		if history.size() > HISTORY_MAX:
+			history.pop_front()
+		history_version += 1
+	return ev
+
+static func _change(a: Villager, b: Villager, delta: float) -> Event:
 	var k := _key(a, b)
 	var aff := clampf(affinity(a, b) + delta, -100.0, 100.0)
 	_affinity[k] = aff
@@ -112,7 +138,8 @@ static func change(a: Villager, b: Villager, delta: float) -> Event:
 				_bonds[k] = Kind.COUPLE
 				return Event.COUPLE
 			if aff < FRIEND_KEEP:
-				_bonds.erase(k)   # Se distanciaron (sin cartel)
+				_bonds.erase(k)
+				return Event.DRIFTED   # Se distanciaron (sin cartel)
 		Kind.ENEMY:
 			if aff > ENEMY_KEEP:
 				_bonds.erase(k)
@@ -126,8 +153,13 @@ static func change(a: Villager, b: Villager, delta: float) -> Event:
 				return Event.ENEMIES
 	return Event.NONE
 
-## Se murió o ya no está: deja de contar para los demás.
+## Se murió o ya no está: deja de contar para los demás (en el historial queda con el nombre
+## que tenía).
 static func forget(v: Villager) -> void:
+	for e in history:
+		for side: String in ["a", "b"]:
+			if e[side] == v.id_number:
+				e[side + "_name"] = v.full_name()
 	for k: Vector2i in _affinity.keys():
 		if k.x == v.id_number or k.y == v.id_number:
 			_affinity.erase(k)
@@ -150,3 +182,11 @@ static func load_state(rows: Array) -> void:
 		_affinity[k] = float(r[2])
 		if int(r[3]) != Kind.NONE:
 			_bonds[k] = int(r[3])
+
+## Para la partida guardada (va después de load_state, que borra todo).
+static func load_history(rows: Array) -> void:
+	history.clear()
+	for e: Dictionary in rows:
+		if e.has_all(["time", "event", "a", "b"]):
+			history.append(e)
+	history_version += 1
