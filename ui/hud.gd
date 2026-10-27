@@ -193,6 +193,7 @@ var _slot_mode: StyleBoxFlat
 var _tags: Control
 var _card: VillagerCard
 var _hut_card: HutCard
+var _family_tree: FamilyTree
 
 func _ready() -> void:
 	add_to_group("hud")
@@ -567,6 +568,16 @@ func select_villager(v: Villager) -> void:
 	_hut_card.close()
 	_card.open(v)
 
+## Abre el árbol genealógico de la familia del aldeano con ese carnet (ver FamilyTree).
+func open_family_tree(id: int) -> void:
+	if _family_tree == null:
+		_family_tree = FamilyTree.new()
+		_family_tree.hud = self
+		_root.add_child(_family_tree)
+	_card.close()
+	_hut_card.close()
+	_family_tree.open(id)
+
 ## Click sobre una choza en modo seleccionar: abre su cartel, para ponerle nombre.
 func select_hut(h: Decoration) -> void:
 	_card.close()
@@ -657,6 +668,7 @@ func esc_is_free() -> bool:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		return false
 	return not (_shop and _shop.visible) and not (_history and _history.visible) and not _placing \
+			and not (_family_tree and _family_tree.visible) \
 			and not aiming() and _decor_edit != DecorPlacer.Edit.MOVING and not _card.visible and not _hut_card.visible
 
 ## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.

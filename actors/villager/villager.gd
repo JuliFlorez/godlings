@@ -1416,9 +1416,15 @@ func _paint_looks(mat: ShaderMaterial) -> void:
 
 ## Para la foto del carnet: un material con su piel y su pelo.
 func looks_material() -> ShaderMaterial:
+	return material_for(skin_tone, skin_warm, hair_color)
+
+## Un material con esa piel y ese pelo (para las fotos: el carnet, el árbol genealógico).
+static func material_for(tone: float, warm: float, hair: Color) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = WATERLINE_SHADER
-	_paint_looks(m)
+	m.set_shader_parameter("skin_tone", tone)
+	m.set_shader_parameter("skin_warm", warm)
+	m.set_shader_parameter("hair_color", Vector3(hair.r, hair.g, hair.b))
 	return m
 
 ## Recién nacido: sale parecido a sus padres (la piel y la altura, entre las de los dos; el
@@ -1771,6 +1777,7 @@ func _grant_sacrifice_xp(offering := SACRIFICE_OFFERING, sacrifices := 1) -> voi
 	if xp_granted:
 		return
 	xp_granted = true
+	Genealogy.remember(self)   # Queda en el árbol genealógico (antes del duelo: todavía tiene pareja)
 	_mourn()   # Toda muerte pasa por acá
 	_ensure_hud()
 	if hud and hud.has_method("add_xp"):

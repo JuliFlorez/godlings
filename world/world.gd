@@ -252,6 +252,7 @@ func _ready() -> void:
 	Villager.ids_issued = 0
 	play_time = 0.0
 	Relations.clear()
+	Genealogy.clear()
 	_start_music()
 
 	# Arranca en el cielo, con el menú de inicio; la partida se carga al elegirla
@@ -698,6 +699,7 @@ func save_game() -> void:
 	cfg.set_value("island", "next_id", Villager.ids_issued)
 	cfg.set_value("island", "relations", Relations.save_state(ids))
 	cfg.set_value("island", "history", Relations.history)
+	cfg.set_value("island", "family", Genealogy.save_state())   # Los que ya no están, para el árbol genealógico
 	cfg.set_value("island", "decorations", decorations)
 	cfg.set_value("sky", "night", sky.is_night)
 	cfg.set_value("sky", "clock", sky.clock)
@@ -755,6 +757,7 @@ func _load_game() -> bool:
 	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
 	Relations.load_state(cfg.get_value("island", "relations", []))
 	Relations.load_history(cfg.get_value("island", "history", []))
+	Genealogy.load_state(cfg.get_value("island", "family", []))
 
 	var sky := $Sky
 	sky.day = cfg.get_value("sky", "day", 1)

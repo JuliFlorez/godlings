@@ -9,8 +9,9 @@ class_name VillagerCard
 ## devoto, fanático, hereje o aterrado; y su ánimo (ver Villager.mood): qué tan contento está y
 ## por qué.
 ## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos; su familia (sus
-## padres y sus hijos) y su casa (la choza donde vive y con quién). Un click en un nombre abre
-## el carnet de ese aldeano, y uno en la choza, su cartel (ver HutCard). Los chicos dicen "Nene"
+## padres y sus hijos, y "Ver árbol" para el árbol genealógico, ver FamilyTree) y su casa (la
+## choza donde vive y con quién). Un click en un nombre abre el carnet de ese aldeano, y uno en la
+## choza, su cartel (ver HutCard). Los chicos dicen "Nene"
 ## o "Nena" en vez del género.
 ## La foto es un rig propio del aldeano (así parpadea) que copia su cara: la boca de
 ## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto.
@@ -280,6 +281,13 @@ func _update_relations() -> void:
 		return
 	_relations_key = key
 	_fill(_family, family, C_FAMILY)
+	if family.is_empty():
+		for c in _family.get_children():
+			c.queue_free()   # Sin la raya: queda solo "Ver árbol"
+	var who := villager.id_number
+	_family.add_child(link_button(tr("Ver árbol"), HUD.C_DEVOTION, func():   # Otro color: no es un pariente
+		if hud:
+			hud.open_family_tree(who)))
 	for c in _home.get_children():
 		c.queue_free()
 	if not villager._home_ok():
