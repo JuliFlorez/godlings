@@ -350,6 +350,10 @@ var pose := Pose.NONE                   # Lo que está haciendo por vos (ver Vil
 var _scram := 0.0                       # Escapándose de tu mano
 var _from_water := false                # Lo agarraste del agua: si lo dejás en la isla, lo rescataste
 var _gentle_death := false              # Se murió de gripe o de hambre (asusta menos a los que lo ven)
+var _worship := 0.0                     # Viendo un ritual en el altar: lo que le queda de rodillas...
+var _worship_at := Vector2.ZERO         # ...rezando para ahí (ver witness_ritual)
+## Acostado en un altar de sacrificios esperando el final del ritual (lo mueve el altar, ver Altar)
+var altar: Altar
 
 # --- Ánimo: qué tan contento está, de 0 (deprimido) a 100 (feliz). Se va acercando de a poco a
 # lo que le toca por cómo está su vida (ver _mood_factors: su pareja, sus amigos y enemigos, sus
@@ -758,7 +762,7 @@ func _physics_process(dt: float) -> void:
 ## Parado o caminando en la isla (no agarrado, volando, en el agua, en un tornado, adentro de su
 ## choza ni muerto).
 func is_idle() -> bool:
-	return not (dragging or falling or in_water or eaten or dead or tornado or inside or asleep)
+	return not (dragging or falling or in_water or eaten or dead or tornado or inside or asleep or altar)
 
 ## Con hambre (aunque sea un poco), libre y tranquilo en la isla.
 func wants_food() -> bool:
@@ -1612,6 +1616,14 @@ func _update_faith(dt: float) -> void:
 	add_fear(-FEAR_FADE * (FEAR_FADE_CHAT if chat_with else 1.0) * dt)
 	if _creepy_sky():
 		add_fear(FEAR_CREEPY * dt)
+	if _worship > 0.0:
+		# Viendo un ritual en el altar: de rodillas, rezando para ese lado
+		_worship -= dt
+		if is_idle() and not on_fire:
+			pose = Pose.PRAY
+			if rig:
+				rig.set_facing_left(_worship_at.x < global_position.x)
+		return
 	_ensure_hud()
 	if hud == null or not hud.visible or not is_idle() or on_fire or _flee > 0.0:
 		return
@@ -1704,7 +1716,8 @@ func _fall_from_shove() -> void:
 		v_fall = minf(push.y, 0.0)
 		swing_vel = clampf(push.x * 0.02, -8.0, 8.0)  # Que trastabille al caer
 
-func _grant_sacrifice_xp() -> void:
+## Cuenta como sacrificio: XP, sacrificios y ofrendas (el altar da más, ver Altar).
+func _grant_sacrifice_xp(offering := SACRIFICE_OFFERING, sacrifices := 1) -> void:
 	if xp_granted:
 		return
 	xp_granted = true
@@ -1712,9 +1725,66 @@ func _grant_sacrifice_xp() -> void:
 	_ensure_hud()
 	if hud and hud.has_method("add_xp"):
 		hud.add_xp(1)
-		hud.add_sacrifice()
-		hud.add_offerings(SACRIFICE_OFFERING)
-		hud.popup_text(tr("+%d ofrendas") % SACRIFICE_OFFERING, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
+		hud.add_sacrifice(sacrifices)
+		hud.add_offerings(offering)
+		hud.popup_text(tr("+%d ofrendas") % offering, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
+
+# --- ALTAR ---
+## Lo soltaste encima del altar (ver Altar): queda acostado en la piedra, pataleando y con la
+## boca abierta, hasta el final del ritual (lo mueve el altar).
+func lay_on_altar(a: Altar) -> void:
+	altar = a
+	wake_up(false)
+	_going_home = false
+	if food:
+		food.release_eater()
+	if chat_with:
+		_end_chat()
+	set_physics_process(false)
+	velocity = Vector2.ZERO
+	rotation = (1.0 if randf() < 0.5 else -1.0) * PI * 0.5
+	z_index = 1   # Arriba de la piedra (por el orden por Y quedaría detrás del altar)
+	_scared = Altar.RITUAL_TIME + 1.0   # La boca abierta (ver VillagerRig)
+	add_fear(FEAR_THROW)
+
+## Ya no hay altar (lo quitaron): se cae de la piedra.
+func leave_altar() -> void:
+	altar = null
+	z_index = 0
+	set_physics_process(true)
+	_start_fall()
+
+## El final del ritual (ver Altar): cuenta como sacrificio, con lo que da el altar, y se
+## deshace en brasas.
+func sacrifice(offering: int, sacrifices: int) -> void:
+	altar = null
+	eaten = true   # Ya no está (como si se lo hubiera comido el tiburón)
+	_grant_sacrifice_xp(offering, sacrifices)
+	var tw := create_tween()
+	tw.tween_property(self, "modulate", Color(1.0, 0.3, 0.15, 0.0), 0.35)
+	tw.tween_callback(queue_free)
+
+## Ve que en el altar (en at) van a sacrificar a alguien (ver Altar): deja lo que está haciendo
+## y mira. El devoto (o el fanático) se arrodilla a rezar, el aterrado sale corriendo y el hereje
+## se queda mirando con la boca abierta.
+func witness_ritual(time: float, at: Vector2) -> void:
+	if not is_idle() or on_fire:
+		return
+	if chat_with:
+		_end_chat()
+	if food:
+		food.release_eater()
+	match creed():
+		Creed.DEVOUT, Creed.ZEALOT:
+			_worship = time
+			_worship_at = at
+		Creed.TERRIFIED:
+			_scram = time * 0.5
+			dir = (global_position - at).normalized()
+			_update_sprite_flip()
+			_resting = false
+		_:
+			scare(time, at)
 
 # --- DISPARO / MUERTE ---
 ## Llamado por la pistola. hit_point y shot_dir en coordenadas globales.
@@ -2089,7 +2159,7 @@ class AshPile extends Node2D:
 # --- METEORITO ---
 ## Si lo puede alcanzar una explosión (vivo o cadáver; no si se está friendo por un rayo).
 func can_blast() -> bool:
-	return not eaten and not inside and zap_state == Zap.NONE and not is_queued_for_deletion()
+	return not eaten and not inside and altar == null and zap_state == Zap.NONE and not is_queued_for_deletion()
 
 ## Ve venir un meteorito desde from: lo mira, con la boca abierta, durante time segundos.
 func scare(time: float, from: Vector2) -> void:
@@ -2774,6 +2844,9 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _start_drag() -> void:
+	if altar:
+		altar.release()   # Lo sacaste del altar a tiempo
+		altar = null
 	if asleep:
 		wake_up(false)
 		add_mood(MOOD_WOKEN, "La despertaste" if gender == Gender.FEMALE else "Lo despertaste")
@@ -2812,6 +2885,10 @@ func _stop_drag() -> void:
 	if moon and moon.can_eat_at(get_viewport().get_mouse_position()):
 		_feed_to(moon)
 		return
+	for node in get_tree().get_nodes_in_group("altar"):
+		var a := (node as Decoration).ritual
+		if a and a.takes(self, get_global_mouse_position()):
+			return   # Lo soltaste encima de un altar
 	set_physics_process(true)
 	z_index = 0
 

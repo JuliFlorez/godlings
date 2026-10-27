@@ -295,6 +295,7 @@ func _remove(d: Decoration) -> void:
 	# comerle las bayas)
 	d.remove_from_group("berry_bush")
 	d.remove_from_group("hut")   # Los que vivían ahí se quedan sin casa (ver Villager._home_ok)
+	d.remove_from_group("altar")   # Si estaban sacrificando a alguien, se salva (ver Altar)
 	d.reparent(get_parent())
 	var tw := d.create_tween()
 	tw.tween_property(d, "scale", Vector2.ZERO, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)

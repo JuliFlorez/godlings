@@ -1,7 +1,7 @@
 extends Node2D
 class_name Decoration
-## Decoración de la isla (palmera, arbusto de bayas, flores, roca, antorcha, choza), dibujada
-## por código. En las chozas viven los aldeanos (ver Villager.home): de noche duermen adentro
+## Decoración de la isla (palmera, arbusto de bayas, flores, roca, antorcha, choza, altar de
+## sacrificios), dibujada por código. En el altar se sacrifican aldeanos (ver Altar). En las chozas viven los aldeanos (ver Villager.home): de noche duermen adentro
 ## (con la puerta iluminada y unas zetas saliendo del techo) y de día entran cada tanto a
 ## descansar; las parejas que están adentro juntas cada tanto tienen un bebé (ver _try_birth).
 ## Arriba de la puerta tienen un cartel con el nombre que les pone el jugador (ver hut_name y
@@ -22,6 +22,7 @@ const KINDS := {
 	"rock": {"name": "Roca", "price": 5, "icon_scale": 1.5},
 	"torch": {"name": "Antorcha", "price": 12, "icon_scale": 0.62},
 	"hut": {"name": "Choza", "price": 40, "icon_scale": 0.46},
+	"altar": {"name": "Altar de sacrificios", "price": 120, "icon_scale": 0.52},
 }
 
 const FLOWER_COLORS: Array[Color] = [
@@ -63,6 +64,7 @@ const HIT_RECTS := {
 	"rock": Rect2(-21, -22, 42, 25),
 	"torch": Rect2(-12, -78, 24, 81),
 	"hut": Rect2(Vector2(-46, -80) * HUT_SCALE, Vector2(92, 82) * HUT_SCALE),
+	"altar": Rect2(Vector2(-62, -62) * ALTAR_SCALE, Vector2(124, 64) * ALTAR_SCALE),
 }
 
 ## Cocos de la palmera: crecen de a uno en los lugares libres de la copa y se pueden arrancar.
@@ -109,6 +111,17 @@ const HUT_DEPTH := 18.0             # Lo que ocupa en el piso para atrás de la 
 const HUT_LEAVES: Array[Vector3] = [Vector3(-31, -40, 0.7), Vector3(-17, -53, -0.4), Vector3(14, -55, 0.5), Vector3(30, -42, -0.8)]
 const C_HUT_INK := Color(0.22, 0.13, 0.06)   # El contorno de todo
 const C_HUT_WOOD := Color(0.5, 0.31, 0.15)
+## Altar de sacrificios: como la choza, se dibuja en sus medidas y se agranda ALTAR_SCALE veces.
+const ALTAR_SCALE := 1.3
+const ALTAR_TOP := -44.0            # La cara de arriba de la piedra (donde queda acostado el que sacrificás)
+const ALTAR_LIGHT := Vector2(0, -50)   # Donde ilumina de noche (entre los braseros)
+const ALTAR_LIGHT_SCALE := 1.2
+const C_ALTAR_STONE := Color(0.5, 0.47, 0.52)
+const C_STAIN := Color(0.42, 0.04, 0.06, 0.85)
+## Las manchas de sangre de la piedra (aparecen de a una con cada sacrificio): (x, ancho, chorreado)
+const ALTAR_STAINS: Array[Vector3] = [Vector3(-8, 9, 6), Vector3(14, 7, 3), Vector3(-24, 6, 4), Vector3(4, 5, 8), Vector3(26, 6, 2), Vector3(-16, 5, 5)]
+var stains := 0                    # Altar: los sacrificios que se hicieron acá
+var ritual: Altar                  # Altar: el que hace los sacrificios
 const HUT_NAME_MAX := 14            # Letras del nombre
 static var _sign_font: Font
 var hut_name := "":                 # Lo que dice el cartel (lo escribe el jugador, ver HutCard)
@@ -158,13 +171,19 @@ func _ready() -> void:
 		_door_light.position = Vector2(0, LIFT - HUT_DOOR.y * 0.5 * HUT_SCALE)
 		_door_light.enabled = false
 		add_child(_door_light)
-	if kind == "torch" and not ghost:
-		add_to_group("torch")   # Los aldeanos la buscan para saber si los tienen arriba del fuego
+	if kind == "altar" and not ghost:
+		add_to_group("altar")   # Los aldeanos que soltás encima se sacrifican (ver Villager._stop_drag)
+		ritual = Altar.new()
+		add_child(ritual)
+	if (kind == "torch" or kind == "altar") and not ghost:
+		if kind == "torch":
+			add_to_group("torch")   # Los aldeanos la buscan para saber si los tienen arriba del fuego
 		_sky = get_tree().get_first_node_in_group("sky")
 		_light = PointLight2D.new()
 		_light.texture = _torch_light_texture()
 		_light.color = TORCH_LIGHT_COLOR
-		_light.position = Vector2(0, LIFT) + TORCH_FLAME
+		_light.position = Vector2(0, LIFT) + (TORCH_FLAME if kind == "torch" else ALTAR_LIGHT * ALTAR_SCALE)
+		_light.texture_scale = 1.0 if kind == "torch" else ALTAR_LIGHT_SCALE
 		_light.enabled = false
 		add_child(_light)
 
@@ -249,7 +268,7 @@ func _grow_time() -> float:
 
 func _process(dt: float) -> void:
 	# La palmera se mece, la antorcha titila y a las bayas se las van comiendo
-	if kind == "palm" or kind == "torch" or kind == "berries":
+	if kind == "palm" or kind == "torch" or kind == "berries" or kind == "altar":
 		queue_redraw()
 	if (kind == "palm" or kind == "berries") and not ghost:
 		_grow_fruit(dt)
@@ -300,8 +319,20 @@ func _grow_fruit(dt: float) -> void:
 		_grow_t = _grow_time()
 
 func _draw() -> void:
+	var lit := _lit
+	if kind == "hut":
+		lit = _glow
+	elif ritual:
+		lit = ritual.flames(_lit)
 	paint(self, kind, variant, Time.get_ticks_msec() / 1000.0, ALL_FRUIT if ghost else _fruit_size,
-			_glow if kind == "hut" else _lit, hut_name, Vector2(0, LIFT))
+			lit, hut_name, Vector2(0, LIFT))
+	if kind == "altar":
+		# La sangre de los sacrificios: una mancha más con cada uno, chorreando por adelante
+		draw_set_transform(Vector2(0, LIFT), 0.0, Vector2.ONE * ALTAR_SCALE)
+		for i in mini(stains, ALTAR_STAINS.size()):
+			var s := ALTAR_STAINS[i]
+			draw_colored_polygon(_ellipse(Vector2(s.x, ALTAR_TOP + 1.5), s.y * 0.5, 1.4), C_STAIN)
+			draw_line(Vector2(s.x + 1.0, ALTAR_TOP + 2.0), Vector2(s.x + 1.0, ALTAR_TOP + 2.0 + s.z), C_STAIN, 1.6, true)
 	draw_set_transform(Vector2(0, LIFT))
 	if kind == "hut" and _sleepers > 0 and _glow > 0.5:
 		# Durmiendo: zetas que suben del techo
@@ -336,10 +367,12 @@ static func palm_top(v: float) -> Vector2:
 static func paint(ci: CanvasItem, k: String, v: float, t: float, fruit: Array[float] = ALL_FRUIT, lit := 1.0, label := "",
 		at := Vector2.ZERO, size := 1.0) -> void:
 	ci.draw_set_transform(at, 0.0, Vector2.ONE * size)
-	var shadow: float = {"palm": 20.0, "hut": 44.0 * HUT_SCALE}.get(k, 14.0)
+	var shadow: float = {"palm": 20.0, "hut": 44.0 * HUT_SCALE, "altar": 48.0 * ALTAR_SCALE}.get(k, 14.0)
 	ci.draw_colored_polygon(_ellipse(Vector2(0, 2), shadow, 5), Color(0, 0, 0, 0.18))
 	if k == "hut":
 		ci.draw_set_transform(at, 0.0, Vector2.ONE * size * HUT_SCALE)   # La choza, en sus medidas
+	elif k == "altar":
+		ci.draw_set_transform(at, 0.0, Vector2.ONE * size * ALTAR_SCALE)
 	match k:
 		"palm": _paint_palm(ci, v, t, fruit)
 		"berries": _paint_berry_bush(ci, v, fruit)
@@ -347,6 +380,7 @@ static func paint(ci: CanvasItem, k: String, v: float, t: float, fruit: Array[fl
 		"rock": _paint_rock(ci, v)
 		"torch": _paint_torch(ci, t, lit)
 		"hut": _paint_hut(ci, v, t, lit, label)
+		"altar": _paint_altar(ci, t, lit)
 
 static func _paint_palm(ci: CanvasItem, v: float, t: float, nuts: Array[float]) -> void:
 	var top := palm_top(v)
@@ -573,6 +607,75 @@ static func _bone(ci: CanvasItem, a: Vector2, b: Vector2, ink: Color, k := 1.0) 
 			for side: float in [-1.0, 1.0]:
 				ci.draw_circle(e + n * side, (1.7 + grow) * k, col, true, -1.0, true)
 
+## Altar de sacrificios: una mesa de piedra con runas sobre una tarima de dos escalones, una
+## calavera con dos huesos cruzados entre las patas y dos braseros a los costados. lit: los
+## braseros (0 apagados por la lluvia, 1 prendidos, más de 1 avivados por un ritual).
+static func _paint_altar(ci: CanvasItem, t: float, lit: float) -> void:
+	var ink := C_HUT_INK
+	var stone := C_ALTAR_STONE
+	var dark := stone.darkened(0.22)
+	# La tarima, de dos escalones
+	for r: Rect2 in [Rect2(-46, -8, 92, 8), Rect2(-38, -16, 76, 8)]:
+		ci.draw_rect(r, stone if r.position.y < -8.0 else dark)
+		ci.draw_line(r.position + Vector2(1.0, 1.2), Vector2(r.end.x - 1.0, r.position.y + 1.2), stone.lightened(0.18), 1.0)
+		ci.draw_rect(r, ink, false, 1.2)
+	# Las patas, y entre ellas la calavera
+	for x: float in [-28.0, 16.0]:
+		ci.draw_rect(Rect2(x, -34, 12, 18), dark)
+		ci.draw_rect(Rect2(x, -34, 12, 18), ink, false, 1.2)
+	for d: Vector2 in [Vector2(6, -5), Vector2(-6, -5)]:
+		_bone(ci, Vector2(0, -25) - d, Vector2(0, -25) + d, ink, 0.6)
+	_skull(ci, Vector2(0, -25), 5.0, ink)
+	# La piedra de arriba, con runas talladas adelante
+	var top := ALTAR_TOP
+	var slab := Rect2(-36, top, 72, 10)
+	ci.draw_rect(slab, stone)
+	ci.draw_rect(Rect2(-36, top, 72, 3), stone.lightened(0.18))   # La cara de arriba
+	for i in 5:
+		var x := -28.0 + i * 14.0
+		var rune := PackedVector2Array([Vector2(x - 2.5, top + 8.0), Vector2(x, top + 4.5), Vector2(x + 2.5, top + 8.0)]) \
+				if i % 2 == 0 else PackedVector2Array([Vector2(x - 2.0, top + 4.5), Vector2(x + 2.0, top + 8.0), Vector2(x - 2.0, top + 8.0)])
+		ci.draw_polyline(rune, dark.darkened(0.2), 1.0, true)
+	ci.draw_rect(slab, ink, false, 1.2)
+	# Los braseros
+	for side: float in [-1.0, 1.0]:
+		var x := side * 53.0
+		ci.draw_rect(Rect2(x - 4.0, -30, 8, 30), dark)
+		ci.draw_rect(Rect2(x - 4.0, -30, 8, 30), ink, false, 1.2)
+		var bowl := PackedVector2Array()
+		for i in 9:
+			var a := PI * i / 8.0
+			bowl.append(Vector2(x - cos(a) * 9.0, -36.0 + sin(a) * 6.0))
+		ci.draw_colored_polygon(bowl, Color(0.62, 0.38, 0.16))
+		bowl.append(bowl[0])
+		ci.draw_polyline(bowl, ink, 1.2, true)
+		ci.draw_colored_polygon(_ellipse(Vector2(x, -36.0), 8.0, 1.6), Color(0.4, 0.08, 0.04).lerp(Color(1.0, 0.45, 0.12), minf(lit, 1.0)))
+		if lit > 0.05:
+			_brazier_flame(ci, Vector2(x, -36.0), lit, t + side * 3.0)
+
+## Las llamas de un brasero (k: qué tan grandes; más de 1, avivadas).
+static func _brazier_flame(ci: CanvasItem, base: Vector2, k: float, t: float) -> void:
+	var flick := 1.0 + sin(t * 17.0) * 0.08 + sin(t * 29.0) * 0.05
+	var h := 9.0 * k * flick
+	ci.draw_circle(base + Vector2(0, -h * 0.6), 9.0 * minf(k, 1.6), Color(1.0, 0.6, 0.2, 0.22 * minf(k, 1.0)), true, -1.0, true)
+	ci.draw_colored_polygon(_ellipse(base + Vector2(0, -h * 0.8), 6.0 * minf(k, 1.6) * flick, h), Color(1.0, 0.48, 0.12))
+	ci.draw_colored_polygon(_ellipse(base + Vector2(0, -h * 0.5), 3.0 * minf(k, 1.6), h * 0.55), Color(1.0, 0.92, 0.55))
+
+## Una calavera chiquita, de frente.
+static func _skull(ci: CanvasItem, c: Vector2, r: float, ink: Color) -> void:
+	var bone := Color(0.96, 0.93, 0.84)
+	var jaw := Rect2(c + Vector2(-r * 0.55, r * 0.4), Vector2(r * 1.1, r * 0.65))
+	ci.draw_rect(jaw.grow(0.9), ink)
+	ci.draw_circle(c, r + 0.9, ink, true, -1.0, true)
+	ci.draw_rect(jaw, bone)
+	ci.draw_circle(c, r, bone, true, -1.0, true)
+	for side: float in [-1.0, 1.0]:
+		ci.draw_circle(c + Vector2(side * r * 0.42, 0.05 * r), r * 0.28, ink, true, -1.0, true)
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, r * 0.35), c + Vector2(-r * 0.15, r * 0.6), c + Vector2(r * 0.15, r * 0.6)]), ink)
+	for i in 3:
+		var x := c.x + lerpf(-r * 0.28, r * 0.28, i / 2.0)
+		ci.draw_line(Vector2(x, jaw.position.y + 1.0), Vector2(x, jaw.end.y), ink, 0.6)
+
 ## lit: 1 prendida, 0 apagada (la llama se achica hacia la copa y quedan las brasas).
 static func _paint_torch(ci: CanvasItem, t: float, lit := 1.0) -> void:
 	var flick := 1.0 + sin(t * 17.0) * 0.08 + sin(t * 29.0) * 0.05
@@ -594,6 +697,10 @@ static func _ellipse(c: Vector2, rx: float, ry: float, n := 16) -> PackedVector2
 		var a := TAU * i / n
 		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry))
 	return pts
+
+## Altar: el medio de la cara de arriba de la piedra, donde queda acostado el que sacrificás.
+func altar_top() -> Vector2:
+	return global_position + Vector2(0, LIFT + ALTAR_TOP * ALTAR_SCALE)
 
 ## Choza: el piso frente a la puerta, donde entra y sale el que vive ahí.
 func door() -> Vector2:

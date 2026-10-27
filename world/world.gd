@@ -659,6 +659,8 @@ func save_game() -> void:
 			var entry := {"kind": d.kind, "pos": placer.resting_position(d), "variant": d.variant}
 			if d.hut_name != "":
 				entry.name = d.hut_name   # Lo que dice el cartel de la choza
+			if d.stains > 0:
+				entry.stains = d.stains   # La sangre del altar
 			decorations.append(entry)
 	var villagers := []
 	var ids := []
@@ -727,6 +729,7 @@ func _load_game() -> bool:
 		deco.global_position = d.get("pos", _island_point())
 		deco.variant = d.get("variant", deco.variant)   # Después de _ready, que elige una al azar
 		deco.hut_name = d.get("name", "")
+		deco.stains = d.get("stains", 0)
 		decos.append(deco)
 	for d: Dictionary in cfg.get_value("island", "villagers", []):
 		var v := add_villager(d.get("pos", _island_point()))

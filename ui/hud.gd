@@ -401,9 +401,9 @@ func add_offerings(amount: int) -> void:
 	_flash(_offer_chip)
 	_refresh()
 
-## Se murió un aldeano (ver Villager._grant_sacrifice_xp).
-func add_sacrifice() -> void:
-	sacrifices += 1
+## Se murió un aldeano (ver Villager._grant_sacrifice_xp); en el altar, puede valer más.
+func add_sacrifice(amount := 1) -> void:
+	sacrifices += amount
 	_flash(_sacrifice_chip)
 	_refresh()
 
