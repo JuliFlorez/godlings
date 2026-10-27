@@ -5,7 +5,8 @@ class_name Meteor
 ## meteorito en llamas que explota al llegar: los aldeanos de cerca mueren chamuscados y
 ## salen volando, los de más lejos salen despedidos vivos (ver Villager.blast), y en la isla
 ## queda un cráter con la piedra al rojo, humeando. En el agua levanta una columna de agua y
-## olas. A los tiburones también los mata (ver Shark.blast).
+## olas. A los tiburones también los mata (ver Shark.blast), y las chozas de cerca se hacen
+## pedazos (ver Decoration.smash).
 ## Mientras cae, los que están cerca lo miran venir con la boca abierta (Villager.scare).
 ## El fuego y la mira se dibujan en HUD.overlay (así de noche no se apagan); la sombra y las
 ## olas, en el mundo.
@@ -23,6 +24,7 @@ const FALL_TIME := 0.8          # Lo que tarda en caer
 const KILL_RADIUS := 55.0       # Aldeanos con el cuerpo a menos de esto mueren...
 const PUSH_RADIUS := 110.0      # ...y hasta acá salen volando (vivos)
 const BLAST_SPEED := Vector2(360.0, 600.0)   # Empujón (de costado y para arriba) en el centro
+const HUT_BLAST := 560.0         # Con qué fuerza salen volando los pedazos de una choza
 const ROCK_RADIUS := 10.0
 const TRAIL := 110.0            # Largo de la estela
 const BOOM_TIME := 0.7          # Lo que dura la bola de fuego
@@ -206,6 +208,11 @@ func _impact(m: Dictionary) -> void:
 	if hud:
 		hud.flash_screen(0.4)
 
+	# Las chozas de cerca se hacen pedazos: los de adentro salen y los alcanza la explosión
+	for node in get_tree().get_nodes_in_group("hut"):
+		var h := node as Decoration
+		if h.footprint_point(at).distance_to(at) <= KILL_RADIUS:
+			h.smash(at, HUT_BLAST, 0.7)
 	# Los de cerca mueren y salen volando; los de más lejos solo salen volando
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager

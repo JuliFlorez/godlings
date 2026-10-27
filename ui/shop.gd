@@ -384,5 +384,5 @@ class DecorPreview extends Control:
 
 	func _draw() -> void:
 		var s: float = Decoration.KINDS[kind].icon_scale
-		draw_set_transform(Vector2(size.x * 0.5, size.y - 6.0), 0.0, Vector2(s, s))
-		Decoration.paint(self, kind, 0.5, Time.get_ticks_msec() / 1000.0)
+		Decoration.paint(self, kind, 0.5, Time.get_ticks_msec() / 1000.0, Decoration.ALL_FRUIT, 1.0, "",
+				Vector2(size.x * 0.5, size.y - 6.0), s)

@@ -1160,6 +1160,13 @@ func enter_home() -> void:
 	if food:
 		food.release_eater()
 
+## Le rompieron la choza (ver Decoration.smash): si estaba adentro sale de golpe, y se queda
+## sin casa (después se busca otra).
+func lose_home() -> void:
+	if inside:
+		_leave_home()
+	home = null
+
 ## Sale por la puerta (o donde estaba, si le quitaron la choza).
 func _leave_home() -> void:
 	inside = false

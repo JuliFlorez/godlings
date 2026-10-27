@@ -6,7 +6,7 @@ class_name HutCard
 ## viven ahí: un click en uno abre su carnet. Mientras está abierto, una flechita señala la choza.
 
 const PREVIEW_SIZE := Vector2(132, 104)
-const PREVIEW_SCALE := 1.1
+const PREVIEW_SCALE := 0.78
 const PREVIEW_GROUND := 12.0     # Lo que queda de arena abajo de la choza
 const C_SAND := Color(0.93, 0.83, 0.6)
 
@@ -156,5 +156,5 @@ class Preview extends Control:
 		draw_rect(Rect2(0, ground - 4.0, size.x, size.y - ground + 4.0), C_SAND)
 		if card == null or not is_instance_valid(card.hut):
 			return
-		draw_set_transform(Vector2(size.x * 0.5, ground), 0.0, Vector2.ONE * PREVIEW_SCALE)
-		Decoration.paint(self, "hut", card.hut.variant, 0.0, Decoration.ALL_FRUIT, 0.0, card.hut.hut_name)
+		Decoration.paint(self, "hut", card.hut.variant, 0.0, Decoration.ALL_FRUIT, 0.0, card.hut.hut_name,
+				Vector2(size.x * 0.5, ground), PREVIEW_SCALE)

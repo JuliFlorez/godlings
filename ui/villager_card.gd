@@ -458,7 +458,6 @@ class RelationIcon extends Control:
 
 	func _draw() -> void:
 		if hut:
-			draw_set_transform(Vector2(size.x * 0.5, size.y - 2.0), 0.0, Vector2.ONE * 0.22)
-			Decoration.paint(self, "hut", 0.5, 0.0)
+			Decoration.paint(self, "hut", 0.5, 0.0, Decoration.ALL_FRUIT, 1.0, "", Vector2(size.x * 0.5, size.y - 2.0), 0.16)
 			return
 		SpeechBubble.draw_icon(self, kind, size * 0.5, 0.72)

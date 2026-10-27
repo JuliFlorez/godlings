@@ -6,7 +6,8 @@ class_name Tornado
 ## Chupa a los aldeanos que agarra (vivos o cadáveres, y también a los que pasan volando por
 ## adentro del embudo): los hace girar alrededor, cada vez más arriba, y al rato los revolea
 ## por el aire (ver Villager.enter_tornado). En el agua levanta a los que flotan y saca
-## volando a los tiburones (ver Shark.fling); en la isla revolea los cocos (Coconut.fling).
+## volando a los tiburones (ver Shark.fling); en la isla revolea los cocos (Coconut.fling) y
+## hace pedazos las chozas (Decoration.smash): los de adentro salen y se los chupa.
 ## El embudo se dibuja en el mundo (Funnel, ordenado por Y con los aldeanos: lo que está
 ## adelante lo tapa); la mira, en HUD.overlay.
 
@@ -37,6 +38,7 @@ const FLING_OUT := Vector2(280.0, 520.0)   # Revoleo: de costado...
 const FLING_UP := Vector2(260.0, 480.0)    # ...y para arriba (px/s)
 const SHARK_FLING := Vector2(240.0, 880.0)
 const COCONUT_FLING := Vector2(240.0, 620.0)
+const HUT_FLING := 520.0         # Con qué fuerza salen volando los pedazos de una choza
 const TOUCH_TIME := 0.35         # Lo que tarda el embudo en bajar hasta el piso
 const FADE_TIME := 0.7           # Y en disolverse
 const LIFT := 30.0               # Como un aldeano: el origen del embudo, arriba del piso (orden por Y)
@@ -219,8 +221,13 @@ func _lift_off() -> void:
 	for r in _riders.duplicate():
 		_fling(r)
 
-## Los que agarra (aldeanos, tiburones, cocos).
+## Los que agarra (aldeanos, tiburones, cocos, chozas).
 func _suck() -> void:
+	if not _wet:
+		for node in get_tree().get_nodes_in_group("hut"):
+			var h := node as Decoration
+			if _on_ground(h.footprint_point(_base), CAPTURE_R):
+				h.smash(_base + Vector2(0, 30), HUT_FLING)   # Desde abajo: los pedazos salen para arriba
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
 		if v and v.tornado == null and v.can_be_lifted() and _grabs(v):

@@ -6,7 +6,8 @@ class_name Lightning
 ## Los aldeanos alcanzados se electrocutan (ver Villager.zap): se les ve el esqueleto,
 ## quedan carbonizados y se hacen cenizas. El rayo salta a los que están cerca y, si cae
 ## en el agua, la descarga se esparce y fríe a todos los que flotan alrededor (tiburones
-## incluidos, ver Shark.zap).
+## incluidos, ver Shark.zap). Si cae en una choza la hace pedazos (ver Decoration.smash); los
+## de adentro salen enteros: el rayo se lo llevó la choza.
 ## La nube, los rayos y la mira se dibujan en HUD.overlay (con un HUD.Painter): encima del
 ## mundo pero sin el tinte de la noche (si no, de noche el rayo se vería apagado).
 
@@ -23,6 +24,7 @@ const HIT_RADIUS := 16.0        # Aldeanos con el cuerpo a menos de esto del imp
 const CHAIN_RADIUS := 60.0      # Salta a otro aldeano a menos de esto (centro a centro)...
 const CHAIN_MAX := 3            # ...hasta tantos saltos
 const CHAIN_DELAY := 0.08       # Cada salto llega un poquito después
+const HUT_BLAST := 320.0        # Con qué fuerza salen volando los pedazos de una choza
 const WATER_RADIUS := 240.0     # En el agua la descarga llega hasta acá (a cada lado)
 const BOLT_TIME := 0.55
 const WATER_TIME := 0.75
@@ -152,10 +154,23 @@ func _strike(at: Vector2) -> void:
 	_thunder.play()
 	_sparks(at, 26)
 
+	# La choza en la que cae (la de más adelante) se hace pedazos
+	var hut: Decoration = null
+	for node in get_tree().get_nodes_in_group("hut"):
+		var h := node as Decoration
+		if (h.hit_test(at) or h.footprint_point(at).distance_to(at) <= HIT_RADIUS) \
+				and (hut == null or h.global_position.y > hut.global_position.y):
+			hut = h
+	var hut_floor := hut.door() if hut else Vector2.INF
+	var sheltered: Array[Villager] = []   # Los que estaban adentro salen enteros: el rayo se lo llevó la choza
+	if hut:
+		sheltered.assign(hut.residents().filter(func(v: Villager): return v.inside))
+		hut.smash(at, HUT_BLAST, 0.5)
+
 	# Los que están justo donde cae
 	var direct: Array[Villager] = []
 	for v in _targets():
-		if v.body_distance(at) <= HIT_RADIUS:
+		if v.body_distance(at) <= HIT_RADIUS and not sheltered.has(v):
 			direct.append(v)
 	var victims := direct.duplicate()
 	var zapped_sharks: Array[Shark] = []
@@ -195,7 +210,7 @@ func _strike(at: Vector2) -> void:
 	var jumps := 0
 	while jumps < CHAIN_MAX and not chain.is_empty():
 		var src: Villager = chain.pop_front()
-		var next := _nearest(src.body_center(), victims)
+		var next := _nearest(src.body_center(), victims + sheltered)
 		if next == null:
 			continue
 		jumps += 1
@@ -209,8 +224,8 @@ func _strike(at: Vector2) -> void:
 		_buzz.pitch_scale = randf_range(0.92, 1.08)
 		_buzz.play()
 
-	# El piso: si le pegó a alguien parado en la isla, la quemadura queda a sus pies
-	var ground := at
+	# El piso: si le pegó a una choza o a alguien parado en la isla, la quemadura queda abajo
+	var ground := hut_floor if hut_floor.is_finite() else at
 	for v in direct:
 		if not (v.in_water or v.falling):
 			ground = v.global_position + Vector2(0, Villager.FEET - 2.0)
