@@ -2060,8 +2060,10 @@ func _update_drag(dt: float) -> void:
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed and not dragging and not eaten and not HUD.aiming():
-			# En modo seleccionar no se lo agarra: se abre su carnet
+			# En modo seleccionar no se lo agarra: se abre su carnet. Editando la isla, nada
 			_ensure_hud()
+			if hud and hud.edit_mode:
+				return
 			if hud and hud.select_mode:
 				hud.select_villager(self)
 			else:

@@ -3,8 +3,8 @@ class_name HUD
 ## Panel superior izquierdo: XP (progreso al próximo punto de expansión),
 ## Devoción, población de la isla, botones de Invocar / Expandir, Ofrendas, Tienda e Historial
 ## (quién se hizo amigo, enemigo o pareja de quién, ver HistoryPanel).
-## Menú inferior: modo del click (arrastrar o seleccionar aldeanos) y armas y poderes
-## (los que todavía no existen dicen "Próximamente").
+## Menú inferior: modo del click (arrastrar aldeanos, seleccionarlos o editar la isla) y armas
+## y poderes (los que todavía no existen dicen "Próximamente").
 ## Toda la interfaz se construye por código. Debajo de todo va overlay: lo que se dibuja
 ## encima del mundo sin el tinte de la noche (el destello, el rayo y el meteorito, ver Painter).
 
@@ -22,6 +22,7 @@ signal charm_toggled(kind: Charm.Kind, on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
+signal edit_mode_changed(on: bool)
 signal menu_requested
 
 @export var energy_max: float = 100.0
@@ -42,6 +43,10 @@ var shark_owned: Array[bool] = []
 var shark_on: Array[bool] = []
 ## Modo seleccionar: el click sobre un aldeano abre su carnet en vez de agarrarlo.
 var select_mode := false
+## Modo editar isla: el click es para mover las decoraciones (y el derecho, para quitarlas), y
+## no agarra aldeanos ni cocos. Fuera de este modo las decoraciones no se tocan (ver
+## DecorPlacer): así no se mueven sin querer.
+var edit_mode := false
 var _points_earned: int = 0
 var _refill_rate: float = 0.0  # puntos de energía por segundo
 ## Lo que rinde la recarga de devoción según cuánto creen en vos (ver World._devotion_rate).
@@ -156,6 +161,7 @@ var _decor_edit := DecorPlacer.Edit.NONE
 var _pause: PauseMenu
 var _drag_btn: Button
 var _select_btn: Button
+var _edit_btn: Button
 var _slot_mode: StyleBoxFlat
 var _tags: Control
 var _card: VillagerCard
@@ -200,6 +206,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_H:
 			if visible:   # En el menú de inicio no (todavía no hay partida)
 				toggle_history()
+				get_viewport().set_input_as_handled()
+		KEY_I:
+			if visible:
+				set_edit_mode(not edit_mode)
 				get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
@@ -472,15 +482,31 @@ func lose_shark(index: int) -> void:
 	shark_on[index] = false
 	popup_text("¡Mataste al tiburón! Comprá otro en la tienda", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_WARN)
 
-# ---- Modo seleccionar y carnet ----
+# ---- Modo del click: arrastrar, seleccionar (carnet) o editar la isla ----
 func set_select_mode(on: bool) -> void:
 	if on == select_mode:
 		return
+	if on:
+		set_edit_mode(false)
 	select_mode = on
 	if not on:
 		_card.close()
 	select_mode_changed.emit(on)
 	_refresh()
+
+func set_edit_mode(on: bool) -> void:
+	if on == edit_mode:
+		return
+	if on:
+		set_select_mode(false)
+	edit_mode = on
+	edit_mode_changed.emit(on)
+	_refresh()
+
+## Vuelve a arrastrar aldeanos (ni seleccionar ni editar la isla).
+func set_drag_mode() -> void:
+	set_select_mode(false)
+	set_edit_mode(false)
 
 ## Click sobre un aldeano en modo seleccionar: abre su carnet.
 func select_villager(v: Villager) -> void:
@@ -658,10 +684,10 @@ func _refresh() -> void:
 		if _charm_armed[k]:
 			charm_hint = info.hint
 
-	_drag_btn.add_theme_stylebox_override("normal", _slot_idle if select_mode else _slot_mode)
-	_drag_btn.add_theme_stylebox_override("hover", _slot_hover if select_mode else _slot_mode)
-	_select_btn.add_theme_stylebox_override("normal", _slot_mode if select_mode else _slot_idle)
-	_select_btn.add_theme_stylebox_override("hover", _slot_mode if select_mode else _slot_hover)
+	var dragging := not select_mode and not edit_mode
+	for b: Array in [[_drag_btn, dragging], [_select_btn, select_mode], [_edit_btn, edit_mode]]:
+		b[0].add_theme_stylebox_override("normal", _slot_mode if b[1] else _slot_idle)
+		b[0].add_theme_stylebox_override("hover", _slot_mode if b[1] else _slot_hover)
 
 	if _placing:
 		_hint.text = tr("Click en la isla para colocar · click derecho o Esc para terminar.")
@@ -689,6 +715,8 @@ func _refresh() -> void:
 		_hint.text = tr("Soltalo encima de un aldeano para partirlo.")
 	elif select_mode:
 		_hint.text = tr("Click en un aldeano para ver su carnet y ponerle nombre · S para volver a arrastrar.")
+	elif edit_mode:
+		_hint.text = tr("Arrastrá una decoración para moverla · click derecho para quitarla (devuelve la mitad) · I para volver a arrastrar aldeanos.")
 	elif _raining:
 		_hint.text = tr("¡Diluvio! Rescatá a los que se lleva el agua: arrastralos a lo seco · D para calmarlo.")
 	elif full and not island_maxed:
@@ -837,12 +865,14 @@ func _build_toolbar() -> void:
 	bars.add_theme_constant_override("separation", 10)
 	center.add_child(bars)
 
-	# Modo del click: arrastrar aldeanos o seleccionarlos (carnet)
+	# Modo del click: arrastrar aldeanos, seleccionarlos (carnet) o editar la isla
 	var mode_row := _toolbar_panel(bars)
 	_drag_btn = _tool_slot(mode_row, "hand", "Arrastrar", "", true, "Agarrá y tirá aldeanos [S]")
-	_drag_btn.pressed.connect(set_select_mode.bind(false))
+	_drag_btn.pressed.connect(set_drag_mode)
 	_select_btn = _tool_slot(mode_row, "select", "Seleccionar", "S", true, "Click en un aldeano para ver su carnet [S]")
 	_select_btn.pressed.connect(set_select_mode.bind(true))
+	_edit_btn = _tool_slot(mode_row, "edit", "Editar isla", "I", true, "Mover y quitar decoraciones, sin agarrar aldeanos [I]")
+	_edit_btn.pressed.connect(set_edit_mode.bind(true))
 	mode_row.get_parent().size_flags_vertical = Control.SIZE_SHRINK_END   # Abajo, a la par de los poderes
 
 	# Poderes: arriba las pestañas (malos / buenos) y abajo los de la pestaña elegida
@@ -1271,6 +1301,21 @@ class HudIcon extends Control:
 				draw_arc(face + Vector2(0, 0.06) * s, s * 0.13, 0.15 * PI, 0.85 * PI, 8, ink, maxf(1.2, s * 0.05), true)
 			"cupid", "discord", "friendship":
 				Charm.paint_icon(self, HUD.CHARM_ICONS[kind], s)
+			"edit":
+				# Un lápiz sobre la isla
+				draw_colored_polygon(_pts([0.02, 0.96, 0.16, 0.8, 0.5, 0.74, 0.84, 0.8, 0.98, 0.96]), Color(1.0, 0.86, 0.42))
+				var tip := Vector2(0.22, 0.78) * s
+				var back := Vector2(0.84, 0.16) * s
+				var d := (tip - back).normalized()
+				var n := Vector2(-d.y, d.x) * s * 0.11
+				var band := back + d * s * 0.14
+				var cone := tip - d * s * 0.2
+				draw_colored_polygon(PackedVector2Array([back + n, band + n, band - n, back - n]), Color(1.0, 0.55, 0.62))
+				draw_colored_polygon(PackedVector2Array([band + n, cone + n, cone - n, band - n]), Color(1.0, 0.8, 0.25))
+				draw_colored_polygon(PackedVector2Array([cone + n, tip, cone - n]), Color(0.93, 0.8, 0.6))
+				draw_colored_polygon(PackedVector2Array([tip + (cone - tip) * 0.4 + n * 0.4, tip, tip + (cone - tip) * 0.4 - n * 0.4]), Color(0.2, 0.2, 0.26))
+				var outline := PackedVector2Array([back + n, cone + n, tip, cone - n, back - n, back + n])
+				draw_polyline(outline, Color(0.1, 0.13, 0.22), maxf(1.0, s * 0.045), true)
 			"cure":
 				# Cruz dorada con brillo
 				draw_circle(c, s * 0.46, Color(HUD.C_CURE, 0.25), true, -1.0, true)

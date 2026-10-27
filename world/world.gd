@@ -228,12 +228,14 @@ func _ready() -> void:
 		hud.decoration_chosen.connect(func(k: String):
 			_disarm()
 			placer.start(k))
-		# Al pasar a seleccionar, el click vuelve a ser para los aldeanos
-		hud.select_mode_changed.connect(func(on: bool):
-			if on:
-				_disarm()
-				if placer.is_active():
-					placer.stop())
+		# Al pasar a seleccionar (o a editar la isla), el click vuelve a ser para los aldeanos (o
+		# para las decoraciones)
+		for mode_changed: Signal in [hud.select_mode_changed, hud.edit_mode_changed]:
+			mode_changed.connect(func(on: bool):
+				if on:
+					_disarm()
+					if placer.is_active():
+						placer.stop())
 	# Sacar un arma o poder guarda los demás
 	for w in _weapons():
 		w.armed_changed.connect(func(on: bool):

@@ -37,7 +37,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - ✨ **Curar**: sacalo con C y cada click baja un haz de luz dorada: los aldeanos que alcanza se curan de la gripe (aunque la estuvieran incubando, y quedan inmunes un rato) y, si se estaban quemando, se apagan y se les va el tizne.
 - 🏝️ **Isla Expandible**: La isla tiene 7 tamaños. Empieza chica (5 aldeanos como máximo) y cada expansión sube la capacidad (hasta 26).
 - 🛍️ **Tienda y Ofrendas**: cada sacrificio deja +5 ofrendas y cada aldeano vivo y sano reza cada 10 segundos y deja ofrendas según cuánto cree en vos y cuánto te teme (+1 al empezar). En la Tienda se gastan en:
-  - **Decoración**: palmeras, arbustos, flores, rocas y antorchas. Se colocan con un click sobre la isla (se cobran al colocarlas) y los aldeanos pasan por delante o por detrás según la profundidad.
+  - **Decoración**: palmeras, arbustos, flores, rocas y antorchas. Se colocan con un click sobre la isla (se cobran al colocarlas) y los aldeanos pasan por delante o por detrás según la profundidad. Para moverlas o quitarlas (devuelve la mitad) hay que pasar al modo **Editar isla** (el lápiz de la barra de abajo, o la tecla I): así no se mueven sin querer. En ese modo los clicks no agarran aldeanos.
   - **Armas y poderes**: la pistola se desbloquea por 60 ofrendas, el rayo por 100, el meteorito por 150, el tornado por 200, el diluvio por 250, la peste por 120 y curar por 80.
 - ⚡ **Sistema de Fe / Devoción & XP**:
   - Cada sacrificio (ahogado o comido por el tiburón) da +1 XP.

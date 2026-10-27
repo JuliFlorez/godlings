@@ -4,10 +4,11 @@ class_name DecorPlacer
 ## roja si no). Click en la isla la coloca y cobra; se puede seguir colocando mientras
 ## alcancen las ofrendas. Click derecho o Esc termina.
 ##
-## Fuera de ese modo, las decoraciones ya puestas se editan: se arrastran con click
-## izquierdo para moverlas (si se sueltan fuera de la isla vuelven a su lugar) y con
-## click derecho se quitan, devolviendo la mitad de lo que costaron.
-## Los cocos (en la copa de las palmeras o sueltos) también se agarran con click izquierdo.
+## En el modo editar isla (ver HUD.edit_mode), las decoraciones ya puestas se arrastran con
+## click izquierdo para moverlas (si se sueltan fuera de la isla vuelven a su lugar) y con
+## click derecho se quitan, devolviendo la mitad de lo que costaron; ahí los aldeanos que
+## estén adelante no tapan. Fuera de ese modo no se tocan (así no se mueven sin querer), pero
+## los cocos (en la copa de las palmeras o sueltos) se agarran con click izquierdo.
 
 const MIN_GAP := 14.0       # Distancia mínima entre decoraciones
 const REFUND := 0.5         # Parte del precio que se devuelve al quitar una decoración
@@ -67,6 +68,9 @@ func _process(_dt: float) -> void:
 	if _ghost:
 		_update_ghost()
 	elif _moving:
+		if not _editing():
+			_cancel_move()   # Salió del modo editar isla con una en la mano: vuelve a su lugar
+			return
 		_moving.global_position = get_global_mouse_position() - _grab_offset
 		_moving.valid = _can_place(_moving.global_position, _moving)
 	elif _held_nut:
@@ -161,12 +165,25 @@ func _edit_input(event: InputEvent) -> void:
 	elif event.button_index == MOUSE_BUTTON_RIGHT and h.has("deco"):
 		_remove(h.deco)
 
-## Lo que se puede agarrar bajo el mouse (lo de más adelante): primero los cocos sueltos,
-## después los de las palmeras y por último las decoraciones. Vacío si no hay nada o si
-## hay un aldeano delante: agarrar aldeanos tiene prioridad.
+## En el modo editar isla.
+func _editing() -> bool:
+	return hud != null and hud.edit_mode
+
+## Lo que se puede agarrar bajo el mouse (lo de más adelante). Editando la isla, las
+## decoraciones (aunque haya un aldeano delante: ahí no se los agarra). Si no, los cocos:
+## primero los sueltos y después los de las palmeras; vacío si hay un aldeano delante, que
+## agarrar aldeanos tiene prioridad.
 func _pick(p: Vector2) -> Dictionary:
 	if HUD.aiming() or _held_nut or get_tree().paused or get_viewport().gui_get_hovered_control() != null:
 		return {}
+	if _editing():
+		var deco := {}
+		var deco_y := -INF
+		for c in props.get_children():
+			if c is Decoration and c.hit_test(p) and c.global_position.y > deco_y:
+				deco = {"deco": c}
+				deco_y = c.global_position.y
+		return deco
 	for v in get_tree().get_nodes_in_group("villager"):
 		if v is Villager and v.dragging:
 			return {}
@@ -183,11 +200,6 @@ func _pick(p: Vector2) -> Dictionary:
 				if slot >= 0:
 					best = {"palm": c, "slot": slot}
 					best_y = c.global_position.y
-	if best.is_empty():
-		for c in props.get_children():
-			if c is Decoration and c.hit_test(p) and c.global_position.y > best_y:
-				best = {"deco": c}
-				best_y = c.global_position.y
 	if best.is_empty():
 		return {}
 	var q := PhysicsPointQueryParameters2D.new()
