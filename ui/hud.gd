@@ -459,9 +459,14 @@ func set_select_mode(on: bool) -> void:
 func select_villager(v: Villager) -> void:
 	_card.open(v)
 
-## El aldeano con el carnet abierto (o null).
+## El aldeano con el carnet abierto (o null). Si ya no está (se ahogó o se cayó al vacío) es
+## null aunque el carnet todavía no se haya cerrado: se cierra recién en su _process, y los
+## carteles de las cabezas (ver NameTag) preguntan antes.
 func selected_villager() -> Villager:
-	return _card.villager if _card and _card.visible else null
+	if _card == null or not _card.visible or not is_instance_valid(_card.villager) \
+			or _card.villager.is_queued_for_deletion():
+		return null
+	return _card.villager
 
 ## Cartel con el nombre arriba de la cabeza (cada aldeano pide el suyo al aparecer).
 func add_name_tag(v: Villager) -> void:
