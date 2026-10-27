@@ -1,7 +1,7 @@
 extends Node2D
 class_name Decoration
-## Decoración de la isla (palmera, arbusto, arbusto de bayas, flores, roca, antorcha),
-## dibujada por código. De noche las antorchas iluminan la isla alrededor (PointLight2D); la
+## Decoración de la isla (palmera, arbusto de bayas, flores, roca, antorcha), dibujada por
+## código. De noche las antorchas iluminan la isla alrededor (PointLight2D); la
 ## lluvia del diluvio las apaga hasta que para (ver Storm). A las palmeras les crecen cocos y
 ## a los arbustos de bayas, bayas: los aldeanos con hambre las vienen a comer solos (ver
 ## BerryPick y Villager._seek_food).
@@ -13,7 +13,6 @@ const LIFT := 30.0
 ## Catálogo de la tienda. "icon_scale" ajusta el dibujo al recuadro del ícono.
 const KINDS := {
 	"palm": {"name": "Palmera", "price": 15, "icon_scale": 0.42},
-	"bush": {"name": "Arbusto", "price": 8, "icon_scale": 1.3},
 	"berries": {"name": "Arbusto de bayas", "price": 20, "icon_scale": 1.3},
 	"flowers": {"name": "Flores", "price": 6, "icon_scale": 1.7},
 	"rock": {"name": "Roca", "price": 5, "icon_scale": 1.5},
@@ -54,7 +53,6 @@ var moving := false:        # La están arrastrando a otro lugar
 ## Zona clickeable para moverla o quitarla, relativa a la base (hacia arriba es -y).
 const HIT_RECTS := {
 	"palm": Rect2(-40, -128, 80, 130),
-	"bush": Rect2(-23, -28, 46, 31),
 	"berries": Rect2(-23, -28, 46, 31),
 	"flowers": Rect2(-15, -20, 30, 23),
 	"rock": Rect2(-21, -22, 42, 25),
@@ -264,7 +262,6 @@ static func paint(ci: CanvasItem, k: String, v: float, t: float, fruit: Array[fl
 	ci.draw_colored_polygon(_ellipse(Vector2(0, 2), 20 if k == "palm" else 14, 5), Color(0, 0, 0, 0.18))
 	match k:
 		"palm": _paint_palm(ci, v, t, fruit)
-		"bush": _paint_bush(ci, v)
 		"berries": _paint_berry_bush(ci, v, fruit)
 		"flowers": _paint_flowers(ci, v)
 		"rock": _paint_rock(ci, v)
@@ -312,15 +309,7 @@ static func _paint_palm(ci: CanvasItem, v: float, t: float, nuts: Array[float]) 
 		if size > 0.0:
 			Coconut.paint_whole(ci, top + COCONUT_SLOTS[i], COCONUT_R * size)
 
-static func _paint_bush(ci: CanvasItem, v: float) -> void:
-	var dark := Color(0.14, 0.44, 0.2).lerp(Color(0.2, 0.5, 0.16), v)
-	var light := dark.lightened(0.25)
-	for c in [Vector2(-10, -8), Vector2(10, -8), Vector2(0, -15)]:
-		ci.draw_circle(c, 11.0, dark, true, -1.0, true)
-	for c in [Vector2(-12, -11), Vector2(7, -12), Vector2(-3, -19)]:
-		ci.draw_circle(c, 5.0, light, true, -1.0, true)
-
-## El arbusto (un verde más azulado que el común) con sus bayas rojas.
+## El arbusto con sus bayas rojas.
 static func _paint_berry_bush(ci: CanvasItem, v: float, fruit: Array[float]) -> void:
 	var dark := Color(0.12, 0.38, 0.24).lerp(Color(0.16, 0.42, 0.22), v)
 	var light := dark.lightened(0.22)

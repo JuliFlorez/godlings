@@ -199,7 +199,6 @@ const EN := {
 	"Activar": "Turn on",
 	"Desactivar": "Turn off",
 	"Palmera": "Palm tree",
-	"Arbusto": "Bush",
 	"Flores": "Flowers",
 	"Roca": "Rock",
 	"Antorcha": "Torch",

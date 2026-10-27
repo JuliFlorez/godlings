@@ -700,10 +700,12 @@ func _load_game() -> bool:
 	hud.load_state(cfg.get_value("game", "hud", {}))
 	set_island_level(cfg.get_value("island", "level", island_level))
 	for d: Dictionary in cfg.get_value("island", "decorations", []):
-		if not Decoration.KINDS.has(d.get("kind")):
+		# Los arbustos comunes ya no están: los de las partidas de antes pasan a ser de bayas
+		var kind: String = "berries" if d.get("kind") == "bush" else d.get("kind", "")
+		if not Decoration.KINDS.has(kind):
 			continue
 		var deco := Decoration.new()
-		deco.kind = d.kind
+		deco.kind = kind
 		props.add_child(deco)
 		deco.global_position = d.get("pos", _island_point())
 		deco.variant = d.get("variant", deco.variant)   # Después de _ready, que elige una al azar
