@@ -686,6 +686,8 @@ func save_game() -> void:
 			"tired": v.tiredness,
 			"looks": [v.skin_tone, v.skin_warm, v.hair_color, v.height],
 			"age": v.age,
+			"lifespan": v.lifespan,
+			"grey_age": v.grey_age,
 			"parents": v.parents,
 			"home": deco_index.get(v.home, -1) if v._home_ok() else -1,
 		})
@@ -749,7 +751,12 @@ func _load_game() -> bool:
 		var looks: Array = d.get("looks", [])
 		if looks.size() == 4:
 			v.set_looks(looks[0], looks[1], looks[2], looks[3])
-		v.set_age(d.get("age", Villager.ADULT_AGE))
+		var age: float = d.get("age", Villager.ADULT_AGE)
+		if not d.has("lifespan") and age >= Villager.ADULT_AGE:
+			age = v.age   # En las partidas de antes los grandes no envejecían: la edad que le tocó en _ready
+		v.lifespan = d.get("lifespan", v.lifespan)
+		v.grey_age = d.get("grey_age", v.grey_age)
+		v.set_age(age)
 		v.parents.assign(d.get("parents", []))
 		var h: int = d.get("home", -1)
 		if h >= 0 and h < decos.size() and decos[h] != null and decos[h].kind == "hut":

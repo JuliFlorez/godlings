@@ -316,8 +316,8 @@ class Person extends Control:
 			body.remove_child(rig)
 			body.free()
 			rig.set_female(info.gender == Villager.Gender.FEMALE)
-			var looks: Array = info.looks
-			rig.material = Villager.material_for(looks[0], looks[1], looks[2])
+			var looks: Array = info.looks   # Las partidas de antes no tienen las canas
+			rig.material = Villager.material_for(looks[0], looks[1], looks[2], looks[3] if looks.size() > 3 else 0.0)
 			rig.scale = Vector2.ONE * FamilyTree.PHOTO_SCALE
 			# El Skeleton2D del rig está en (-512, -512): cada px del dibujo es (px - 512) en el rig
 			rig.position = photo.size * 0.5 - (FamilyTree.PHOTO_FOCUS - Vector2(512, 512)) * FamilyTree.PHOTO_SCALE

@@ -6,7 +6,8 @@ class_name VillagerRig
 ##   se ve de frente: el pie que da el paso sube y la pierna se acorta (la rodilla viene
 ##   hacia adelante), el cuerpo baja al apoyar y sube al pasar la pierna, el peso se corre
 ##   sobre la pierna apoyada y los brazos van al revés que las piernas, un poco atrasados.
-##   Parado respira y mira para los costados. Al darse vuelta se achata y se espeja.
+##   Parado respira y mira para los costados. Al darse vuelta se achata y se espeja. De viejo
+##   hunde la cabeza entre los hombros y arrastra los pies.
 ## - Agarrado / cayendo / en el agua / en un tornado: ragdoll. Cada articulación es un péndulo
 ##   amortiguado que responde a la gravedad y a la aceleración del cuerpo.
 ## - Parpadea cada tantos segundos y los balazos dejan una marca en la parte alcanzada.
@@ -43,6 +44,8 @@ const BREATH_RATE := 2.4      # rad/s
 const LOOK := 0.12            # Parado: inclina la cabeza para un lado y otro (rad)
 const LOOK_TIME := Vector2(1.5, 4.0)
 const TURN_TIME := 0.18       # Segundos en darse vuelta
+const STOOP_HEAD := 30.0      # Bien viejo (ver Villager.oldness): la cabeza se le hunde entre los hombros...
+const STOOP_STEP := 0.5       # ...y arrastra los pies (levanta menos el pie y el cuerpo)
 
 # Manos: el dibujo las tiene abiertas con la palma al frente (pose T). Con los brazos
 # caídos eso se ve raro, así que se angostan hacia los dedos y parecen giradas de costado.
@@ -438,12 +441,14 @@ func _process(dt: float) -> void:
 		phase = fmod(phase + STEP_RATE * (speed / REF_SPEED) * dt, TAU)
 	var amt := clampf(speed / REF_SPEED, 0.0, 1.0) * (1.0 - rag)
 	var still := (1.0 - amt) * (1.0 - rag)   # Parado en la isla
+	var old := villager.oldness()
+	var step := amt * (1.0 - STOOP_STEP * old)
 	var s := sin(phase)
-	var lift_l := maxf(0.0, s) * amt         # Pie izquierdo en el aire (0..1)
-	var lift_r := maxf(0.0, -s) * amt
+	var lift_l := maxf(0.0, s) * step        # Pie izquierdo en el aire (0..1)
+	var lift_r := maxf(0.0, -s) * step
 	var contact := pow(1.0 - absf(s), 3.0) * amt   # Recién apoyó: el peso cae
 	var hip_rot := SWAY * s * amt
-	var rise := absf(s) * BOB * amt + sin(_t * BREATH_RATE) * BREATH * still
+	var rise := absf(s) * BOB * step + sin(_t * BREATH_RATE) * BREATH * still
 
 	# De rodillas: el cuerpo baja y las piernas se quedan donde están (el cuerpo las tapa)
 	if villager.pose != Villager.Pose.NONE:
@@ -460,7 +465,7 @@ func _process(dt: float) -> void:
 	hip.position = hip_rest + Vector2(SHIFT * s * amt, -rise)
 	_place_leg(leg_l, leg_l_rest, lift_l)
 	_place_leg(leg_r, leg_r_rest, lift_r)
-	head.position = head_rest + Vector2(0.0, HEAD_DIP * contact)
+	head.position = head_rest + Vector2(0.0, HEAD_DIP * contact + STOOP_HEAD * old * (1.0 - rag))
 	# El brazo de un lado va adelante cuando sube la pierna del otro
 	arm_l.scale = Vector2(1.0 - ARM_SHORT * lift_r, 1.0 + ARM_NEAR * lift_r)
 	arm_r.scale = Vector2(1.0 - ARM_SHORT * lift_l, 1.0 + ARM_NEAR * lift_l)

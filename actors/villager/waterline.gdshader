@@ -4,6 +4,9 @@ shader_type canvas_item;
 // amarilla o rojiza) y el pelo de otro color. La piel son los marrones anaranjados no muy
 // saturados (así la pintura roja de la cara y las hojas no cambian) y el pelo, lo casi negro y
 // sin color (también se tiñen un poco las pupilas, que casi no se nota).
+// Con los años le salen canas (ver Villager.greyness): mechones que se ponen blancos, primero
+// en los costados, hasta que queda todo el pelo blanco. Las pupilas no (son tan negras como el
+// pelo, pero se nota mucho).
 // Aldeano flotando: lo que queda debajo de la línea del agua (coords globales) no se ve.
 // También la muerte por rayo (ver Villager.zap): los cuadros de rayos X (el cuerpo se vuelve
 // una silueta oscura y encima se ve el esqueleto, que dibuja VillagerRig.XRay), el cuerpo
@@ -24,10 +27,19 @@ uniform vec4 ember_color : source_color = vec4(1.0, 0.45, 0.1, 1.0);
 uniform float skin_tone = 0.0;     // -1 más oscura .. 1 más clara
 uniform float skin_warm = 0.0;     // -1 más amarilla .. 1 más rojiza
 uniform vec3 hair_color = vec3(0.0);   // Lo que se le suma al negro del pelo (negro: como el dibujo)
+uniform float grey = 0.0;          // Canas: 0 ninguna .. 1 el pelo todo blanco
+uniform vec4 grey_color : source_color = vec4(0.84, 0.84, 0.86, 1.0);
 uniform float sick = 0.0;          // Con gripe (ver Villager._update_flu): pálido y verdoso
 uniform vec4 sick_color : source_color = vec4(0.78, 0.95, 0.62, 1.0);
 
 const float GRAIN = 4.0;           // Ancho del borde que se desgrana (px)
+// Los ojos (px de villager.png, igual en la aldeana): centro y radios, con las pestañas
+const vec2 EYE_L = vec2(378.0, 332.0);
+const vec2 EYE_L_R = vec2(100.0, 82.0);
+const vec2 EYE_R = vec2(666.0, 329.0);
+const vec2 EYE_R_R = vec2(90.0, 82.0);
+const vec2 HEAD_CENTER = vec2(515.0, 400.0);   // De donde salen las vetas de las canas (la nariz)...
+const float HEAD_HALF = 330.0;                 // ...y lo que hay hasta los costados del pelo
 
 varying vec2 world_pos;
 
@@ -41,6 +53,14 @@ vec3 rgb2hsv(vec3 c) {
 
 float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// Ruido suave (sin saltos de un cuadradito a otro: achicado no titila)
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0)), f.x), f.y);
 }
 
 void vertex() {
@@ -58,6 +78,23 @@ void fragment() {
     // aunque tenga algo de color (ahí la saturación no dice nada)
     float hair = (1.0 - smoothstep(0.0, 0.4, hsv.z)) * (1.0 - smoothstep(0.35, 0.55, hsv.y) * smoothstep(0.08, 0.2, hsv.z));
     col.rgb += hair_color * hair;
+    if (grey > 0.0) {
+        vec2 px = UV / TEXTURE_PIXEL_SIZE;   // px del dibujo
+        float eyes = min(length((px - EYE_L) / EYE_L_R), length((px - EYE_R) / EYE_R_R));
+        // Vetas que salen de la cabeza para afuera, como los mechones (la costura del ángulo
+        // queda para abajo, en la cara, donde no hay pelo)
+        vec2 d = px - HEAD_CENTER;
+        vec2 polar = vec2(atan(d.x, -d.y), length(d));
+        // Las vetas más finas que un píxel de la pantalla se ven rayadas: achicado, se borran
+        float fw = length(fwidth(px));
+        float streak = 0.5 + (noise(polar * vec2(28.0, 1.0 / 80.0)) - 0.5) * 0.65 * (1.0 - smoothstep(7.0, 16.0, fw))
+                + (noise(polar * vec2(70.0, 1.0 / 35.0) + 17.0) - 0.5) * 0.35 * (1.0 - smoothstep(3.0, 7.0, fw));
+        // Primero las sienes, después arriba; de a mechones
+        float side = clamp(abs(d.x) / HEAD_HALF, 0.0, 1.0);
+        float white = clamp(grey * 2.0 - 0.5 + side * 0.4 + (streak - 0.5) * 0.9, 0.0, 1.0);
+        vec3 silver = grey_color.rgb * (0.8 + 0.25 * streak);
+        col.rgb = mix(col.rgb, silver, hair * white * smoothstep(1.0, 1.15, eyes));
+    }
     float lum = dot(col.rgb, vec3(0.299, 0.587, 0.114));
     if (sick > 0.0) {
         // Descolorido y tirando a verde (más claro, como pálido)

@@ -218,10 +218,8 @@ var _rig_rest := Vector2.ZERO
 # cualquiera con lugar. De noche se van a dormir adentro hasta que se hace de día, y de día
 # entran cada tanto a descansar un rato (las parejas, juntas). Adentro no se lo ve ni lo alcanza
 # nada (ni rayos ni meteoritos ni la peste); si le agarra hambre de verdad sale a comer. Las
-# parejas que están adentro juntas a veces tienen un bebé (ver Decoration._try_birth): nace
-# chiquito y crece hasta ser grande (ADULT_AGE); de chico no se pone de novio ni tiene hijos.
-const ADULT_AGE := 300.0          # Segundos que tarda un bebé en ser grande
-const BABY_SIZE := 0.5            # El tamaño al nacer (veces el de un grande)
+# parejas que están adentro juntas a veces tienen un bebé (ver Decoration._try_birth y la edad,
+# más abajo).
 const BABY_COOLDOWN := 180.0      # Después de tener un bebé, lo que tarda una pareja en tener otro
 const SLEEP_AT := 0.6             # Con la noche así de cerrada (ver Sky.night) se van a dormir...
 const WAKE_AT := 0.4              # ...y salen cuando aclara
@@ -232,7 +230,6 @@ const HOME_REACH := 6.0
 const HOME_GIVE_UP := 15.0        # Si no llega a la puerta en este tiempo, lo deja
 var home: Decoration              # Su choza (null: sin casa)
 var inside := false               # Está adentro de su choza
-var age := ADULT_AGE              # Segundos de vida (los de la partida nueva ya son grandes)
 var parents: Array[int] = []      # Números de carnet de sus padres (si nació en la isla)
 var baby_cool := 0.0
 var _going_home := false
@@ -240,6 +237,30 @@ var _home_t := 0.0
 var _inside_t := 0.0
 var _rest_t := 0.0
 var _home_check := 0.0
+
+# --- Edad: nace chiquito y crece hasta ser grande (ADULT_AGE); de chico no se pone de novio ni
+# tiene hijos. Los que invocás ya son grandes (SPAWN_AGE). Con los años le salen canas, cada uno a
+# su edad (ver greyness y waterline.gdshader), y de viejo (ELDER_AGE) se encorva y se achica un
+# poco, camina más despacio arrastrando los pies, se cansa antes, se para más seguido y ya no
+# tiene hijos. Cada uno vive lo suyo (lifespan): cuando le llega la hora, parado en la isla (o
+# durmiendo, y ahí ni se despierta), se muere de viejo. Se ve en el carnet, en años (YEAR), y se
+# guarda con la partida.
+const YEAR := 20.0                                # Segundos que dura un año
+const ADULT_AGE := 15.0 * YEAR                    # A los 15 ya es grande (5 minutos)
+const BABY_SIZE := 0.5                            # El tamaño al nacer (veces el de un grande)
+const SPAWN_AGE := Vector2(18.0, 30.0) * YEAR     # Los que invocás (y los de la partida nueva)
+const ELDER_AGE := 60.0 * YEAR                    # Desde acá es viejo (y en ELDER_YEARS, bien viejo)...
+const ELDER_YEARS := 10.0
+const LIFESPAN := Vector2(70.0, 90.0) * YEAR      # ...y se muere de viejo entre los 70 y los 90
+const GREY_AGE := Vector2(35.0, 50.0)             # Le empiezan a salir canas (años; a los hijos, como a alguno de los padres)...
+const GREY_YEARS := 25.0                          # ...y en estos años le queda todo el pelo blanco
+const ELDER_SHRINK := 0.94                        # Bien viejo es un poco más bajo (veces su altura)
+const ELDER_SPEED := 0.75                         # Viejo camina más despacio...
+const ELDER_REST := 0.55                          # ...se para más seguido...
+const ELDER_TIRED := 1.3                          # ...y se cansa más rápido
+var age := ADULT_AGE                  # Segundos de vida
+var lifespan := LIFESPAN.x            # A qué edad se muere de viejo (segundos)
+var grey_age := GREY_AGE.x            # A qué edad le empiezan a salir canas (años)
 
 # --- Sueño: el cansancio (0 descansado, 100 muerto de sueño) le va subiendo despierto y se le
 # va pasando durmiendo. De noche se va a dormir: a su choza si tiene, y si no se acuesta en el
@@ -496,6 +517,9 @@ func _ready() -> void:
 	_mood_check = randf_range(0.0, MOOD_CHECK)
 	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
 	_home_check = randf_range(0.0, HOME_CHECK)
+	age = randf_range(SPAWN_AGE.x, SPAWN_AGE.y)   # Los bebés y las partidas guardadas traen la suya
+	lifespan = randf_range(LIFESPAN.x, LIFESPAN.y)
+	grey_age = randf_range(GREY_AGE.x, GREY_AGE.y)
 	input_pickable = true
 
 	if rig:
@@ -731,6 +755,8 @@ func _physics_process(dt: float) -> void:
 		pace *= MOOD_SAD_SPEED
 	elif tiredness >= SLEEPY_AT:
 		pace *= SLEEPY_SPEED
+	if is_elder():
+		pace *= ELDER_SPEED   # Hasta escapándose
 	velocity = _heading * pace * smoothstep(0.0, 1.0, _walk) + _separation() + shove_vel
 	var prev_pos := global_position
 	move_and_slide()
@@ -768,7 +794,10 @@ func _physics_process(dt: float) -> void:
 					_update_sprite_flip()
 				wander_timer = randf_range(PANIC_TURN.x, PANIC_TURN.y)
 		elif wander_timer <= 0.0:
-			if not _resting and randf() < (FLU_REST_CHANCE if flu == Flu.SICK else (MOOD_SAD_REST if is_sad() else REST_CHANCE)):
+			var rest := FLU_REST_CHANCE if flu == Flu.SICK else (MOOD_SAD_REST if is_sad() else REST_CHANCE)
+			if is_elder():
+				rest = maxf(rest, ELDER_REST)
+			if not _resting and randf() < rest:
 				_resting = true
 				wander_timer = randf_range(REST_TIME.x, REST_TIME.y)
 			else:
@@ -1304,7 +1333,7 @@ func _update_sleep(dt: float) -> void:
 	elif inside:
 		tiredness -= REST_RECOVER * dt
 	else:
-		tiredness += TIRED_RATE * dt
+		tiredness += TIRED_RATE * (ELDER_TIRED if is_elder() else 1.0) * dt
 	tiredness = clampf(tiredness, 0.0, 100.0)
 	if tiredness < SLEEPY_AT or is_sleeping():
 		return
@@ -1387,15 +1416,50 @@ func wake_up(stand := true) -> void:
 	if bubble == Bubble.SLEEP:
 		bubble_t = 0.0
 
-# --- CASA Y FAMILIA ---
+# --- EDAD ---
 ## Todavía es chico (ver ADULT_AGE).
 func is_child() -> bool:
 	return age < ADULT_AGE
 
-## Para cargar la partida (y al nacer): la edad, y el tamaño que le toca (con su altura).
+## Ya es viejo (ver ELDER_AGE).
+func is_elder() -> bool:
+	return age >= ELDER_AGE
+
+## Cuántos años tiene.
+func years() -> int:
+	return int(age / YEAR)
+
+## Qué tan viejo está: 0 hasta ELDER_AGE, 1 ELDER_YEARS después (bien encorvado, ver VillagerRig).
+func oldness() -> float:
+	return clampf((age - ELDER_AGE) / (ELDER_YEARS * YEAR), 0.0, 1.0)
+
+## Cuántas canas tiene: 0 ninguna .. 1 el pelo todo blanco (ver GREY_AGE y waterline.gdshader).
+func greyness() -> float:
+	return clampf((age / YEAR - grey_age) / GREY_YEARS, 0.0, 1.0)
+
+## La edad (al cumplir años, al nacer y al cargar la partida), con el tamaño que le toca (con su
+## altura) y sus canas.
 func set_age(a: float) -> void:
 	age = a
-	scale = Vector2.ONE * lerpf(BABY_SIZE, 1.0, clampf(age / ADULT_AGE, 0.0, 1.0)) * height
+	var grow := lerpf(BABY_SIZE, 1.0, clampf(age / ADULT_AGE, 0.0, 1.0))
+	scale = Vector2.ONE * grow * lerpf(1.0, ELDER_SHRINK, oldness()) * height
+	if _waterline:
+		_waterline.set_shader_parameter("grey", greyness())
+
+## Le llegó la hora: se muere tranquilo donde está (si estaba durmiendo, ni se despierta).
+func _die_of_old_age() -> void:
+	_ensure_hud()
+	if hud:
+		hud.popup_text("Murió de vieja" if gender == Gender.FEMALE else "Murió de viejo",
+				get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_MUTED)
+	if food:
+		food.release_eater()
+	_gentle_death = true
+	var lying := asleep
+	_die()
+	if not lying:
+		swing_vel = (1.0 if randf() < 0.5 else -1.0) * randf_range(2.0, 3.0)   # Se cae para un costado, despacito
+		corpse_vel = Vector2.ZERO
 
 # --- CÓMO ES ---
 ## La piel (tono, y más amarilla o rojiza), el color del pelo y la altura.
@@ -1413,44 +1477,53 @@ func _paint_looks(mat: ShaderMaterial) -> void:
 	mat.set_shader_parameter("skin_tone", skin_tone)
 	mat.set_shader_parameter("skin_warm", skin_warm)
 	mat.set_shader_parameter("hair_color", Vector3(hair_color.r, hair_color.g, hair_color.b))
+	mat.set_shader_parameter("grey", greyness())
 
-## Para la foto del carnet: un material con su piel y su pelo.
+## Para la foto del carnet: un material con su piel y su pelo (con las canas que tiene).
 func looks_material() -> ShaderMaterial:
-	return material_for(skin_tone, skin_warm, hair_color)
+	return material_for(skin_tone, skin_warm, hair_color, greyness())
 
-## Un material con esa piel y ese pelo (para las fotos: el carnet, el árbol genealógico).
-static func material_for(tone: float, warm: float, hair: Color) -> ShaderMaterial:
+## Un material con esa piel, ese pelo y esas canas (para las fotos: el carnet, el árbol genealógico).
+static func material_for(tone: float, warm: float, hair: Color, grey := 0.0) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = WATERLINE_SHADER
 	m.set_shader_parameter("skin_tone", tone)
 	m.set_shader_parameter("skin_warm", warm)
 	m.set_shader_parameter("hair_color", Vector3(hair.r, hair.g, hair.b))
+	m.set_shader_parameter("grey", grey)
 	return m
 
 ## Recién nacido: sale parecido a sus padres (la piel y la altura, entre las de los dos; el
-## pelo, el de alguno).
+## pelo, el de alguno, y las canas le salen más o menos a la edad que a alguno).
 func inherit_looks(a: Villager, b: Villager) -> void:
 	set_looks(clampf((a.skin_tone + b.skin_tone) * 0.5 + randfn(0.0, 0.12), -1.0, 1.0),
 			clampf((a.skin_warm + b.skin_warm) * 0.5 + randfn(0.0, 0.12), -1.0, 1.0),
 			(a if randf() < 0.5 else b).hair_color,
 			clampf((a.height + b.height) * 0.5 + randf_range(-0.02, 0.02), HEIGHT.x, HEIGHT.y))
+	grey_age = clampf((a if randf() < 0.5 else b).grey_age + randf_range(-3.0, 3.0), GREY_AGE.x, GREY_AGE.y)
 
-## Grande, sano, no muerto de hambre, más o menos contento y sin un bebé reciente.
+# --- CASA Y FAMILIA ---
+## Grande (y no viejo), sano, no muerto de hambre, más o menos contento y sin un bebé reciente.
 func can_have_baby() -> bool:
-	return not is_child() and not dead and not is_sick() and not starving() and baby_cool <= 0.0 \
-			and mood >= MOOD_BABY_AT
+	return not is_child() and not is_elder() and not dead and not is_sick() and not starving() \
+			and baby_cool <= 0.0 and mood >= MOOD_BABY_AT
 
-## Crece (si es chico), se le va pasando lo del último bebé y cada tanto se fija dónde vivir.
+## Cumple años (de chico crece; de grande le salen canas y de viejo se achica) y, si le llegó la
+## hora, se muere de viejo. Se le va pasando lo del último bebé y cada tanto se fija dónde vivir.
 func _update_family(dt: float) -> void:
 	if dead or eaten:
 		return
 	baby_cool = maxf(0.0, baby_cool - dt)
-	if is_child():
-		set_age(age + dt)
-		if not is_child():
-			_ensure_hud()
-			if hud and visible:
-				hud.popup_text("¡Ya es grande!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SHOP)
+	var was_child := is_child()
+	set_age(age + dt)
+	if was_child and not is_child():
+		_ensure_hud()
+		if hud and visible:
+			hud.popup_text("¡Ya es grande!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SHOP)
+	# Termina parado en la isla (o durmiendo): no se muere colgando del mouse, flotando ni adentro
+	if age >= lifespan and (is_idle() or asleep) and not on_fire:
+		_die_of_old_age()
+		return
 	_home_check -= dt
 	if _home_check <= 0.0:
 		_home_check = HOME_CHECK
@@ -1887,7 +1960,7 @@ func _die() -> void:
 	dead = true
 	corpse_grounded = false
 	corpse_timer = 0.0
-	floor_y = global_position.y + FEET_DROP
+	floor_y = global_position.y + FEET_DROP - _sleep_drop   # Durmiendo ya estaba acostado
 	velocity = Vector2.ZERO
 	_grant_sacrifice_xp()
 	if rig:

@@ -12,9 +12,10 @@ class_name VillagerCard
 ## padres y sus hijos, y "Ver árbol" para el árbol genealógico, ver FamilyTree) y su casa (la
 ## choza donde vive y con quién). Un click en un nombre abre el carnet de ese aldeano, y uno en la
 ## choza, su cartel (ver HutCard). Los chicos dicen "Nene"
-## o "Nena" en vez del género.
+## o "Nena" en vez del género, y los viejos "Anciano" o "Anciana". Abajo del género, su edad.
 ## La foto es un rig propio del aldeano (así parpadea) que copia su cara: la boca de
-## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto.
+## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto. Las canas le van saliendo
+## también en la foto.
 
 const VILLAGER := preload("res://actors/villager/villager.tscn")
 const MARGIN := 14.0
@@ -33,6 +34,14 @@ const GENDERS := {
 const KIDS := {
 	Villager.Gender.MALE: "Nene",
 	Villager.Gender.FEMALE: "Nena",
+}
+const ELDERS := {
+	Villager.Gender.MALE: "Anciano",
+	Villager.Gender.FEMALE: "Anciana",
+}
+const NEWBORN := {
+	Villager.Gender.MALE: "Recién nacido",
+	Villager.Gender.FEMALE: "Recién nacida",
 }
 const C_FAMILY := Color(1.0, 0.78, 0.45)
 const RELATIONS := [
@@ -67,6 +76,7 @@ var hud: HUD
 var villager: Villager
 var _number: Label
 var _gender: Label
+var _age: Label
 var _first: LineEdit
 var _last: LineEdit
 var _photo: Control
@@ -129,6 +139,13 @@ func _ready() -> void:
 	photo_col.add_child(caption("Género"))
 	_gender = HUD.make_label("", 15, HUD.C_TEXT)
 	photo_col.add_child(_gender)
+	var gap5 := Control.new()
+	gap5.custom_minimum_size = Vector2(0, 6)
+	photo_col.add_child(gap5)
+	photo_col.add_child(caption("Edad"))
+	_age = HUD.make_label("", 15, HUD.C_TEXT)
+	_age.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_status (lleva el número)
+	photo_col.add_child(_age)
 
 	var fields := VBoxContainer.new()
 	fields.add_theme_constant_override("separation", 4)
@@ -222,7 +239,14 @@ func _update_status() -> void:
 	if v.is_sleeping() and not v.dead:
 		_status.text += " · " + tr("durmiendo")
 	_status.add_theme_color_override("font_color", col)
-	_gender.text = (KIDS if v.is_child() else GENDERS)[v.gender]   # Crece con el carnet abierto
+	# Crece (y envejece) con el carnet abierto
+	_gender.text = (KIDS if v.is_child() else (ELDERS if v.is_elder() else GENDERS))[v.gender]
+	var years := v.years()
+	if years < 1:
+		_age.text = tr(NEWBORN[v.gender])
+	else:
+		_age.text = tr("1 año") if years == 1 else tr("%d años") % years
+	(_photo_rig.material as ShaderMaterial).set_shader_parameter("grey", v.greyness())
 	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
 
 ## Cuánto cree en vos, cuánto te teme y qué es por eso.

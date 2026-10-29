@@ -2,8 +2,9 @@ extends RefCounted
 class_name Genealogy
 ## Quién es (o fue) cada aldeano, para el árbol genealógico (ver FamilyTree). Los que se mueren
 ## dejan la isla pero quedan anotados acá como eran: su nombre, su género, sus padres, su pareja
-## y su piel y su pelo (para la foto). De los vivos se toma lo que tienen ahora. Se guarda con la
-## partida (los que se murieron antes de que esto existiera no están: salen como desconocidos).
+## y su piel y su pelo, con las canas que tenían (para la foto). De los vivos se toma lo que
+## tienen ahora. Se guarda con la partida (los que se murieron antes de que esto existiera no
+## están: salen como desconocidos).
 
 static var _gone := {}   # carnet -> {first, last, gender, parents, partner, looks}
 
@@ -19,7 +20,7 @@ static func remember(v: Villager) -> void:
 		"gender": v.gender,
 		"parents": Array(v.parents),
 		"partner": Relations.partner_id(v),
-		"looks": [v.skin_tone, v.skin_warm, v.hair_color],
+		"looks": [v.skin_tone, v.skin_warm, v.hair_color, v.greyness()],
 	}
 
 ## Lo que se sabe de alguien: {id, first, last, gender, parents, partner, looks, dead, villager
@@ -33,7 +34,7 @@ static func person(tree: SceneTree, id: int) -> Dictionary:
 				break   # Su cadáver todavía está, pero lo anotado al morirse tiene su pareja
 			return {"id": id, "first": v.first_name, "last": v.last_name, "gender": v.gender,
 					"parents": Array(v.parents), "partner": 0 if dead else Relations.partner_id(v),
-					"looks": [v.skin_tone, v.skin_warm, v.hair_color], "dead": dead, "villager": null if dead else v}
+					"looks": [v.skin_tone, v.skin_warm, v.hair_color, v.greyness()], "dead": dead, "villager": null if dead else v}
 	if _gone.has(id):
 		var p: Dictionary = _gone[id].duplicate()
 		p.id = id
