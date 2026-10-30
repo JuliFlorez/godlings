@@ -37,6 +37,7 @@ const NIGHT_LENGTH := 120.0      # ...y de noche
 const RISE := 0.1                # Lo que tarda en subir el sol (o la luna) desde el horizonte, en parte del día (o de la noche)...
 const DUSK := 0.7                # ...y desde dónde va bajando hasta el horizonte
 const PATH_X := Vector2(860.0, 990.0)   # Mientras tanto cruza el cielo de acá hasta acá
+const FULL_DAY := DAY_LENGTH + NIGHT_LENGTH   # Un día entero, con su noche
 
 @onready var background: ColorRect = $Background
 @onready var stars: Node2D = $Stars
@@ -56,6 +57,10 @@ var running := false
 var clock := 0.0   # Segundos desde que salió el sol (o la luna)
 var day := 1       # Qué día es: sube con cada amanecer
 var resume := -1.0 # Al cargar una partida de noche: la hora de la noche (ver _start_night)
+## Lo que pasó en este cuadro, en días (con esto envejecen los aldeanos, ver Villager): la hora
+## que corre, y también lo que te salteás adelantando el sol o la luna (atrasarlos no devuelve días).
+var passed := 0.0
+var _skipped := 0.0
 var _drift := Vector2.ZERO   # Lo soltaste fuera de su camino: lo que se corrió (se le va pasando al bajar)
 ## Cuánto llueve (lo pone Storm): 0 despejado, 1 tormenta cerrada.
 var storm := 0.0
@@ -137,6 +142,7 @@ func start_at_night(sunset: float) -> void:
 
 ## Se puso el sol: sale la luna.
 func _start_night() -> void:
+	_skip(DAY_LENGTH - clock)   # Si lo bajaste antes de hora
 	is_night = true
 	_drift = Vector2.ZERO
 	clock = maxf(resume, 0.0)
@@ -145,6 +151,7 @@ func _start_night() -> void:
 
 ## Se puso la luna: sale el sol, y es otro día.
 func _start_day() -> void:
+	_skip(NIGHT_LENGTH - clock)
 	is_night = false
 	_drift = Vector2.ZERO
 	clock = 0.0
@@ -189,15 +196,23 @@ func _on_released(body: Celestial) -> void:
 		u = RISE * (1.0 - h) if h > 0.01 else maxf(u, RISE)
 	else:
 		u = DUSK + (1.0 - DUSK) * h if h > 0.01 else minf(u, DUSK)
+	_skip(u * length - clock)
 	clock = u * length
 	var low := _low(u)
 	_drift = (body.position - _path(u)) / (1.0 - low) if low < 0.99 else Vector2.ZERO
+
+## Adelantaste la hora secs segundos (mientras se juega; al cargar la partida, no).
+func _skip(secs: float) -> void:
+	if running and secs > 0.0:
+		_skipped += secs / FULL_DAY
 
 ## Un rayo ilumina el cielo y la isla (también de noche). amount: 0..1.
 func flash(amount: float) -> void:
 	_flash = maxf(_flash, amount)
 
 func _process(dt: float) -> void:
+	passed = _skipped + (dt / FULL_DAY if running else 0.0)
+	_skipped = 0.0
 	if running:
 		_advance(dt)
 	_flash = move_toward(_flash, 0.0, FLASH_FADE * dt)

@@ -12,7 +12,8 @@ class_name VillagerCard
 ## padres y sus hijos, y "Ver árbol" para el árbol genealógico, ver FamilyTree) y su casa (la
 ## choza donde vive y con quién). Un click en un nombre abre el carnet de ese aldeano, y uno en la
 ## choza, su cartel (ver HutCard). Los chicos dicen "Nene"
-## o "Nena" en vez del género, y los viejos "Anciano" o "Anciana". Abajo del género, su edad.
+## o "Nena" en vez del género, y los viejos "Anciano" o "Anciana". Abajo del género, su edad
+## (los días que vivió).
 ## La foto es un rig propio del aldeano (así parpadea) que copia su cara: la boca de
 ## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto. Las canas le van saliendo
 ## también en la foto.
@@ -241,11 +242,11 @@ func _update_status() -> void:
 	_status.add_theme_color_override("font_color", col)
 	# Crece (y envejece) con el carnet abierto
 	_gender.text = (KIDS if v.is_child() else (ELDERS if v.is_elder() else GENDERS))[v.gender]
-	var years := v.years()
-	if years < 1:
+	var days := v.days()
+	if days < 1:
 		_age.text = tr(NEWBORN[v.gender])
 	else:
-		_age.text = tr("1 año") if years == 1 else tr("%d años") % years
+		_age.text = tr("1 día") if days == 1 else tr("%d días") % days
 	(_photo_rig.material as ShaderMaterial).set_shader_parameter("grey", v.greyness())
 	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
 

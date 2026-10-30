@@ -23,7 +23,7 @@ const COMMANDS := [
 	["fe / faith [n]", "Pone la fe de todos en n, de 0 a 100 (por defecto 100)"],
 	["miedo / fear [n]", "Pone el miedo de todos en n, de 0 a 100 (por defecto 100)"],
 	["hambre / hunger [n]", "Pone el hambre de todos en n, de 0 a 100 (por defecto 80)"],
-	["edad / age [n]", "Pone a todos en n años (por defecto 65; con 90 se mueren de viejos)"],
+	["edad / age [n]", "Pone a todos en n días (por defecto 7, ya viejos; con 10 se mueren de viejos)"],
 	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, peste, discordia, curar, Cupido, amistad, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
 	["limpiar / clear", "Borra la consola"],
@@ -167,15 +167,15 @@ func run(text: String) -> void:
 		"hambre", "hunger":
 			var n := clampi(arg if arg >= 0 else 80, 0, 100)
 			_ok(tr("%d aldeanos con hambre %d") % [_set_all("hunger", n), n])
-		"edad", "age", "años", "envejecer":
-			var n := arg if arg >= 0 else 65
+		"edad", "age", "días", "años", "envejecer":
+			var n := arg if arg >= 0 else int(Villager.ELDER_AGE)
 			var count := 0
 			for node in get_tree().get_nodes_in_group("villager"):
 				var v := node as Villager
 				if v and not v.dead and not v.eaten and not v.is_queued_for_deletion():
-					v.set_age(n * Villager.YEAR)
+					v.set_age(n)
 					count += 1
-			_ok(tr("%d aldeanos con %d años") % [count, n])
+			_ok(tr("%d aldeanos con %d días") % [count, n])
 		"desbloquear", "unlock":
 			_unlock_all()
 		"todo", "all":

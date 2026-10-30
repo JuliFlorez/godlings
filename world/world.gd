@@ -69,8 +69,9 @@ var props: Node2D
 var ground: Node2D
 var _worship_t := 0.0
 var _tribute := 0.0   # Lo que va quedando de ofrendas sueltas (cada rezo suma fracciones)
-## Brotes de gripe (ver Villager.catch_flu): cada tanto, si hay suficientes aldeanos.
-const OUTBREAK_EVERY := Vector2(90.0, 180.0)
+## Brotes de gripe (ver Villager.catch_flu): cada tanto (entre 10 y 20 minutos, unos 2 o 3 días),
+## si hay suficientes aldeanos.
+const OUTBREAK_EVERY := Vector2(600.0, 1200.0)
 const OUTBREAK_MIN := 3
 var _outbreak_t := randf_range(OUTBREAK_EVERY.x, OUTBREAK_EVERY.y)
 
@@ -685,9 +686,9 @@ func save_game() -> void:
 			"mood": v.mood,
 			"tired": v.tiredness,
 			"looks": [v.skin_tone, v.skin_warm, v.hair_color, v.height],
-			"age": v.age,
-			"lifespan": v.lifespan,
-			"grey_age": v.grey_age,
+			"days": v.age,
+			"lifespan_days": v.lifespan,
+			"grey_days": v.grey_age,
 			"parents": v.parents,
 			"home": deco_index.get(v.home, -1) if v._home_ok() else -1,
 		})
@@ -751,11 +752,21 @@ func _load_game() -> bool:
 		var looks: Array = d.get("looks", [])
 		if looks.size() == 4:
 			v.set_looks(looks[0], looks[1], looks[2], looks[3])
-		var age: float = d.get("age", Villager.ADULT_AGE)
-		if not d.has("lifespan") and age >= Villager.ADULT_AGE:
-			age = v.age   # En las partidas de antes los grandes no envejecían: la edad que le tocó en _ready
-		v.lifespan = d.get("lifespan", v.lifespan)
-		v.grey_age = d.get("grey_age", v.grey_age)
+		var age := v.age   # La que le tocó en _ready
+		if d.has("days"):
+			age = d.days
+			v.lifespan = d.get("lifespan_days", v.lifespan)
+			v.grey_age = d.get("grey_days", v.grey_age)
+		elif d.has("age"):
+			# Partidas de antes, con la edad en segundos (años de 20 s): pasa a días en la misma etapa
+			# de la vida (los 15 años de grande son los ADULT_AGE días de ahora)
+			var to_days := Villager.ADULT_AGE / (15.0 * 20.0)
+			if d.has("lifespan"):
+				age = d.age * to_days
+				v.lifespan = d.lifespan * to_days
+				v.grey_age = clampf(d.get("grey_age", 0.0) * 20.0 * to_days, Villager.GREY_AGE.x, Villager.GREY_AGE.y)
+			elif d.age < 15.0 * 20.0:
+				age = d.age * to_days   # Y antes los grandes no envejecían: los chicos sí traen la suya
 		v.set_age(age)
 		v.parents.assign(d.get("parents", []))
 		var h: int = d.get("home", -1)
