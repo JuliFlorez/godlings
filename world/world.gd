@@ -737,8 +737,10 @@ func _load_game() -> bool:
 		deco.hut_name = d.get("name", "")
 		deco.stains = d.get("stains", 0)
 		decos.append(deco)
+	var loaded: Array[Villager] = []
 	for d: Dictionary in cfg.get_value("island", "villagers", []):
 		var v := add_villager(d.get("pos", _island_point()))
+		loaded.append(v)
 		v.id_number = d.get("id", v.id_number)
 		v.first_name = d.get("first_name", "")
 		v.last_name = d.get("last_name", "")
@@ -776,6 +778,21 @@ func _load_game() -> bool:
 	Relations.load_state(cfg.get_value("island", "relations", []))
 	Relations.load_history(cfg.get_value("island", "history", []))
 	Genealogy.load_state(cfg.get_value("island", "family", []))
+	# Los que no tenían nombre (de antes de que salieran al azar, ver Names): uno nuevo, y el
+	# apellido de sus padres si alguno lo tiene (de los más viejos a los más nuevos, así los padres
+	# ya tienen el suyo)
+	loaded.sort_custom(func(a: Villager, b: Villager) -> bool: return a.id_number < b.id_number)
+	for v in loaded:
+		if v.first_name == "":
+			v.first_name = Names.first_name(get_tree(), v.gender == Villager.Gender.FEMALE)
+		if v.last_name == "":
+			for p: int in v.parents:
+				var last: String = Genealogy.person(get_tree(), p).get("last", "")
+				if last != "":
+					v.last_name = last
+					break
+			if v.last_name == "":
+				v.last_name = Names.last_name(get_tree())
 
 	var sky := $Sky
 	sky.day = cfg.get_value("sky", "day", 1)

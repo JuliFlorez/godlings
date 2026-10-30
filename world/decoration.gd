@@ -778,7 +778,9 @@ func _birth(world: World, a: Villager, b: Villager) -> void:
 	baby.faith = (a.faith + b.faith) * 0.5   # Cree en vos como sus padres
 	baby.fear = 0.0
 	baby.hunger = 0.0
-	baby.last_name = a.last_name if a.last_name != "" else b.last_name
+	var family := a.last_name if a.last_name != "" else b.last_name
+	if family != "":
+		baby.last_name = family   # Si no, el suyo, al azar
 	baby.home = self
 	baby.enter_home()   # Nace adentro
 	for p: Villager in [a, b]:

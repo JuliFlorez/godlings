@@ -464,7 +464,8 @@ var skin_warm := 0.0
 var hair_color := Color.BLACK
 var height := 1.0
 
-# --- Carnet: nombre y apellido los pone el jugador en modo seleccionar (ver VillagerCard) ---
+# --- Carnet: nombre y apellido salen al azar (ver Names) y el jugador los puede cambiar en modo
+# seleccionar (ver VillagerCard) ---
 enum Gender { MALE, FEMALE }
 static var ids_issued := 0       # Números de carnet repartidos (se guarda con la partida)
 var id_number := 0
@@ -539,6 +540,8 @@ func _ready() -> void:
 	_voice.volume_db = VOICE_DB
 	add_child(_voice)
 	gender = Gender.FEMALE if randf() < FEMALE_CHANCE else Gender.MALE   # También elige el tono
+	first_name = Names.first_name(get_tree(), gender == Gender.FEMALE)   # Las partidas guardadas traen el suyo...
+	last_name = Names.last_name(get_tree())   # ...y los bebés, el de los padres
 
 	ids_issued += 1
 	id_number = ids_issued

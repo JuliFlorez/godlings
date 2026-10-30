@@ -43,6 +43,20 @@ static func person(tree: SceneTree, id: int) -> Dictionary:
 		return p
 	return {}
 
+## Los nombres y apellidos que ya hay (de los vivos y de los que ya no están), para no repetirlos
+## (ver Names).
+static func names_taken(tree: SceneTree) -> Dictionary:
+	var taken := {}
+	for node in tree.get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v:
+			taken[v.first_name] = true
+			taken[v.last_name] = true
+	for p: Dictionary in _gone.values():
+		taken[p.first] = true
+		taken[p.last] = true
+	return taken
+
 ## Sus hijos (vivos o muertos), del más grande al más chico.
 static func children_of(tree: SceneTree, id: int) -> Array[int]:
 	var out: Array[int] = []
