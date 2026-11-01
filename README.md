@@ -93,6 +93,7 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - **Tecla P / botón "Peste"**: Sacar o guardar la peste (una vez desbloqueada en la tienda). Click sobre los aldeanos para enfermarlos; click derecho o Esc la guardan.
 - **Tecla Z / botón "Espora"**: Sacar o guardar la espora zombi (una vez desbloqueada en la tienda). Click sobre los aldeanos para meterles el hongo; click derecho o Esc la guardan.
 - **Tecla C / botón "Curar"**: Sacar o guardar curar (una vez desbloqueado en la tienda). Click sobre un aldeano para curarlo; click derecho o Esc lo guardan.
-- **Rueda del mouse (o + y -)**: Zoom para acercarse o alejarse (hacia donde está el mouse); 0 vuelve al tamaño normal. De cerca, arrastrando con la rueda apretada se corre la vista. Alejándose entra la isla más grande sin chocar con los paneles.
+- **Rueda del mouse (o + y -)**: Zoom para acercarse o alejarse (hacia donde está el mouse); 0 vuelve al tamaño normal y centra la vista. Alejándose entra la isla más grande sin chocar con los paneles.
+- **Flechas (o arrastrar con la rueda apretada)**: Mueven la cámara para los costados y para abajo, con o sin zoom, hasta un poco más allá de lo que se ve normalmente (para arriba, hasta el horizonte). Mientras escribís un nombre, las flechas mueven el cursor del texto.
 - **Click o cualquier tecla mientras baja la cámara**: La apura hasta la isla.
 - **Esc**: Menú de pausa (volumen, idioma, pantalla completa, menú principal y salir). En el menú de inicio vuelve a la pantalla principal.
