@@ -80,7 +80,7 @@ func _land() -> void:
 	if not is_instance_valid(meant_for):
 		return
 	var v := meant_for
-	if not v.dead and v.food == null and v.chat_with == null and v.is_idle() and not v.on_fire:
+	if not v.dead and v.food == null and v.chat_with == null and v.is_idle() and not v.on_fire and not v.is_zombie():
 		v.go_eat(self)
 
 func nibble(progress: float) -> void:

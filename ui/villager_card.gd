@@ -2,9 +2,11 @@ extends PanelContainer
 class_name VillagerCard
 ## Carnet del aldeano: se abre con un click sobre él en modo seleccionar.
 ## Foto tipo carnet con el género abajo, número, y nombre y apellido para escribir
-## (se ven arriba de su cabeza, ver NameTag), y su estado: sano, con gripe, curado o muerto.
+## (se ven arriba de su cabeza, ver NameTag), y su estado: sano, con gripe, curado, con la
+## espora zombi (incubándola, con hongos o ya zombi) o muerto.
 ## Debajo del estado (que dice si está durmiendo), cuánta hambre tiene (ver Villager.hunger;
-## muerto de hambre, en rojo) y cuánto sueño (ver Villager.tiredness).
+## muerto de hambre, en rojo), cuánto sueño (ver Villager.tiredness) y, si tiene la espora,
+## cuánto lo domina ya el hongo (ver Villager.spore).
 ## Después, cuánto cree en vos y cuánto te teme (ver Villager.faith y fear), y qué es por eso:
 ## devoto, fanático, hereje o aterrado; y su ánimo (ver Villager.mood): qué tan contento está y
 ## por qué.
@@ -15,8 +17,8 @@ class_name VillagerCard
 ## o "Nena" en vez del género, y los viejos "Anciano" o "Anciana". Abajo del género, su edad
 ## (los días que vivió).
 ## La foto es un rig propio del aldeano (así parpadea) que copia su cara: la boca de
-## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto. Las canas le van saliendo
-## también en la foto.
+## "¡wow!" si lo tiran por el aire y los ojos en X si está muerto. Las canas, las manchas de hongo
+## y los hongos de la cabeza le van saliendo también en la foto.
 
 const VILLAGER := preload("res://actors/villager/villager.tscn")
 const MARGIN := 14.0
@@ -70,6 +72,7 @@ const C_FAITH := HUD.C_HOLY
 const C_FEAR := HUD.C_EVIL
 const C_HUNGER := HUD.C_FEED
 const C_SLEEP := Color(0.6, 0.6, 1.0)
+const C_SPORE := HUD.C_SPORE
 const MAX_LISTED_NAME := 18      # Los nombres más largos se cortan con "…"
 const C_HUT := Color(0.9, 0.72, 0.46)
 
@@ -88,6 +91,7 @@ var _faith_bar: ProgressBar
 var _fear_bar: ProgressBar
 var _hunger_bar: ProgressBar
 var _sleep_bar: ProgressBar
+var _spore_bar: ProgressBar     # Solo si tiene la espora
 var _mood_bar: ProgressBar
 var _mood_label: Label           # Deprimido, triste, tranquilo, contento o feliz...
 var _mood_why: Label             # ...y por qué
@@ -166,6 +170,7 @@ func _ready() -> void:
 	fields.add_child(_status)
 	_hunger_bar = _bar(fields, "Hambre", C_HUNGER)
 	_sleep_bar = _bar(fields, "Sueño", C_SLEEP)
+	_spore_bar = _bar(fields, "Espora", C_SPORE)
 	_build_creed(col)
 	_build_relations(col)
 	_first.text_changed.connect(func(t: String):
@@ -236,6 +241,17 @@ func _update_status() -> void:
 			Villager.Flu.IMMUNE:
 				text = "Curado (inmune)"
 				col = HUD.C_DEVOTION
+		# La espora pesa más que la gripe
+		match v.infection():
+			Villager.Infection.INCUBATING:
+				text = "Incubando la espora"
+				col = HUD.C_SOON
+			Villager.Infection.SPREADING:
+				text = "Le crecen hongos"
+				col = C_SPORE
+			Villager.Infection.ZOMBIE:
+				text = "Zombi (brotando)" if v.bloom_amount() > 0.0 else "Zombi"
+				col = HUD.C_WARN
 	_status.text = tr(text)
 	if v.is_sleeping() and not v.dead:
 		_status.text += " · " + tr("durmiendo")
@@ -248,6 +264,7 @@ func _update_status() -> void:
 	else:
 		_age.text = tr("1 día") if days == 1 else tr("%d días") % days
 	(_photo_rig.material as ShaderMaterial).set_shader_parameter("grey", v.greyness())
+	(_photo_rig.material as ShaderMaterial).set_shader_parameter("spore", v.spore_look())
 	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
 
 ## Cuánto cree en vos, cuánto te teme y qué es por eso.
@@ -257,6 +274,8 @@ func _update_creed() -> void:
 	_fear_bar.value = v.fear
 	_hunger_bar.value = v.hunger
 	_sleep_bar.value = v.tiredness
+	_spore_bar.value = v.spore * 100.0
+	_spore_bar.get_parent().visible = v.spore > 0.0 and not v.dead
 	_sleep_bar.modulate = Color(1.0, 0.55, 0.5) if v.tiredness >= Villager.EXHAUSTED_AT else Color.WHITE
 	_mood_bar.value = v.mood
 	var m: Array = MOODS[v.mood_level()]
@@ -264,16 +283,16 @@ func _update_creed() -> void:
 	_mood_label.add_theme_color_override("font_color", m[2])
 	(_mood_bar.get_theme_stylebox("fill") as StyleBoxFlat).bg_color = m[2]
 	_mood_why.text = v.mood_reason()
-	_mood_why.visible = _mood_why.text != "" and not v.dead
-	_mood_label.visible = not v.dead
+	var gone := v.dead or v.is_zombie()   # Muerto (o zombi) ya no siente nada
+	_mood_why.visible = _mood_why.text != "" and not gone
+	_mood_label.visible = not gone
 	_hunger_bar.modulate = Color(1.0, 0.55, 0.5) if v.starving() else Color.WHITE
 	var c: Array = CREEDS[v.creed()]
 	_creed.text = c[1] if v.gender == Villager.Gender.FEMALE else c[0]
 	_creed.add_theme_color_override("font_color", c[2])
-	# Muerto ya no siente nada
-	_creed.visible = not v.dead
+	_creed.visible = not gone
 	for bar: ProgressBar in [_faith_bar, _fear_bar, _hunger_bar, _sleep_bar, _mood_bar]:
-		bar.modulate.a = 0.4 if v.dead else 1.0
+		bar.modulate.a = 0.4 if gone else 1.0
 
 ## Su pareja, sus amigos y sus enemigos (los vivos), con el nombre de cada uno (o su número
 ## si no tiene) en el color de la relación.

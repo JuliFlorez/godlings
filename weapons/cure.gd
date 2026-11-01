@@ -2,8 +2,9 @@ extends Node2D
 class_name Cure
 ## Curar: se desbloquea en la tienda y se saca desde el HUD o con la tecla C (Esc o click
 ## derecho lo guardan). Cada click baja un haz de luz dorada: los aldeanos que alcanza se
-## curan de la gripe (aunque la estuvieran incubando, y quedan inmunes un rato) y, si se
-## estaban quemando, se apagan y se les va el tizne (ver Villager.cure). Ver también Plague.
+## curan de la gripe (aunque la estuvieran incubando, y quedan inmunes un rato), de la espora
+## (si todavía no son zombis: ahí ya no tiene cura) y, si se estaban quemando, se apagan y se les
+## va el tizne (ver Villager.cure). Ver también Plague y Spore.
 
 signal armed_changed(on: bool)
 
