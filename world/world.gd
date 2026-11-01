@@ -121,18 +121,27 @@ var lift := 0.0:
 		$Sky.lift = lift
 
 ## Zoom (rueda del mouse, + y -, o 0 para volver): agranda o achica el mundo hacia donde
-## está el mouse, y de cerca se puede correr la vista arrastrando con la rueda apretada.
+## está el mouse. La vista se corre con las flechas o arrastrando con la rueda apretada,
+## con o sin zoom: hasta un poco más allá de lo que se ve normalmente (ver PAN_MARGIN).
 ## El horizonte nunca baja de donde está (ahí el cielo, que está en su propia capa, se
-## junta con el mar): alejándose se queda fijo, y de cerca solo puede subir. Solo jugando.
+## junta con el mar): para arriba se puede volver hasta ahí y no más. 0 también centra la
+## vista. Solo jugando.
 const ZOOM_MIN := 0.6
 const ZOOM_MAX := 1.5
 const ZOOM_STEP := 1.12          # Cada paso de la rueda
 const ZOOM_SMOOTH := 12.0
+## Cuánto más allá de lo de siempre se puede correr la vista, en parte de la pantalla (de
+## mundo: lo mismo con cualquier zoom). Para los costados y para abajo; el mar alcanza.
+const PAN_MARGIN := Vector2(0.35, 0.3)
+const PAN_SPEED := 650.0         # Con las flechas (px de pantalla por segundo)
+const PAN_SMOOTH := 10.0         # Qué tan rápido arranca y frena
 var zoom := 1.0
 var _zoom_target := 1.0
 var _zoom_anchor := Vector2.ZERO # Punto de la pantalla que se queda quieto al hacer zoom
 var _view := Vector2.ZERO        # Corrimiento de la vista (px de pantalla)
 var _panning := false
+var _pan_vel := Vector2.ZERO     # Con las flechas (px de pantalla por segundo)
+var _homing := false             # Volviendo al tamaño normal y al centro (tecla 0)
 ## Temblor del meteorito (px de pantalla, ver Meteor).
 var shake := Vector2.ZERO:
 	set(v):
@@ -328,7 +337,9 @@ func _on_blood_moon_changed(active: bool) -> void:
 func _process(dt: float) -> void:
 	if not playing:
 		return
+	_update_home(dt)
 	_update_zoom(dt)
+	_update_pan(dt)
 	if hud:
 		hud.set_population(alive_villagers(), capacity())
 		hud.faith_rate = _devotion_rate()
@@ -360,6 +371,7 @@ func _unhandled_input(event: InputEvent) -> void:
 					get_viewport().set_input_as_handled()
 			MOUSE_BUTTON_MIDDLE:
 				_panning = event.pressed
+				_homing = false
 				get_viewport().set_input_as_handled()
 	elif event is InputEventMouseMotion and _panning:
 		_view = _clamp_view(_view + event.relative, zoom)
@@ -372,7 +384,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_MINUS, KEY_KP_SUBTRACT:
 				_zoom_to(_zoom_target / ZOOM_STEP, mid)
 			KEY_0, KEY_KP_0:
-				_zoom_to(1.0, mid)
+				_zoom_target = 1.0
+				_homing = true
+			KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN:
+				pass   # Las mira _update_pan mientras estén apretadas
 			_:
 				return
 		get_viewport().set_input_as_handled()
@@ -380,10 +395,42 @@ func _unhandled_input(event: InputEvent) -> void:
 func _zoom_to(target: float, anchor: Vector2) -> void:
 	_zoom_target = clampf(target, ZOOM_MIN, ZOOM_MAX)
 	_zoom_anchor = anchor
+	_homing = false
+
+## Tecla 0: vuelve de a poco al tamaño normal y al centro.
+func _update_home(dt: float) -> void:
+	if not _homing:
+		return
+	var k := 1.0 - exp(-ZOOM_SMOOTH * dt)
+	zoom = lerpf(zoom, 1.0, k)
+	_view = _view.lerp(Vector2.ZERO, k)
+	if absf(zoom - 1.0) < 0.001 and _view.length() < 0.5:
+		zoom = 1.0
+		_view = Vector2.ZERO
+		_homing = false
+	_view = _clamp_view(_view, zoom)
+	_apply_view()
+
+## Flechas: corren la vista mientras estén apretadas (arranca y frena suave). No mientras
+## se escribe un nombre (en el carnet, en el cartel de una choza o en la consola).
+func _update_pan(dt: float) -> void:
+	var dir := Vector2.ZERO
+	var focus := get_viewport().gui_get_focus_owner()
+	if not (focus is LineEdit or focus is TextEdit):
+		dir = Vector2(float(Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_LEFT)),
+				float(Input.is_key_pressed(KEY_DOWN)) - float(Input.is_key_pressed(KEY_UP))).normalized()
+	if dir != Vector2.ZERO:
+		_homing = false
+	_pan_vel = _pan_vel.lerp(dir * PAN_SPEED, 1.0 - exp(-PAN_SMOOTH * dt))
+	if dir == Vector2.ZERO and _pan_vel.length_squared() < 1.0:
+		_pan_vel = Vector2.ZERO
+		return
+	_view = _clamp_view(_view - _pan_vel * dt, zoom)   # La cámara va para un lado y el mundo para el otro
+	_apply_view()
 
 ## Lleva el zoom de a poco al que se pidió, dejando quieto lo que está debajo del mouse.
 func _update_zoom(dt: float) -> void:
-	if is_equal_approx(zoom, _zoom_target):
+	if _homing or is_equal_approx(zoom, _zoom_target):
 		return
 	var world_p := (_zoom_anchor - _view) / zoom
 	zoom = lerpf(zoom, _zoom_target, 1.0 - exp(-ZOOM_SMOOTH * dt))
@@ -393,14 +440,16 @@ func _update_zoom(dt: float) -> void:
 	_apply_view()
 
 ## Para los costados: de cerca, que no se salga de lo que se ve sin zoom; de lejos, que eso
-## quede adentro. Para arriba y abajo: el horizonte nunca más abajo de donde está, y de cerca
-## tampoco más allá del borde de abajo de la pantalla sin zoom.
+## quede adentro; y en los dos casos, hasta PAN_MARGIN más allá. Para arriba y abajo: el
+## horizonte nunca más abajo de donde está, y para abajo hasta PAN_MARGIN más allá del borde
+## de abajo de la pantalla sin zoom.
 func _clamp_view(v: Vector2, z: float) -> Vector2:
 	var size := get_viewport_rect().size
+	var m := size * PAN_MARGIN * z   # El margen es de mundo: en px de pantalla, con el zoom
 	var a := size.x * (1.0 - z)
 	var top: float = $Sky.horizon_y * (1.0 - z)
-	var bottom := size.y * (1.0 - z)
-	return Vector2(clampf(v.x, minf(0.0, a), maxf(0.0, a)), top if bottom > top else clampf(v.y, bottom, top))
+	var bottom := size.y * (1.0 - z) - m.y
+	return Vector2(clampf(v.x, minf(0.0, a) - m.x, maxf(0.0, a) + m.x), top if bottom > top else clampf(v.y, bottom, top))
 
 func _notification(what: int) -> void:
 	# Al cerrar la ventana (y desde "Salir del juego", que manda lo mismo)
