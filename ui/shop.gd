@@ -2,7 +2,7 @@ extends Control
 class_name Shop
 ## Tienda: se gastan ofrendas. Va en pestañas, de a una por vez: la isla (decoraciones, que se
 ## cobran recién al colocarlas, ver DecorPlacer), los poderes malos (pistola, rayo, meteorito,
-## tornado, diluvio, peste y la manzana de la discordia), los buenos (curar, el arco de Cupido y
+## tornado, diluvio, peste, espora y la manzana de la discordia), los buenos (curar, el arco de Cupido y
 ## la pelota de la amistad), y el cielo y los tiburones (la Luna de Sangre y los tiburones).
 ## Tiene el tamaño de la pestaña más grande, así no salta al cambiar. Se vuelve a abrir en la
 ## última que se miró, o en la del poder bloqueado que se tocó en la barra (ver HUD.open_shop).
@@ -38,6 +38,7 @@ var _meteor_btn: Button
 var _tornado_btn: Button
 var _storm_btn: Button
 var _plague_btn: Button
+var _spore_btn: Button
 var _cure_btn: Button
 var _moon_btn: Button
 var _charm_btns := {}         # Charm.Kind -> Button
@@ -152,9 +153,12 @@ func _build_powers(evil_page: Control, good_page: Control) -> void:
 			"plague":
 				_plague_btn = _unlock_card(power_row, icon, t[1], Plague.PRICE,
 						"Una nube de miasma que enferma de gripe a los que alcanza. Después se contagian solos.", hud.unlock_plague)
+			"spore":
+				_spore_btn = _unlock_card(power_row, icon, t[1], Spore.PRICE,
+						"Un hongo zombi, como el cordyceps: de a poco se adueña de ellos, los hace zombis que muerden a los sanos y al final les brota de la cabeza.", hud.unlock_spore)
 			"cure":
 				_cure_btn = _unlock_card(power_row, icon, t[1], Cure.PRICE,
-						"Un haz de luz que cura la gripe (y deja inmune un rato) y apaga y sana a los que se queman.", hud.unlock_cure)
+						"Un haz de luz que cura la gripe (y deja inmune un rato) y la espora (si todavía no son zombis), y apaga y sana a los que se queman.", hud.unlock_cure)
 			"cupid", "discord", "friendship":
 				var k: Charm.Kind = HUD.CHARM_ICONS[t[0]]
 				_charm_btns[k] = _unlock_card(power_row, icon, t[1], Charm.KINDS[k].price, Charm.KINDS[k].shop,
@@ -251,6 +255,7 @@ func _sync() -> void:
 	_sync_unlock(_tornado_btn, Tornado.unlocked, Tornado.PRICE, "Desbloqueado")
 	_sync_unlock(_storm_btn, Storm.unlocked, Storm.PRICE, "Desbloqueado")
 	_sync_unlock(_plague_btn, Plague.unlocked, Plague.PRICE, "Desbloqueada")
+	_sync_unlock(_spore_btn, Spore.unlocked, Spore.PRICE, "Desbloqueada")
 	_sync_unlock(_cure_btn, Cure.unlocked, Cure.PRICE, "Desbloqueado")
 	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada")
 	for k: Charm.Kind in _charm_btns:

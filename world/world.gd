@@ -58,6 +58,7 @@ var meteor: Meteor
 var tornado: Tornado
 var storm: Storm
 var plague: Plague
+var spore: Spore
 var cure: Cure
 var feed: Feed
 var charms: Array[Charm] = []   # Cupido, la Discordia y la Amistad (por Charm.Kind)
@@ -197,6 +198,8 @@ func _ready() -> void:
 	add_child(storm)
 	plague = Plague.new()
 	add_child(plague)
+	spore = Spore.new()
+	add_child(spore)
 	cure = Cure.new()
 	add_child(cure)
 	feed = Feed.new()
@@ -222,6 +225,8 @@ func _ready() -> void:
 		tornado.armed_changed.connect(hud.set_tornado_armed)
 		hud.plague_toggled.connect(plague.set_armed)
 		plague.armed_changed.connect(hud.set_plague_armed)
+		hud.spore_toggled.connect(spore.set_armed)
+		spore.armed_changed.connect(hud.set_spore_armed)
 		hud.cure_toggled.connect(cure.set_armed)
 		cure.armed_changed.connect(hud.set_cure_armed)
 		hud.feed_toggled.connect(feed.set_armed)
@@ -271,7 +276,7 @@ func _ready() -> void:
 	title.open()
 
 func _weapons() -> Array[Node]:
-	var all: Array[Node] = [gun, lightning, meteor, tornado, plague, cure, feed]
+	var all: Array[Node] = [gun, lightning, meteor, tornado, plague, spore, cure, feed]
 	all.append_array(charms)
 	return all
 
@@ -422,13 +427,13 @@ func alive_villagers() -> int:
 	return n
 
 ## Lo que dejan de ofrendas los que rezan (los vivos, sanos, no muertos de hambre y despiertos,
-## ver Villager.tribute).
+## ver Villager.tribute). Con hongos (o zombis) no rezan.
 func _prayers() -> float:
 	var sum := 0.0
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
 		if v and not v.eaten and not v.drowning and not v.dead and not v.is_sick() and not v.starving() \
-				and not v.is_sleeping() and not v.is_queued_for_deletion():
+				and not v.spore_shows() and not v.is_sleeping() and not v.is_queued_for_deletion():
 			sum += v.tribute()
 	return sum
 
@@ -470,6 +475,22 @@ func _update_outbreak(dt: float) -> void:
 			healthy.append(v)
 	if healthy.size() >= OUTBREAK_MIN:
 		healthy.pick_random().catch_flu()
+
+## Para la consola de trucos: a n aldeanos sin la espora se les mete (zombie: ya hechos zombis).
+func debug_spore(n: int, zombie := false) -> int:
+	var healthy: Array[Villager] = []
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v and not v.dead and not v.eaten and not v.inside and not v.is_queued_for_deletion() \
+				and (v.spore <= 0.0 or (zombie and not v.is_zombie())):
+			healthy.append(v)
+	healthy.shuffle()
+	n = mini(n, healthy.size())
+	for i in n:
+		healthy[i].catch_spore()
+		if zombie:
+			healthy[i].spore = Villager.SPORE_ZOMBIE_AT
+	return n
 
 ## Para la consola de trucos: n aldeanos sanos se agarran la gripe (ya con síntomas).
 func debug_infect(n: int) -> int:
@@ -680,6 +701,7 @@ func save_game() -> void:
 			"gender": v.gender,
 			"flu": v.flu,
 			"flu_t": v.flu_t,
+			"spore": v.spore,
 			"faith": v.faith,
 			"fear": v.fear,
 			"hunger": v.hunger,
@@ -746,6 +768,7 @@ func _load_game() -> bool:
 		v.last_name = d.get("last_name", "")
 		v.gender = d.get("gender", Villager.Gender.MALE)
 		v.set_flu(d.get("flu", Villager.Flu.HEALTHY) as Villager.Flu, d.get("flu_t", 0.0))
+		v.set_spore(d.get("spore", 0.0))
 		v.faith = d.get("faith", v.faith)
 		v.fear = d.get("fear", v.fear)
 		v.hunger = d.get("hunger", v.hunger)

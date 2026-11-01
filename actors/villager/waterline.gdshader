@@ -11,6 +11,10 @@ shader_type canvas_item;
 // También la muerte por rayo (ver Villager.zap): los cuadros de rayos X (el cuerpo se vuelve
 // una silueta oscura y encima se ve el esqueleto, que dibuja VillagerRig.XRay), el cuerpo
 // carbonizado con brasas y el desarmarse en cenizas de la cabeza a los pies.
+// Con la espora zombi (ver Villager.spore): manchas de micelio (cremas con el borde anaranjado)
+// que arrancan en la coronilla y se van extendiendo hasta los pies, cada vez más grandes y más
+// juntas; la piel se pone gris y, ya zombi, los ojos se ponen lechosos. Solo sobre el dibujo
+// (no sobre lo que se dibuja encima con primitivas: los hongos, los ojos en X).
 uniform bool cut = false;
 uniform float water_y = 0.0;
 uniform float wave_amp = 1.5;      // Ondulación de la línea
@@ -31,6 +35,11 @@ uniform float grey = 0.0;          // Canas: 0 ninguna .. 1 el pelo todo blanco
 uniform vec4 grey_color : source_color = vec4(0.84, 0.84, 0.86, 1.0);
 uniform float sick = 0.0;          // Con gripe (ver Villager._update_flu): pálido y verdoso
 uniform vec4 sick_color : source_color = vec4(0.78, 0.95, 0.62, 1.0);
+uniform float spore = 0.0;         // Espora zombi: 0 nada .. 1 brota (ver Villager.spore_look)
+uniform vec4 mold_color : source_color = vec4(0.9, 0.84, 0.68, 1.0);   // El micelio...
+uniform vec4 mold_rim : source_color = vec4(0.86, 0.5, 0.18, 1.0);     // ...con el borde anaranjado
+uniform vec4 rot_color : source_color = vec4(0.62, 0.64, 0.56, 1.0);   // La piel del zombi
+uniform vec4 blind_color : source_color = vec4(0.8, 0.85, 0.82, 1.0);  // Las pupilas lechosas
 
 const float GRAIN = 4.0;           // Ancho del borde que se desgrana (px)
 // Los ojos (px de villager.png, igual en la aldeana): centro y radios, con las pestañas
@@ -40,6 +49,9 @@ const vec2 EYE_R = vec2(666.0, 329.0);
 const vec2 EYE_R_R = vec2(90.0, 82.0);
 const vec2 HEAD_CENTER = vec2(515.0, 400.0);   // De donde salen las vetas de las canas (la nariz)...
 const float HEAD_HALF = 330.0;                 // ...y lo que hay hasta los costados del pelo
+const vec2 SPORE_FROM = vec2(515.0, 230.0);    // De donde se extiende el hongo (la coronilla)...
+const float SPORE_REACH = 720.0;               // ...y lo que hay hasta los pies
+const float SPORE_ZOMBIE = 0.6;                // Desde acá es un zombi (ver Villager.SPORE_ZOMBIE_AT)
 
 varying vec2 world_pos;
 
@@ -99,6 +111,32 @@ void fragment() {
     if (sick > 0.0) {
         // Descolorido y tirando a verde (más claro, como pálido)
         col.rgb = mix(col.rgb, sick_color.rgb * (lum * 0.8 + 0.25), sick);
+    }
+    if (spore > 0.0 && TEXTURE_PIXEL_SIZE.x < 0.01) {
+        vec2 px = UV / TEXTURE_PIXEL_SIZE;   // px del dibujo
+        float fw = length(fwidth(px));
+        // Hasta dónde llegó: de la coronilla para abajo (y para las manos)
+        float dist = length((px - SPORE_FROM) * vec2(1.2, 1.0)) / SPORE_REACH;
+        float reach = smoothstep(-0.04, 0.1, spore * 1.75 - dist);
+        // La piel se pone gris
+        float rot = reach * smoothstep(0.2, 0.7, spore) * skin;
+        col.rgb = mix(col.rgb, rot_color.rgb * (lum * 0.9 + 0.3), rot * 0.75);
+        // Manchas de micelio, cada vez más grandes y más juntas. El detalle más chico se borra de
+        // lejos (más fino que un píxel de la pantalla, titila)
+        float n1 = noise(px / 70.0);
+        float n2 = mix(noise(px / 26.0 + 9.7), 0.5, smoothstep(6.0, 12.0, fw));
+        float blot = n1 * 0.7 + n2 * 0.3;
+        float thresh = mix(0.78, 0.5, smoothstep(0.1, 1.0, spore));
+        float soft = 0.03 + 0.03 * smoothstep(8.0, 18.0, fw);
+        float eyes = min(length((px - EYE_L) / EYE_L_R), length((px - EYE_R) / EYE_R_R));
+        float m = smoothstep(thresh, thresh + soft, blot) * reach * smoothstep(1.0, 1.15, eyes);
+        float core = smoothstep(thresh + 0.03, thresh + 0.07, blot);
+        vec3 mold = mix(mold_rim.rgb, mold_color.rgb * (0.85 + 0.25 * n2), core);
+        col.rgb = mix(col.rgb, mold, m * 0.92);
+        // Zombi: los ojos lechosos (las pupilas, lo oscuro del medio del ojo, se nublan)
+        float blind = smoothstep(SPORE_ZOMBIE - 0.08, SPORE_ZOMBIE + 0.02, spore) * (1.0 - smoothstep(0.7, 0.8, eyes))
+                * (1.0 - smoothstep(0.35, 0.7, lum));
+        col.rgb = mix(col.rgb, blind_color.rgb * (0.85 + 0.15 * lum), blind * 0.85);
     }
     if (xray) {
         col.rgb = xray_color.rgb + vec3(0.05, 0.1, 0.25) * lum;

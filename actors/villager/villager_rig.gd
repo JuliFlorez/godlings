@@ -16,6 +16,10 @@ class_name VillagerRig
 ## - Rezándote: de rodillas (el cuerpo baja y tapa las piernas) con los brazos en alto,
 ##   meciéndolos. Agachado de miedo: más abajo, abrazándose y con la boca abierta. Si te
 ##   teme, tiembla (ver Villager.pose).
+## - Con la espora zombi (ver Villager.spore): le crecen hongos en la cabeza (ver Fungus) y tiene
+##   tics cada vez más seguidos. Zombi arrastra los pies, bamboleándose, con los brazos estirados,
+##   la cabeza caída, la boca entreabierta y sin parpadear. Brotando se queda de rodillas, duro y
+##   temblando, mientras le sale el tallo de la cabeza.
 
 const GRAVITY := 1400.0
 const MAX_ACC := 7000.0       # Tope de aceleración medida (evita latigazos absurdos)
@@ -81,6 +85,21 @@ const PRAY_SWAY := 0.18       # ...meciéndose
 const PRAY_SWAY_RATE := 2.6
 const COWER_ARMS := -1.8      # Agachado, abrazándose (los brazos cruzados por delante)
 const TREMBLE := 6.0          # Temblor de la cadera si te teme (px de la imagen)
+
+# Espora zombi (ver Villager.spore)
+const TWITCH_FROM := 0.05     # Con la espora así de avanzada empiezan los tics...
+const TWITCH_EVERY := Vector2(6.0, 0.9)   # ...cada tantos segundos (de recién contagiado a zombi)...
+const TWITCH_KICK := Vector2(2.0, 7.0)    # ...y así de fuertes (rad/s)
+const ZOMBIE_SHUFFLE := 0.65  # Zombi: levanta mucho menos los pies...
+const ZOMBIE_LURCH := 1.6     # ...se bambolea más...
+const ZOMBIE_SLOUCH := 22.0   # ...hunde la cabeza (px de la imagen)...
+const ZOMBIE_HEAD := 0.3      # ...y la deja caer para un costado (rad)
+const ZOMBIE_ARM := 0.3       # Los brazos estirados (rad desde la pose T, apenas para abajo)...
+const ZOMBIE_ARM_SWAY := 0.12 # ...meciéndose...
+const ZOMBIE_ARM_SHORT := 0.22   # ...y más cortos, como si vinieran hacia la cámara
+const BLOOM_ARMS := 1.4       # Brotando: los brazos colgando...
+const BLOOM_HEAD := 0.35      # ...la cabeza tirada para un costado...
+const BLOOM_TREMBLE := 7.0    # ...y tiembla todo (px de la imagen)
 
 # Aldeana: el mismo dibujo con pelo largo, trenzas y top de hojas, alineado con villager.png
 # (mismos huesos y recortes). La cabeza va en una textura aparte porque las trenzas cuelgan
@@ -152,7 +171,9 @@ var _female := false
 var _male_head_poly := PackedVector2Array()
 var _male_head_uv := PackedVector2Array()
 var _sneeze := 0.0            # Estornudando: la boca abierta un ratito
-var _kneel := 0.0             # 0 = parado, 1 = de rodillas (rezando o agachado de miedo)
+var _kneel := 0.0             # 0 = parado, 1 = de rodillas (rezando, agachado de miedo o brotando)
+var _fungus: Fungus           # Los hongos de la cabeza (espora zombi)
+var _twitch_t := 0.0
 var _pose := Villager.Pose.NONE   # La última (para seguir con ella mientras se levanta)
 
 const MAX_MARKS := 10
@@ -202,6 +223,11 @@ func _ready() -> void:
 
 	_mouth = Mouth.new()
 	head.add_child(_mouth)
+
+	_fungus = Fungus.new()
+	_fungus.layout_seed = randi()   # Cada uno los tiene en otro lugar
+	_fungus.visible = false
+	head.add_child(_fungus)
 
 	_turn_hand(arm_l, HAND_L, WRIST_L)
 	_turn_hand(arm_r, HAND_R, WRIST_R)
@@ -300,8 +326,10 @@ func set_xray(on: bool, mat: Material) -> void:
 func copy_face(from: VillagerRig) -> void:
 	_mouth.target = from._mouth.target
 	_mouth.mood = from._mouth.mood
+	_fungus.copy_from(from._fungus)
 	if is_instance_valid(_blink) and is_instance_valid(from._blink):
 		_blink.asleep = from._blink.asleep
+		_blink.stare = from._blink.stare
 	if from._dead_eyes.visible and not _dead_eyes.visible:
 		set_dead()
 
@@ -365,12 +393,26 @@ func facing() -> float:
 func sneeze() -> void:
 	_sneeze = 0.3
 
+## El zombi se tira a morder: estira los brazos de golpe y abre la boca (ver Villager._bite).
+func lunge() -> void:
+	_sneeze = 0.45
+	j_arm_l.vel += 7.0
+	j_arm_r.vel -= 7.0
+	j_head.vel += randf_range(-4.0, 4.0)
+
+## La punta del tallo que le brota de la cabeza (coords globales, ver Fungus).
+func bloom_tip() -> Vector2:
+	return head.to_global(_fungus.stalk_tip())
+
 func _process(dt: float) -> void:
 	if villager == null or dt <= 0.0:
 		return
 	dt = minf(dt, 1.0 / 30.0)
 	_t += dt
 	scale.x = move_toward(scale.x, _facing * base_scale, 2.0 * base_scale / TURN_TIME * dt)
+	_fungus.amount = villager.spore_look()
+	_fungus.bloom = villager.bloom_amount()
+	_fungus.burst = villager.bloom_burst()
 
 	# --- Aceleración medida del cuerpo (en mundo) ---
 	var pos := global_position
@@ -394,14 +436,17 @@ func _process(dt: float) -> void:
 	elif villager.dragging or villager.falling or villager.tornado != null or villager.is_scared() or villager.on_fire \
 			or _sneeze > 0.0:
 		_mouth.target = 1.0
+	elif villager.is_zombie():
+		_mouth.target = villager.zombie_mouth()
 	elif villager.food and villager._eat_t > 0.0:
 		_mouth.target = absf(sin(villager._eat_t * 12.0)) * 0.45
 	else:
 		_mouth.target = villager.talk_mouth()
 	if is_instance_valid(_blink):
 		_blink.asleep = villager.asleep
+		_blink.stare = villager.is_zombie()   # El zombi no parpadea
 	# Cerrada, la boca dice cómo anda: sonríe contento y la tuerce para abajo triste
-	_mouth.mood = 0.0 if villager.dead else clampf((villager.mood - 50.0) / 30.0, -1.0, 1.0)
+	_mouth.mood = 0.0 if villager.dead or villager.is_zombie() else clampf((villager.mood - 50.0) / 30.0, -1.0, 1.0)
 
 	# Gravedad efectiva que "sienten" los miembros: g - a (+ arrastre del aire)
 	var g_world := Vector2(0.0, GRAVITY) - _acc
@@ -442,33 +487,40 @@ func _process(dt: float) -> void:
 	var amt := clampf(speed / REF_SPEED, 0.0, 1.0) * (1.0 - rag)
 	var still := (1.0 - amt) * (1.0 - rag)   # Parado en la isla
 	var old := villager.oldness()
-	var step := amt * (1.0 - STOOP_STEP * old)
+	var zombie := villager.zombie_look() * (1.0 - rag)   # Arrastra los pies, bamboleándose
+	var step := amt * (1.0 - STOOP_STEP * old) * (1.0 - ZOMBIE_SHUFFLE * zombie)
 	var s := sin(phase)
 	var lift_l := maxf(0.0, s) * step        # Pie izquierdo en el aire (0..1)
 	var lift_r := maxf(0.0, -s) * step
 	var contact := pow(1.0 - absf(s), 3.0) * amt   # Recién apoyó: el peso cae
-	var hip_rot := SWAY * s * amt
+	var hip_rot := SWAY * s * amt * (1.0 + ZOMBIE_LURCH * zombie)
 	var rise := absf(s) * BOB * step + sin(_t * BREATH_RATE) * BREATH * still
 
 	# De rodillas: el cuerpo baja y las piernas se quedan donde están (el cuerpo las tapa)
+	# (Brotando también: duro y temblando)
+	var blooming := villager.bloom_amount() > 0.0 and not villager.dead
 	if villager.pose != Villager.Pose.NONE:
 		_pose = villager.pose
-	_kneel = move_toward(_kneel, 1.0 if villager.pose != Villager.Pose.NONE else 0.0, KNEEL_SPEED * dt)
+	_kneel = move_toward(_kneel, 1.0 if villager.pose != Villager.Pose.NONE or blooming else 0.0, KNEEL_SPEED * dt)
 	var kneel := smoothstep(0.0, 1.0, _kneel) * (1.0 - rag)
-	var cower := _pose == Villager.Pose.COWER
+	var cower := _pose == Villager.Pose.COWER and not blooming
 	if kneel > 0.0:
 		rise -= (COWER_DROP if cower else KNEEL_DROP) * kneel
-		if villager.fear >= Villager.FEARS_AT:
+		if blooming:
+			rise += randf_range(-1.0, 1.0) * BLOOM_TREMBLE * (0.4 + villager.bloom_amount()) * kneel
+		elif villager.fear >= Villager.FEARS_AT:
 			rise += randf_range(-1.0, 1.0) * TREMBLE * kneel
 
 	hip.rotation = hip_rot
 	hip.position = hip_rest + Vector2(SHIFT * s * amt, -rise)
 	_place_leg(leg_l, leg_l_rest, lift_l)
 	_place_leg(leg_r, leg_r_rest, lift_r)
-	head.position = head_rest + Vector2(0.0, HEAD_DIP * contact + STOOP_HEAD * old * (1.0 - rag))
-	# El brazo de un lado va adelante cuando sube la pierna del otro
-	arm_l.scale = Vector2(1.0 - ARM_SHORT * lift_r, 1.0 + ARM_NEAR * lift_r)
-	arm_r.scale = Vector2(1.0 - ARM_SHORT * lift_l, 1.0 + ARM_NEAR * lift_l)
+	head.position = head_rest + Vector2(0.0, HEAD_DIP * contact + STOOP_HEAD * old * (1.0 - rag) + ZOMBIE_SLOUCH * zombie)
+	# El brazo de un lado va adelante cuando sube la pierna del otro (el zombi los estira hacia
+	# la cámara: más cortos)
+	var reach := 1.0 - ZOMBIE_ARM_SHORT * zombie
+	arm_l.scale = Vector2((1.0 - ARM_SHORT * lift_r) * reach, 1.0 + ARM_NEAR * lift_r)
+	arm_r.scale = Vector2((1.0 - ARM_SHORT * lift_l) * reach, 1.0 + ARM_NEAR * lift_l)
 	_update_look(dt, still)
 
 	# Con amt = 0 (ragdoll total) esto queda en la pose de reposo: brazos abajo, resto recto
@@ -477,14 +529,24 @@ func _process(dt: float) -> void:
 	j_arm_r.target =  ARM_DOWN + ARM_FWD * lift_l - ARM_BACK * lift_r - hip_rot
 	j_leg_l.target =  LEG_SPLAY * lift_l - hip_rot
 	j_leg_r.target = -LEG_SPLAY * lift_r - hip_rot
+	if zombie > 0.0:
+		# Zombi: los brazos estirados, meciéndose cada uno a su ritmo, y la cabeza caída
+		j_arm_l.target = lerpf(j_arm_l.target, -ZOMBIE_ARM + sin(_t * 2.1) * ZOMBIE_ARM_SWAY, zombie)
+		j_arm_r.target = lerpf(j_arm_r.target, ZOMBIE_ARM + sin(_t * 2.1 + 1.3) * ZOMBIE_ARM_SWAY, zombie)
+		j_head.target += ZOMBIE_HEAD * zombie
 	if kneel > 0.0:
 		var arms := COWER_ARMS if cower else PRAY_ARMS + sin(_t * PRAY_SWAY_RATE) * PRAY_SWAY
+		if blooming:
+			arms = -BLOOM_ARMS   # Colgando
+			j_head.target = lerpf(j_head.target, BLOOM_HEAD, kneel)
+			_mouth.target = maxf(_mouth.target, 0.85 * kneel)   # Un grito mudo
 		j_arm_l.target = lerpf(j_arm_l.target, arms, kneel)
 		j_arm_r.target = lerpf(j_arm_r.target, -arms, kneel)
 		j_leg_l.target = lerpf(j_leg_l.target, KNEEL_SPLAY, kneel)
 		j_leg_r.target = lerpf(j_leg_r.target, -KNEEL_SPLAY, kneel)
 		if cower:
 			_mouth.target = maxf(_mouth.target, 0.6 * kneel)
+	_twitch(dt, blooming)
 
 	# --- Simulación de cada articulación ---
 	for j in joints:
@@ -507,6 +569,22 @@ func _process(dt: float) -> void:
 			j.vel = -absf(j.vel) * 0.25
 
 	_apply()
+
+## Con la espora, tics: sacudones de la cabeza y los brazos, cada vez más seguidos y más fuertes
+## (brotando ya no: está duro).
+func _twitch(dt: float, blooming: bool) -> void:
+	var sp := villager.spore_look()
+	if sp < TWITCH_FROM or villager.dead or blooming or rag >= 1.0:
+		return
+	_twitch_t -= dt
+	if _twitch_t > 0.0:
+		return
+	_twitch_t = randf_range(0.6, 1.4) * lerpf(TWITCH_EVERY.x, TWITCH_EVERY.y, clampf(sp / Villager.SPORE_ZOMBIE_AT, 0.0, 1.0))
+	var kick := lerpf(TWITCH_KICK.x, TWITCH_KICK.y, clampf(sp / Villager.SPORE_ZOMBIE_AT, 0.0, 1.0))
+	j_head.vel += randf_range(-1.0, 1.0) * kick * 1.2
+	for j: Joint in [j_arm_l, j_arm_r]:
+		if randf() < 0.6:
+			j.vel += randf_range(-1.0, 1.0) * kick
 
 ## Pone la pierna para que el pie quede apoyado (o levantado, lift de 0 a 1) donde va,
 ## aunque la cadera suba, se corra o se incline.
@@ -584,6 +662,7 @@ class Blink extends Node2D:
 	const COLS := 16
 
 	var asleep := false   # Durmiendo: los ojos se cierran y quedan cerrados
+	var stare := false    # Zombi: no parpadea
 	var _wait := 0.0
 	var _t := -1.0        # < 0: ojos abiertos, esperando
 	var _closed := 0.0    # 0 = abiertos, 1 = cerrados
@@ -599,6 +678,8 @@ class Blink extends Node2D:
 			queue_redraw()
 			return
 		if _t < 0.0:
+			if stare:
+				return
 			_wait -= dt
 			if _wait > 0.0:
 				return
@@ -842,3 +923,211 @@ class XRay extends Node2D:
 			var a := TAU * i / 24.0
 			pts.append(c + Vector2(cos(a) * r.x, sin(a) * r.y))
 		return pts
+
+## Hongos que le crecen en la cabeza con la espora zombi (ver Villager.spore_look), en px de
+## villager.png relativos al pivote del hueso Head: hongos de sombrerito que van brotando en el
+## pelo y, ya casi zombi, tallos de cordyceps anaranjados con la punta engrosada y llena de
+## puntitos. Brotando, le sale de la coronilla un tallo enorme con una bola de esporas que se
+## hincha y late cada vez más rápido hasta reventar (y queda abierta). Cada aldeano los tiene en
+## otro lugar (layout_seed). Se dibuja con el material del rig (ver waterline.gdshader): se corta
+## en la línea del agua, se carboniza y se hace cenizas con el cuerpo.
+class Fungus extends Node2D:
+	const DOME_C := Vector2(-15, -262)     # Centro de la cabeza...
+	const DOME_R := Vector2(300, 225)      # ...y radios hasta el borde del pelo
+	const INK := Color(0.28, 0.13, 0.06)   # Contorno (como el del dibujo)
+	const LINE := 9.0
+	const CAP := Color(0.86, 0.6, 0.3)     # Sombrerito...
+	const CAP_SPOT := Color(0.97, 0.92, 0.78)
+	const STEM := Color(0.95, 0.9, 0.76)   # ...y pie
+	const CLUB := Color(0.95, 0.52, 0.16)  # Cordyceps: el tallo anaranjado...
+	const CLUB_TIP := Color(1.0, 0.7, 0.32)   # ...la punta más clara...
+	const CLUB_DOT := Color(0.5, 0.24, 0.08)  # ...y llena de puntitos
+	const CLUB_W := 22.0
+	const BULB := Color(0.84, 0.6, 0.3)    # La bola de esporas del brote...
+	const BULB_OPEN := Color(0.36, 0.18, 0.08)   # ...y abierta, después de reventar
+	const GROW := 0.12                     # Lo que tarda cada uno en crecer (en espora)
+	const CAP_SPOTS := [-1.1, -0.7, -0.3, 0.15, 0.55, 0.95]   # Dónde salen (ángulo desde arriba)...
+	const CAP_WHEN := [0.16, 0.26, 0.36, 0.46, 0.56, 0.68]    # ...y cuándo (en espora)
+	const CLUBS := 4
+	const CLUB_WHEN := 0.46                # El primer tallo, y uno más cada CLUB_GAP
+	const CLUB_GAP := 0.11
+	const STALK_ANGLE := 0.12              # El tallo del brote: casi en la coronilla...
+	const STALK_LEN := 430.0               # ...así de largo...
+	const STALK_W := 34.0
+	const STALK_BEND := 0.12
+	const BULB_R := 74.0                   # ...y la bola de la punta
+
+	var layout_seed := 0:
+		set(v):
+			layout_seed = v
+			_layout()
+	var amount := 0.0    # Lo que lo domina la espora (0..1)
+	var bloom := 0.0     # Lo que creció el tallo del brote (0..1)
+	var burst := false   # Ya reventó
+	var _caps: Array[Vector4] = []    # Ángulo, tamaño, cuándo sale, (sin usar)
+	var _clubs: Array[Vector4] = []   # Ángulo, largo, cuándo sale, curva
+	var _t := 0.0
+
+	func _ready() -> void:
+		if _caps.is_empty():
+			_layout()
+
+	## Para la foto del carnet: los mismos hongos que el aldeano.
+	func copy_from(o: Fungus) -> void:
+		if o.layout_seed != layout_seed:
+			layout_seed = o.layout_seed
+		amount = o.amount
+		bloom = o.bloom
+		burst = o.burst
+
+	func _layout() -> void:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = layout_seed
+		_caps.clear()
+		_clubs.clear()
+		var order := range(CAP_SPOTS.size())
+		for i in range(order.size() - 1, 0, -1):   # Barajados: cada uno los tiene en otro orden
+			var j := rng.randi_range(0, i)
+			var tmp: int = order[i]
+			order[i] = order[j]
+			order[j] = tmp
+		for i in order.size():
+			var a: float = CAP_SPOTS[order[i]]
+			var when: float = CAP_WHEN[i]
+			_caps.append(Vector4(a + rng.randf_range(-0.12, 0.12), rng.randf_range(44.0, 70.0), when, 0.0))
+		for i in CLUBS:
+			_clubs.append(Vector4(rng.randf_range(-0.95, 0.95), rng.randf_range(150.0, 240.0),
+					CLUB_WHEN + i * CLUB_GAP, rng.randf_range(-0.5, 0.5)))
+
+	func _process(dt: float) -> void:
+		visible = amount > 0.01 or bloom > 0.0
+		if visible:
+			_t += dt
+			queue_redraw()
+
+	func _draw() -> void:
+		# Los tallos primero: los hongos tapan donde salen
+		for c in _clubs:
+			var g := _grow(c.z)
+			if g > 0.0:
+				var sway := sin(_t * 1.4 + c.w * 5.0) * 0.08
+				_club(_on_dome(c.x, 0.9), c.x, c.y * g, CLUB_W * (0.4 + 0.6 * g), c.w + sway)
+		for cap in _caps:
+			var g := _grow(cap.z)
+			if g > 0.0:
+				_cap(_on_dome(cap.x, 0.92), cap.x, cap.y * _pop(g))
+		if bloom > 0.0:
+			_stalk()
+
+	## Cuánto creció uno que sale con la espora en at (0..1).
+	func _grow(at: float) -> float:
+		return clampf((amount - at) / GROW, 0.0, 1.0)
+
+	## Un punto del borde del pelo (a: ángulo desde arriba; k: 1 el borde, menos más adentro).
+	func _on_dome(a: float, k: float) -> Vector2:
+		return DOME_C + Vector2(sin(a) * DOME_R.x, -cos(a) * DOME_R.y) * k
+
+	## Para dónde crece lo que sale del borde del pelo en a: casi derecho para afuera.
+	func _tilt(a: float) -> float:
+		return atan2(sin(a) * DOME_R.y, cos(a) * DOME_R.x) * 0.8
+
+	## Pasa un poco de largo y vuelve (el hongo que brota de golpe).
+	static func _pop(t: float) -> float:
+		const C := 1.70158
+		return 1.0 + (C + 1.0) * pow(t - 1.0, 3.0) + C * pow(t - 1.0, 2.0)
+
+	## Relleno con contorno.
+	func _outlined(poly: PackedVector2Array, col: Color) -> void:
+		draw_colored_polygon(poly, col)
+		var closed := poly.duplicate()
+		closed.append(poly[0])
+		draw_polyline(closed, INK, LINE, true)
+
+	## Hongo de sombrerito parado en base, inclinado para afuera desde a, de tamaño s.
+	func _cap(base: Vector2, a: float, s: float) -> void:
+		if s < 4.0:
+			return
+		draw_set_transform(base, _tilt(a))
+		var h := s * 1.1   # Alto del pie...
+		var w := s * 0.38  # ...y ancho
+		_outlined(PackedVector2Array([Vector2(-w * 0.5, 0.0), Vector2(w * 0.5, 0.0), Vector2(w * 0.4, -h),
+				Vector2(-w * 0.4, -h)]), STEM)
+		# El sombrerito: media cúpula con el borde de abajo apenas curvo
+		var cap := PackedVector2Array()
+		for i in 13:
+			var t := PI + PI * i / 12.0
+			cap.append(Vector2(cos(t) * s, -h + sin(t) * s * 0.7))
+		cap.append(Vector2(s * 0.5, -h + s * 0.14))
+		cap.append(Vector2(-s * 0.5, -h + s * 0.14))
+		_outlined(cap, CAP)
+		for sp: Vector3 in [Vector3(-0.42, -0.4, 0.15), Vector3(0.16, -0.5, 0.12), Vector3(0.5, -0.22, 0.1)]:
+			draw_circle(Vector2(sp.x * s, -h + sp.y * s), sp.z * s, CAP_SPOT, true, -1.0, true)
+		draw_set_transform(Vector2.ZERO)
+
+	## Tallo de cordyceps: sale de base para afuera desde a, largo length, se curva (curve) y
+	## termina en una punta engrosada llena de puntitos.
+	func _club(base: Vector2, a: float, length: float, w: float, curve: float) -> void:
+		if length < 6.0:
+			return
+		draw_set_transform(base, _tilt(a))
+		var pts := PackedVector2Array()
+		for i in 9:
+			var u := i / 8.0
+			pts.append(Vector2(curve * length * u * u * 0.5, -length * u))
+		var tip := pts.slice(5)
+		# Primero el contorno de todo, después el tallo y la punta encima
+		draw_polyline(pts, INK, w + LINE * 2.0, true)
+		draw_polyline(tip, INK, w * 1.7 + LINE * 2.0, true)
+		draw_circle(pts[8], w * 0.85 + LINE, INK, true, -1.0, true)
+		draw_polyline(pts, CLUB, w, true)
+		draw_polyline(tip, CLUB_TIP, w * 1.7, true)
+		draw_circle(pts[8], w * 0.85, CLUB_TIP, true, -1.0, true)
+		for i in range(5, 9):
+			draw_circle(pts[i] + Vector2(w * 0.35 * (1.0 if i % 2 == 0 else -1.0), 0.0), w * 0.16, CLUB_DOT, true, -1.0, true)
+		draw_set_transform(Vector2.ZERO)
+
+	## Lo largo que está el tallo del brote: sale rápido y después crece despacio.
+	func _stalk_len() -> float:
+		return STALK_LEN * ease(clampf(bloom, 0.0, 1.0), 0.5)
+
+	## La punta del tallo del brote (donde está la bola), en coords del hueso de la cabeza.
+	func stalk_tip() -> Vector2:
+		var length := _stalk_len()
+		return _on_dome(STALK_ANGLE, 0.85) + Vector2(STALK_BEND * length, -length).rotated(_tilt(STALK_ANGLE))
+
+	## El tallo del brote con la bola de esporas en la punta, que se hincha y late cada vez más
+	## rápido; al reventar queda abierta, con los pedazos para afuera.
+	func _stalk() -> void:
+		var length := _stalk_len()
+		if length < 6.0:
+			return
+		draw_set_transform(_on_dome(STALK_ANGLE, 0.85), _tilt(STALK_ANGLE))
+		var bend := STALK_BEND + (0.0 if burst else sin(_t * 1.1) * 0.05)
+		var pts := PackedVector2Array()
+		for i in 11:
+			var u := i / 10.0
+			pts.append(Vector2(bend * length * u * u, -length * u))
+		var w := STALK_W * (0.5 + 0.5 * minf(1.0, bloom * 2.0))
+		draw_polyline(pts, INK, w + LINE * 2.0, true)
+		draw_polyline(pts, CLUB, w, true)
+		var top := pts[10]
+		var r := BULB_R * smoothstep(0.15, 0.7, bloom)
+		if not burst:
+			r *= 1.0 + 0.08 * sin(_t * lerpf(3.0, 16.0, bloom)) * bloom
+		if r > 3.0:
+			draw_circle(top, r + LINE, INK, true, -1.0, true)
+			if not burst:
+				draw_circle(top, r, BULB, true, -1.0, true)
+				for i in 7:
+					var d := Vector2.from_angle(TAU * i / 7.0 + 0.4) * r * 0.6
+					draw_circle(top + d, r * 0.12, CLUB_DOT, true, -1.0, true)
+			else:
+				# Abierta: los pedazos de la bola para afuera y el hueco oscuro
+				for i in 6:
+					var d := Vector2.from_angle(TAU * i / 6.0)
+					var side := d.orthogonal() * r * 0.3
+					var petal := PackedVector2Array([top + d * r * 0.5 + side, top + d * r * 1.35, top + d * r * 0.5 - side])
+					draw_colored_polygon(petal, BULB)
+				draw_circle(top, r, BULB, true, -1.0, true)
+				draw_circle(top, r * 0.7, BULB_OPEN, true, -1.0, true)
+		draw_set_transform(Vector2.ZERO)

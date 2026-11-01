@@ -21,6 +21,7 @@ signal meteor_toggled(on: bool)
 signal tornado_toggled(on: bool)
 signal storm_toggled(on: bool)
 signal plague_toggled(on: bool)
+signal spore_toggled(on: bool)
 signal cure_toggled(on: bool)
 signal feed_toggled(on: bool)
 signal charm_toggled(kind: Charm.Kind, on: bool)
@@ -85,6 +86,7 @@ const C_SOON := Color(1.0, 0.8, 0.3)
 const C_OFFERING := Color(1.0, 0.84, 0.34)
 const C_SHOP := Color(0.46, 0.84, 0.52)
 const C_PLAGUE := Color(0.55, 0.85, 0.3)
+const C_SPORE := Color(0.98, 0.64, 0.28)
 const C_CURE := Color(1.0, 0.88, 0.45)
 const C_HISTORY := Color(0.74, 0.66, 1.0)
 const C_FEED := Color(1.0, 0.68, 0.32)
@@ -100,6 +102,7 @@ const TOOLS := [
 	["tornado", "Tornado", "T", true, "Sacar o guardar el tornado [T]", false],
 	["rain", "Diluvio", "D", true, "Desatar o calmar el diluvio [D]", false],
 	["plague", "Peste", "P", true, "Sacar o guardar la peste [P]", false],
+	["spore", "Espora", "Z", true, "Sacar o guardar la espora [Z]", false],
 	["discord", "Discordia", "E", true, "Sacar o guardar la manzana de la discordia [E]", false],
 	["feed", "Comida", "F", true, "Tirarles comida [F]", true],
 	["cure", "Curar", "C", true, "Sacar o guardar curar [C]", true],
@@ -146,6 +149,9 @@ var _raining := false
 var _rain_charge: ColorRect   # Barrita de abajo del slot: se llena mientras el diluvio se recarga
 var _plague_btn: Button
 var _plague_armed := false
+var _spore_btn: Button
+var _spore_armed := false
+var _slot_spore: StyleBoxFlat
 var _cure_btn: Button
 var _cure_armed := false
 var _slot_plague: StyleBoxFlat
@@ -360,6 +366,10 @@ func set_plague_armed(on: bool) -> void:
 	_plague_armed = on
 	_armed_changed(_plague_btn, on)
 
+func set_spore_armed(on: bool) -> void:
+	_spore_armed = on
+	_armed_changed(_spore_btn, on)
+
 func set_cure_armed(on: bool) -> void:
 	_cure_armed = on
 	_armed_changed(_cure_btn, on)
@@ -388,8 +398,8 @@ func reveal(duration: float) -> void:
 ## Si hay un arma o poder afuera: el click es para eso (no para agarrar aldeanos, el
 ## tiburón, cocos ni decoraciones).
 static func aiming() -> bool:
-	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed or Plague.armed or Cure.armed \
-			or Feed.armed or Charm.any_armed()
+	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed or Plague.armed or Spore.armed \
+			or Cure.armed or Feed.armed or Charm.any_armed()
 
 ## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
 func flash_screen(amount: float) -> void:
@@ -486,6 +496,14 @@ func unlock_plague() -> bool:
 		return false
 	Plague.unlocked = true
 	popup_text("¡Peste desbloqueada! Sacala con P", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_PLAGUE)
+	_refresh()
+	return true
+
+func unlock_spore() -> bool:
+	if Spore.unlocked or not spend_offerings(Spore.PRICE):
+		return false
+	Spore.unlocked = true
+	popup_text("¡Espora desbloqueada! Sacala con Z", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_SPORE)
 	_refresh()
 	return true
 
@@ -621,6 +639,7 @@ func save_state() -> Dictionary:
 		"tornado": Tornado.unlocked,
 		"storm": Storm.unlocked,
 		"plague": Plague.unlocked,
+		"spore": Spore.unlocked,
 		"cure": Cure.unlocked,
 		"charms": Charm.unlocked.duplicate(),
 		"blood_moon": Moon.blood_unlocked,
@@ -641,6 +660,7 @@ func load_state(d: Dictionary) -> void:
 	Tornado.unlocked = d.get("tornado", false)
 	Storm.unlocked = d.get("storm", false)
 	Plague.unlocked = d.get("plague", false)
+	Spore.unlocked = d.get("spore", false)
 	Cure.unlocked = d.get("cure", false)
 	var charms: Array = d.get("charms", [])
 	for k in Charm.unlocked.size():
@@ -755,6 +775,8 @@ func _refresh() -> void:
 			"Desatar o calmar el diluvio [D]", "Desbloquealo en la tienda (%d ofrendas)", Storm.PRICE)
 	_sync_weapon(_plague_btn, Plague.unlocked, _plague_armed, _slot_plague,
 			"Sacar o guardar la peste [P]", "Desbloqueala en la tienda (%d ofrendas)", Plague.PRICE)
+	_sync_weapon(_spore_btn, Spore.unlocked, _spore_armed, _slot_spore,
+			"Sacar o guardar la espora [Z]", "Desbloqueala en la tienda (%d ofrendas)", Spore.PRICE)
 	_sync_weapon(_cure_btn, Cure.unlocked, _cure_armed, _slot_cure,
 			"Sacar o guardar curar [C]", "Desbloquealo en la tienda (%d ofrendas)", Cure.PRICE)
 	_sync_weapon(_feed_btn, true, _feed_armed, _slot_feed, "Tirarles comida [F]", "", 0)
@@ -782,8 +804,10 @@ func _refresh() -> void:
 		_hint.text = tr("Mantené apretado el click en la isla o el agua para que baje el tornado, y llevalo con el mouse · click derecho, Esc o T para guardarlo.")
 	elif _plague_armed:
 		_hint.text = tr("Click sobre los aldeanos para enfermarlos de gripe · click derecho, Esc o P para guardarla.")
+	elif _spore_armed:
+		_hint.text = tr("Click sobre los aldeanos para meterles la espora (al que ya la tiene, se la apura) · click derecho, Esc o Z para guardarla.")
 	elif _cure_armed:
-		_hint.text = tr("Click sobre un aldeano para curarlo de la gripe o de las quemaduras · click derecho, Esc o C para guardarlo.")
+		_hint.text = tr("Click sobre un aldeano para curarlo de la gripe, de la espora (si todavía no es un zombi) o de las quemaduras · click derecho, Esc o C para guardarlo.")
 	elif _feed_armed:
 		_hint.text = tr("Click en la isla para tirarles comida, o sobre un aldeano para dársela a él (−%d devoción) · click derecho, Esc o F para guardarla.") % int(Feed.COST)
 	elif charm_hint != "":
@@ -1072,6 +1096,7 @@ func _build_toolbar() -> void:
 	_slot_tornado = make_box(Color(C_TORNADO, 0.3), 12, C_TORNADO.lightened(0.3), 2)
 	_slot_rain = make_box(Color(C_RAIN, 0.34), 12, C_RAIN.lightened(0.3), 2)
 	_slot_plague = make_box(Color(C_PLAGUE, 0.3), 12, C_PLAGUE.lightened(0.3), 2)
+	_slot_spore = make_box(Color(C_SPORE, 0.3), 12, C_SPORE.lightened(0.3), 2)
 	_slot_cure = make_box(Color(C_CURE, 0.3), 12, C_CURE.lightened(0.3), 2)
 	_slot_feed = make_box(Color(C_FEED, 0.32), 12, C_FEED.lightened(0.3), 2)
 	for k: Charm.Kind in Charm.KINDS:
@@ -1155,6 +1180,9 @@ func _build_toolbar() -> void:
 			"plague":
 				_plague_btn = _weapon_slot(slot, _slot_plague, func(): return Plague.unlocked,
 						func(): plague_toggled.emit(not _plague_armed))
+			"spore":
+				_spore_btn = _weapon_slot(slot, _slot_spore, func(): return Spore.unlocked,
+						func(): spore_toggled.emit(not _spore_armed))
 			"cure":
 				_cure_btn = _weapon_slot(slot, _slot_cure, func(): return Cure.unlocked,
 						func(): cure_toggled.emit(not _cure_armed))
@@ -1507,6 +1535,12 @@ class HudIcon extends Control:
 					draw_circle(Vector2(0.5 + side * 0.1, 0.42) * s, s * 0.07, Color(0.2, 0.32, 0.1), true, -1.0, true)
 				draw_line(Vector2(0.45, 0.6) * s, Vector2(0.45, 0.7) * s, Color(0.2, 0.32, 0.1), maxf(1.0, s * 0.04), true)
 				draw_line(Vector2(0.55, 0.6) * s, Vector2(0.55, 0.7) * s, Color(0.2, 0.32, 0.1), maxf(1.0, s * 0.04), true)
+			"spore":
+				# Un hongo soltando esporas
+				for p: Vector3 in [Vector3(0.24, 0.3, 0.05), Vector3(0.76, 0.24, 0.045), Vector3(0.62, 0.1, 0.035),
+						Vector3(0.36, 0.12, 0.04), Vector3(0.84, 0.46, 0.035)]:
+					draw_circle(Vector2(p.x, p.y) * s, p.z * s, Color(HUD.C_SPORE, 0.85), true, -1.0, true)
+				Spore.paint_mushroom(self, Vector2(0.5, 0.92) * s, s / 19.0)
 			"evil":
 				# Carita roja con cuernitos (la pestaña de los poderes malos)
 				var face := Vector2(0.5, 0.58) * s
