@@ -14,7 +14,8 @@ signal active_changed(on: bool)
 
 ## Hay que comprarlo en la tienda antes de poder desatarlo.
 static var unlocked := false
-const PRICE := 250
+const PRICE := 420
+const SACRIFICES := 10   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 ## Para los demás: cuánto llueve (0..1), cuánto le falta para recargarse (1 = listo) y hasta
 ## dónde llega el agua (ver flooded_at).

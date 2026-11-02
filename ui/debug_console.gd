@@ -13,8 +13,9 @@ var _hist_i := 0
 const COMMANDS := [
 	["ayuda / help", "Esta lista"],
 	["dinero / money [n]", "Suma ofrendas (por defecto 99999)"],
+	["sacrificios / sacrifices [n]", "Suma sacrificios para gastar (por defecto 999)"],
 	["devocion / devotion", "Llena la devoción"],
-	["infinito / infinite", "Prende/apaga ofrendas y devoción infinitas"],
+	["infinito / infinite", "Prende/apaga ofrendas, sacrificios y devoción infinitos"],
 	["puntos / points [n]", "Suma puntos de expansión (por defecto los que faltan para el máximo)"],
 	["isla / island [n]", "Pone la isla en ese nivel (por defecto el máximo)"],
 	["aldeanos / villagers [n]", "Invoca aldeanos gratis (por defecto hasta llenar la isla)"],
@@ -68,6 +69,7 @@ func _ready() -> void:
 func _process(_dt: float) -> void:
 	if infinite and hud:
 		hud.offerings = maxi(hud.offerings, 99999)
+		hud.sacrifices = maxi(hud.sacrifices, 999)
 		hud.energy = hud.energy_max
 		hud._refresh()
 
@@ -134,13 +136,18 @@ func run(text: String) -> void:
 			var n := arg if arg > 0 else 99999
 			hud.add_offerings(n)
 			_ok(tr("+%d ofrendas (total %d)") % [n, hud.offerings])
+		"sacrificios", "sacrifices":
+			var n := arg if arg > 0 else 999
+			hud.sacrifices += n
+			hud._refresh()
+			_ok(tr("+%d sacrificios (total %d)") % [n, hud.sacrifices])
 		"devocion", "devoción", "devotion", "energia", "energy":
 			hud.energy = hud.energy_max
 			hud._refresh()
 			_ok(tr("Devoción llena"))
 		"infinito", "infinite", "dios", "god":
 			infinite = not infinite
-			_ok(tr("Ofrendas y devoción infinitas: %s") % tr("SÍ" if infinite else "NO"))
+			_ok(tr("Ofrendas, sacrificios y devoción infinitos: %s") % tr("SÍ" if infinite else "NO"))
 		"puntos", "points", "xp":
 			var missing: int = world.max_level() - world.island_level - hud.expansion_points
 			var n := arg if arg > 0 else maxi(missing, 1)
@@ -189,6 +196,7 @@ func run(text: String) -> void:
 			_unlock_all()
 		"todo", "all":
 			run("dinero")
+			run("sacrificios")
 			run("isla")
 			run("aldeanos")
 			run("devocion")

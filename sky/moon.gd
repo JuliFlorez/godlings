@@ -12,7 +12,8 @@ signal fed(level: int)
 
 ## Hay que comprarla en la tienda antes de poder transformarla.
 static var blood_unlocked := false
-const PRICE := 50
+const PRICE := 120
+const SACRIFICES := 5   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 const MAX_FEED := 6
 const EAT_MARGIN := 14.0         # Soltarlo hasta esta distancia del borde también cuenta

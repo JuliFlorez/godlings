@@ -23,7 +23,8 @@ enum Kind { CUPID, DISCORD, FRIENDSHIP }
 const KINDS := {
 	Kind.CUPID: {
 		"key": KEY_A,
-		"price": 70,
+		"price": 110,
+		"sacrifices": 0,
 		"color": Color(1.0, 0.52, 0.74),
 		"tip": "Sacar o guardar el arco de Cupido [A]",
 		"locked_tip": "Desbloquealo en la tienda (%d ofrendas)",
@@ -35,7 +36,8 @@ const KINDS := {
 	},
 	Kind.DISCORD: {
 		"key": KEY_E,
-		"price": 60,
+		"price": 100,
+		"sacrifices": 3,   # Es mala: cuesta también sacrificios (ver HUD.buy)
 		"color": Color(1.0, 0.45, 0.4),
 		"tip": "Sacar o guardar la manzana de la discordia [E]",
 		"locked_tip": "Desbloqueala en la tienda (%d ofrendas)",
@@ -47,7 +49,8 @@ const KINDS := {
 	},
 	Kind.FRIENDSHIP: {
 		"key": KEY_B,
-		"price": 50,
+		"price": 80,
+		"sacrifices": 0,
 		"color": Color(0.46, 0.84, 0.52),
 		"tip": "Sacar o guardar la pelota de la amistad [B]",
 		"locked_tip": "Desbloqueala en la tienda (%d ofrendas)",

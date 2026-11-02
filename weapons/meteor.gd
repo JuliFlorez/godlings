@@ -17,7 +17,8 @@ signal armed_changed(on: bool)
 static var armed := false
 ## Hay que comprarlo en la tienda antes de poder sacarlo.
 static var unlocked := false
-const PRICE := 150
+const PRICE := 260
+const SACRIFICES := 6   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 const COOLDOWN := 2.0
 const FALL_TIME := 0.8          # Lo que tarda en caer

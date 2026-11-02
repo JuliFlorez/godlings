@@ -17,7 +17,8 @@ signal armed_changed(on: bool)
 static var armed := false
 ## Hay que comprarlo en la tienda antes de poder sacarlo.
 static var unlocked := false
-const PRICE := 200
+const PRICE := 340
+const SACRIFICES := 8   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 enum State { IDLE, DOWN, FADING }
 

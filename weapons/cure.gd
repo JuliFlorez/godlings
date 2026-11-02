@@ -12,7 +12,7 @@ signal armed_changed(on: bool)
 static var armed := false
 ## Hay que comprarlo en la tienda antes de poder sacarlo.
 static var unlocked := false
-const PRICE := 80
+const PRICE := 130
 
 const COOLDOWN := 0.5
 const RADIUS := 26.0             # Aldeanos con el cuerpo a menos de esto del centro del haz

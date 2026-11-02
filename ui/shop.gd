@@ -1,6 +1,7 @@
 extends Control
 class_name Shop
-## Tienda: se gastan ofrendas. Va en pestañas, de a una por vez: la isla (decoraciones, que se
+## Tienda: se gastan ofrendas, y en las cosas malas (los poderes malos, la Luna de Sangre y los
+## tiburones) también sacrificios (ver HUD.buy). Va en pestañas, de a una por vez: la isla (decoraciones, que se
 ## cobran recién al colocarlas, ver DecorPlacer), los poderes malos (pistola, rayo, meteorito,
 ## tornado, diluvio, peste, espora y la manzana de la discordia), los buenos (curar, la vacuna, el
 ## escudo, la resurrección, el arco de Cupido y la pelota de la amistad), y el cielo y los tiburones
@@ -13,10 +14,10 @@ enum Tab { ISLAND, EVIL, GOOD, SKY }
 const TABS := {
 	Tab.ISLAND: ["Isla", "island", Color(1.0, 0.86, 0.42),
 			"Decoraciones: se cobran recién al colocarlas. Las palmeras dan cocos y los arbustos, bayas para los que tienen hambre."],
-	Tab.EVIL: ["Poderes malos", "evil", HUD.C_EVIL, "Para castigar a tus aldeanos (y sacrificarlos)."],
+	Tab.EVIL: ["Poderes malos", "evil", HUD.C_EVIL, "Para castigar a tus aldeanos (y sacrificarlos). Cuestan ofrendas y sacrificios."],
 	Tab.GOOD: ["Poderes buenos", "holy", HUD.C_HOLY, "Para cuidar a tus aldeanos y juntarlos."],
 	Tab.SKY: ["Cielo y tiburones", "shark", HUD.C_DEVOTION,
-			"La Luna de Sangre se come a los que le soltás encima; los tiburones patrullan el agua."],
+			"La Luna de Sangre se come a los que le soltás encima; los tiburones patrullan el agua. Cuestan ofrendas y sacrificios."],
 }
 const TAB_H := 34.0
 const TAB_ICON := 18
@@ -29,6 +30,7 @@ static var _tab := Tab.ISLAND
 
 var hud: HUD
 var _balance: Label
+var _sacrifice_balance: Label
 var _desc: Label
 var _tab_btns := {}           # Tab -> Button
 var _pages := {}              # Tab -> Control
@@ -81,13 +83,19 @@ func _ready() -> void:
 	head.add_child(HUD.HudIcon.make("coin", 18))
 	_balance = HUD.make_label("", 16, HUD.C_OFFERING)
 	head.add_child(_balance)
+	var coin_gap := Control.new()
+	coin_gap.custom_minimum_size = Vector2(6, 0)
+	head.add_child(coin_gap)
+	head.add_child(HUD.sacrifice_icon(20))
+	_sacrifice_balance = HUD.make_label("", 16, HUD.C_TEXT)
+	head.add_child(_sacrifice_balance)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(8, 0)
 	head.add_child(gap)
 	var close_btn := _flat_button("✕")
 	close_btn.pressed.connect(close)
 	head.add_child(close_btn)
-	col.add_child(HUD.make_label("Ganás ofrendas con cada sacrificio y cuando tus aldeanos rezan.", 12, HUD.C_MUTED))
+	col.add_child(HUD.make_label("Las ofrendas te las dejan rezando (y cada muerte); los sacrificios, cada muerte (el altar da más). Las cosas malas cuestan las dos.", 12, HUD.C_MUTED))
 
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 6)
@@ -139,32 +147,32 @@ func _build_powers(evil_page: Control, good_page: Control) -> void:
 		icon.add_child(HUD.HudIcon.make(t[0], 40))
 		match t[0]:
 			"gun":
-				_gun_btn = _unlock_card(power_row, icon, t[1], Gun.PRICE, "", hud.unlock_gun)
+				_gun_btn = _unlock_card(power_row, icon, t[1], Gun.PRICE, "", hud.unlock_gun, Gun.SACRIFICES)
 			"lightning":
 				_lightning_btn = _unlock_card(power_row, icon, t[1], Lightning.PRICE,
-						"Fulmina aldeanos y salta a los que están cerca. En el agua fríe a todos los que flotan.", hud.unlock_lightning)
+						"Fulmina aldeanos y salta a los que están cerca. En el agua fríe a todos los que flotan.", hud.unlock_lightning, Lightning.SACRIFICES)
 			"meteor":
 				_meteor_btn = _unlock_card(power_row, icon, t[1], Meteor.PRICE,
-						"Explota y deja un cráter: mata a los que están cerca y hace volar a los demás.", hud.unlock_meteor)
+						"Explota y deja un cráter: mata a los que están cerca y hace volar a los demás.", hud.unlock_meteor, Meteor.SACRIFICES)
 			"tornado":
 				_tornado_btn = _unlock_card(power_row, icon, t[1], Tornado.PRICE,
-						"Mantené el click y llevalo con el mouse: levanta aldeanos, cocos y tiburones, los hace girar y los revolea.", hud.unlock_tornado)
+						"Mantené el click y llevalo con el mouse: levanta aldeanos, cocos y tiburones, los hace girar y los revolea.", hud.unlock_tornado, Tornado.SACRIFICES)
 			"rain":
 				_storm_btn = _unlock_card(power_row, icon, t[1], Storm.PRICE,
-						"Una tormenta que inunda la orilla: el agua se lleva a los que alcanza. La lluvia apaga el fuego.", hud.unlock_storm)
+						"Una tormenta que inunda la orilla: el agua se lleva a los que alcanza. La lluvia apaga el fuego.", hud.unlock_storm, Storm.SACRIFICES)
 			"plague":
 				_plague_btn = _unlock_card(power_row, icon, t[1], Plague.PRICE,
-						"Una nube de miasma que enferma de gripe a los que alcanza. Después se contagian solos.", hud.unlock_plague)
+						"Una nube de miasma que enferma de gripe a los que alcanza. Después se contagian solos.", hud.unlock_plague, Plague.SACRIFICES)
 			"spore":
 				_spore_btn = _unlock_card(power_row, icon, t[1], Spore.PRICE,
-						"Un hongo zombi, como el cordyceps: de a poco se adueña de ellos, los hace zombis que muerden a los sanos y al final les brota de la cabeza.", hud.unlock_spore)
+						"Un hongo zombi, como el cordyceps: de a poco se adueña de ellos, los hace zombis que muerden a los sanos y al final les brota de la cabeza.", hud.unlock_spore, Spore.SACRIFICES)
 			"cure":
 				_cure_btn = _unlock_card(power_row, icon, t[1], Cure.PRICE,
 						"Un haz de luz que cura la gripe (y deja inmune un rato) y la espora (si todavía no son zombis), y apaga y sana a los que se queman.", hud.unlock_cure)
 			"cupid", "discord", "friendship":
 				var k: Charm.Kind = HUD.CHARM_ICONS[t[0]]
 				_charm_btns[k] = _unlock_card(power_row, icon, t[1], Charm.KINDS[k].price, Charm.KINDS[k].shop,
-						hud.unlock_charm.bind(k))
+						hud.unlock_charm.bind(k), Charm.KINDS[k].sacrifices)
 			"resurrect", "shield", "vaccine":
 				var k: Miracle.Kind = HUD.MIRACLE_ICONS[t[0]]
 				_miracle_btns[k] = _unlock_card(power_row, icon, t[1], Miracle.KINDS[k].price, Miracle.KINDS[k].shop,
@@ -184,7 +192,7 @@ func _build_sky(page: Control) -> void:
 	var moon_icon := CenterContainer.new()
 	moon_icon.add_child(HUD.HudIcon.make("blood_moon", 44))
 	_moon_btn = _unlock_card(sky_row, moon_icon, "Luna de Sangre", Moon.PRICE,
-			"De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla.", hud.unlock_blood_moon)
+			"De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla.", hud.unlock_blood_moon, Moon.SACRIFICES)
 	var sun_icon := CenterContainer.new()
 	sun_icon.add_child(HUD.HudIcon.make("blood_sun", 44))
 	sun_icon.modulate = Color(1, 1, 1, 0.45)
@@ -198,7 +206,7 @@ func _build_sky(page: Control) -> void:
 	for i in Shark.MAX:
 		var icon := CenterContainer.new()
 		icon.add_child(HUD.HudIcon.make("shark", 40))
-		var b := _card(shark_row, icon, tr("Tiburón %d") % (i + 1), Shark.PRICE, "Comprar")
+		var b := _card(shark_row, icon, tr("Tiburón %d") % (i + 1), Shark.PRICE, "Comprar", Shark.SACRIFICES)
 		var card := b.get_parent()
 		var price: Control = card.get_node("Price")
 		var status := HUD.make_label("", 12, HUD.C_TEXT)
@@ -253,19 +261,20 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _sync() -> void:
 	_balance.text = str(hud.offerings)
+	_sacrifice_balance.text = str(hud.sacrifices)
 	for kind: String in _deco_buttons:
 		_deco_buttons[kind].disabled = not hud.can_afford(Decoration.price_of(kind))
-	_sync_unlock(_gun_btn, Gun.unlocked, Gun.PRICE, "Desbloqueada")
-	_sync_unlock(_lightning_btn, Lightning.unlocked, Lightning.PRICE, "Desbloqueado")
-	_sync_unlock(_meteor_btn, Meteor.unlocked, Meteor.PRICE, "Desbloqueado")
-	_sync_unlock(_tornado_btn, Tornado.unlocked, Tornado.PRICE, "Desbloqueado")
-	_sync_unlock(_storm_btn, Storm.unlocked, Storm.PRICE, "Desbloqueado")
-	_sync_unlock(_plague_btn, Plague.unlocked, Plague.PRICE, "Desbloqueada")
-	_sync_unlock(_spore_btn, Spore.unlocked, Spore.PRICE, "Desbloqueada")
+	_sync_unlock(_gun_btn, Gun.unlocked, Gun.PRICE, "Desbloqueada", Gun.SACRIFICES)
+	_sync_unlock(_lightning_btn, Lightning.unlocked, Lightning.PRICE, "Desbloqueado", Lightning.SACRIFICES)
+	_sync_unlock(_meteor_btn, Meteor.unlocked, Meteor.PRICE, "Desbloqueado", Meteor.SACRIFICES)
+	_sync_unlock(_tornado_btn, Tornado.unlocked, Tornado.PRICE, "Desbloqueado", Tornado.SACRIFICES)
+	_sync_unlock(_storm_btn, Storm.unlocked, Storm.PRICE, "Desbloqueado", Storm.SACRIFICES)
+	_sync_unlock(_plague_btn, Plague.unlocked, Plague.PRICE, "Desbloqueada", Plague.SACRIFICES)
+	_sync_unlock(_spore_btn, Spore.unlocked, Spore.PRICE, "Desbloqueada", Spore.SACRIFICES)
 	_sync_unlock(_cure_btn, Cure.unlocked, Cure.PRICE, "Desbloqueado")
-	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada")
+	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada", Moon.SACRIFICES)
 	for k: Charm.Kind in _charm_btns:
-		_sync_unlock(_charm_btns[k], Charm.unlocked[k], Charm.KINDS[k].price, Charm.KINDS[k].done)
+		_sync_unlock(_charm_btns[k], Charm.unlocked[k], Charm.KINDS[k].price, Charm.KINDS[k].done, Charm.KINDS[k].sacrifices)
 	for k: Miracle.Kind in _miracle_btns:
 		_sync_unlock(_miracle_btns[k], Miracle.unlocked[k], Miracle.KINDS[k].price, Miracle.KINDS[k].done)
 	var next := hud.shark_owned.find(false)   # Se compran en orden: el primero que falta
@@ -285,17 +294,19 @@ func _sync() -> void:
 		else:
 			# (Si matan al primero y el segundo sigue vivo, se recompra el primero)
 			b.text = "Comprar"
-			b.disabled = i != next or not hud.can_afford(Shark.PRICE)
+			b.disabled = i != next or not hud.can_buy(Shark.PRICE, Shark.SACRIFICES)
 
 ## done: lo que dice una vez desbloqueado ("Desbloqueada" o "Desbloqueado", según el artículo).
-func _sync_unlock(b: Button, unlocked: bool, price: int, done: String) -> void:
+## sacrifice_cost: lo que cuesta en sacrificios (las cosas malas).
+func _sync_unlock(b: Button, unlocked: bool, price: int, done: String, sacrifice_cost := 0) -> void:
 	b.text = done if unlocked else "Desbloquear"
-	b.disabled = unlocked or not hud.can_afford(price)
+	b.disabled = unlocked or not hud.can_buy(price, sacrifice_cost)
 
 # ---- Construcción ----
 ## Tarjeta de algo que se desbloquea una sola vez (armas, poderes, la Luna de Sangre).
-func _unlock_card(parent: Control, preview: Control, title: String, price: int, tip: String, unlock: Callable) -> Button:
-	var b := _card(parent, preview, title, price, "Desbloquear")
+func _unlock_card(parent: Control, preview: Control, title: String, price: int, tip: String, unlock: Callable,
+		sacrifice_cost := 0) -> Button:
+	var b := _card(parent, preview, title, price, "Desbloquear", sacrifice_cost)
 	b.tooltip_text = tip
 	b.pressed.connect(func():
 		unlock.call()
@@ -330,8 +341,9 @@ func _section(title: String) -> Label:
 	l.uppercase = true   # Mayúsculas al mostrar, así el texto sigue siendo la clave de traducción
 	return l
 
-## Tarjeta de un artículo; devuelve el botón de comprar. price < 0: sin precio.
-func _card(parent: Control, preview: Control, title: String, price: int, action: String) -> Button:
+## Tarjeta de un artículo; devuelve el botón de comprar. price < 0: sin precio. sacrifice_cost:
+## lo que cuesta además en sacrificios (las cosas malas), al lado de las ofrendas.
+func _card(parent: Control, preview: Control, title: String, price: int, action: String, sacrifice_cost := 0) -> Button:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(CARD_W, 0)
 	card.add_theme_stylebox_override("panel", HUD.make_box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1, Vector4(10, 10, 10, 10)))
@@ -358,6 +370,12 @@ func _card(parent: Control, preview: Control, title: String, price: int, action:
 	if price >= 0:
 		price_row.add_child(HUD.HudIcon.make("coin", 12))
 		price_row.add_child(HUD.make_label(str(price), 12, HUD.C_OFFERING))
+		if sacrifice_cost > 0:
+			var gap := Control.new()
+			gap.custom_minimum_size = Vector2(3, 0)
+			price_row.add_child(gap)
+			price_row.add_child(HUD.sacrifice_icon(14))
+			price_row.add_child(HUD.make_label(str(sacrifice_cost), 12, HUD.C_TEXT))
 	else:
 		price_row.add_child(HUD.make_label("—", 12, HUD.C_MUTED))
 

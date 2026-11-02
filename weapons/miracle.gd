@@ -26,7 +26,7 @@ enum Kind { RESURRECT, SHIELD, VACCINE }
 const KINDS := {
 	Kind.RESURRECT: {
 		"key": KEY_L,
-		"price": 200,
+		"price": 350,
 		"cost": 35.0,
 		"color": Color(1.0, 0.94, 0.66),
 		"tip": "Sacar o guardar la resurrección [L]",
@@ -40,7 +40,7 @@ const KINDS := {
 	},
 	Kind.SHIELD: {
 		"key": KEY_O,
-		"price": 90,
+		"price": 150,
 		"cost": 8.0,
 		"color": Color(1.0, 0.8, 0.32),
 		"tip": "Sacar o guardar el escudo [O]",
@@ -54,7 +54,7 @@ const KINDS := {
 	},
 	Kind.VACCINE: {
 		"key": KEY_V,
-		"price": 120,
+		"price": 200,
 		"cost": 25.0,
 		"color": Color(0.42, 0.9, 0.86),
 		"tip": "Sacar o guardar la vacuna [V]",

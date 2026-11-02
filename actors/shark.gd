@@ -12,7 +12,8 @@ class_name Shark
 ## Lo mataron (de un tiro, un rayo o un meteorito): el HUD lo da por perdido y hay que volver a comprarlo.
 signal killed
 
-const PRICE := 40
+const PRICE := 80
+const SACRIFICES := 3   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 const MAX := 2
 
 @export var water_path: NodePath

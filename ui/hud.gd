@@ -462,6 +462,19 @@ func spend_offerings(amount: int) -> bool:
 	_refresh()
 	return true
 
+## Si alcanzan las ofrendas y los sacrificios (las cosas malas cuestan las dos monedas).
+func can_buy(price: int, sacrifice_cost := 0) -> bool:
+	return offerings >= price and sacrifices >= sacrifice_cost
+
+## Cobra price ofrendas y sacrifice_cost sacrificios (o nada, si no alcanza alguna).
+func buy(price: int, sacrifice_cost := 0) -> bool:
+	if not can_buy(price, sacrifice_cost):
+		return false
+	offerings -= price
+	sacrifices -= sacrifice_cost
+	_refresh()
+	return true
+
 ## Abre la tienda (en la pestaña tab, o en la última que se miró; ver Shop.Tab).
 func open_shop(tab := -1) -> void:
 	if _shop == null:
@@ -486,7 +499,7 @@ func toggle_history() -> void:
 	_history.open()
 
 func unlock_gun() -> bool:
-	if Gun.unlocked or not spend_offerings(Gun.PRICE):
+	if Gun.unlocked or not buy(Gun.PRICE, Gun.SACRIFICES):
 		return false
 	Gun.unlocked = true
 	popup_text("¡Pistola desbloqueada! Sacala con G", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_GUN.lightened(0.3))
@@ -494,7 +507,7 @@ func unlock_gun() -> bool:
 	return true
 
 func unlock_lightning() -> bool:
-	if Lightning.unlocked or not spend_offerings(Lightning.PRICE):
+	if Lightning.unlocked or not buy(Lightning.PRICE, Lightning.SACRIFICES):
 		return false
 	Lightning.unlocked = true
 	popup_text("¡Rayo desbloqueado! Sacalo con R", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_ZAP)
@@ -502,7 +515,7 @@ func unlock_lightning() -> bool:
 	return true
 
 func unlock_meteor() -> bool:
-	if Meteor.unlocked or not spend_offerings(Meteor.PRICE):
+	if Meteor.unlocked or not buy(Meteor.PRICE, Meteor.SACRIFICES):
 		return false
 	Meteor.unlocked = true
 	popup_text("¡Meteorito desbloqueado! Sacalo con M", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_METEOR)
@@ -510,7 +523,7 @@ func unlock_meteor() -> bool:
 	return true
 
 func unlock_tornado() -> bool:
-	if Tornado.unlocked or not spend_offerings(Tornado.PRICE):
+	if Tornado.unlocked or not buy(Tornado.PRICE, Tornado.SACRIFICES):
 		return false
 	Tornado.unlocked = true
 	popup_text("¡Tornado desbloqueado! Sacalo con T", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_TORNADO)
@@ -518,7 +531,7 @@ func unlock_tornado() -> bool:
 	return true
 
 func unlock_storm() -> bool:
-	if Storm.unlocked or not spend_offerings(Storm.PRICE):
+	if Storm.unlocked or not buy(Storm.PRICE, Storm.SACRIFICES):
 		return false
 	Storm.unlocked = true
 	popup_text("¡Diluvio desbloqueado! Desatalo con D", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_RAIN)
@@ -526,7 +539,7 @@ func unlock_storm() -> bool:
 	return true
 
 func unlock_plague() -> bool:
-	if Plague.unlocked or not spend_offerings(Plague.PRICE):
+	if Plague.unlocked or not buy(Plague.PRICE, Plague.SACRIFICES):
 		return false
 	Plague.unlocked = true
 	popup_text("¡Peste desbloqueada! Sacala con P", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_PLAGUE)
@@ -534,7 +547,7 @@ func unlock_plague() -> bool:
 	return true
 
 func unlock_spore() -> bool:
-	if Spore.unlocked or not spend_offerings(Spore.PRICE):
+	if Spore.unlocked or not buy(Spore.PRICE, Spore.SACRIFICES):
 		return false
 	Spore.unlocked = true
 	popup_text("¡Espora desbloqueada! Sacala con Z", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_SPORE)
@@ -542,7 +555,7 @@ func unlock_spore() -> bool:
 	return true
 
 func unlock_cure() -> bool:
-	if Cure.unlocked or not spend_offerings(Cure.PRICE):
+	if Cure.unlocked or not buy(Cure.PRICE):
 		return false
 	Cure.unlocked = true
 	popup_text("¡Curar desbloqueado! Sacalo con C", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_CURE)
@@ -551,7 +564,7 @@ func unlock_cure() -> bool:
 
 func unlock_charm(k: Charm.Kind) -> bool:
 	var info: Dictionary = Charm.KINDS[k]
-	if Charm.unlocked[k] or not spend_offerings(info.price):
+	if Charm.unlocked[k] or not buy(info.price, info.sacrifices):
 		return false
 	Charm.unlocked[k] = true
 	popup_text(info.unlocked, get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), info.color)
@@ -560,7 +573,7 @@ func unlock_charm(k: Charm.Kind) -> bool:
 
 func unlock_miracle(k: Miracle.Kind) -> bool:
 	var info: Dictionary = Miracle.KINDS[k]
-	if Miracle.unlocked[k] or not spend_offerings(info.price):
+	if Miracle.unlocked[k] or not buy(info.price):
 		return false
 	Miracle.unlocked[k] = true
 	popup_text(info.unlocked, get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), info.color)
@@ -568,7 +581,7 @@ func unlock_miracle(k: Miracle.Kind) -> bool:
 	return true
 
 func unlock_blood_moon() -> bool:
-	if Moon.blood_unlocked or not spend_offerings(Moon.PRICE):
+	if Moon.blood_unlocked or not buy(Moon.PRICE, Moon.SACRIFICES):
 		return false
 	Moon.blood_unlocked = true
 	popup_text("¡Luna de Sangre desbloqueada! De noche, tocá la luna 5 veces", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), Color(1.0, 0.45, 0.4))
@@ -577,7 +590,7 @@ func unlock_blood_moon() -> bool:
 ## Compra el primer tiburón que falta (se compran en orden).
 func buy_shark() -> bool:
 	var index := shark_owned.find(false)
-	if index < 0 or not spend_offerings(Shark.PRICE):
+	if index < 0 or not buy(Shark.PRICE, Shark.SACRIFICES):
 		return false
 	shark_owned[index] = true
 	shark_on[index] = true
@@ -811,26 +824,26 @@ func _refresh() -> void:
 	_sacrifice_value.text = str(sacrifices)
 
 	_sync_weapon(_gun_btn, Gun.unlocked, _gun_armed, _slot_active,
-			"Sacar o guardar la pistola [G]", "Desbloqueala en la tienda (%d ofrendas)", Gun.PRICE)
+			"Sacar o guardar la pistola [G]", "Desbloqueala en la tienda (%d ofrendas)", Gun.PRICE, Gun.SACRIFICES)
 	_sync_weapon(_lightning_btn, Lightning.unlocked, _lightning_armed, _slot_zap,
-			"Sacar o guardar el rayo [R]", "Desbloquealo en la tienda (%d ofrendas)", Lightning.PRICE)
+			"Sacar o guardar el rayo [R]", "Desbloquealo en la tienda (%d ofrendas)", Lightning.PRICE, Lightning.SACRIFICES)
 	_sync_weapon(_meteor_btn, Meteor.unlocked, _meteor_armed, _slot_meteor,
-			"Sacar o guardar el meteorito [M]", "Desbloquealo en la tienda (%d ofrendas)", Meteor.PRICE)
+			"Sacar o guardar el meteorito [M]", "Desbloquealo en la tienda (%d ofrendas)", Meteor.PRICE, Meteor.SACRIFICES)
 	_sync_weapon(_tornado_btn, Tornado.unlocked, _tornado_armed, _slot_tornado,
-			"Sacar o guardar el tornado [T]", "Desbloquealo en la tienda (%d ofrendas)", Tornado.PRICE)
+			"Sacar o guardar el tornado [T]", "Desbloquealo en la tienda (%d ofrendas)", Tornado.PRICE, Tornado.SACRIFICES)
 	_sync_weapon(_rain_btn, Storm.unlocked, _raining, _slot_rain,
-			"Desatar o calmar el diluvio [D]", "Desbloquealo en la tienda (%d ofrendas)", Storm.PRICE)
+			"Desatar o calmar el diluvio [D]", "Desbloquealo en la tienda (%d ofrendas)", Storm.PRICE, Storm.SACRIFICES)
 	_sync_weapon(_plague_btn, Plague.unlocked, _plague_armed, _slot_plague,
-			"Sacar o guardar la peste [P]", "Desbloqueala en la tienda (%d ofrendas)", Plague.PRICE)
+			"Sacar o guardar la peste [P]", "Desbloqueala en la tienda (%d ofrendas)", Plague.PRICE, Plague.SACRIFICES)
 	_sync_weapon(_spore_btn, Spore.unlocked, _spore_armed, _slot_spore,
-			"Sacar o guardar la espora [Z]", "Desbloqueala en la tienda (%d ofrendas)", Spore.PRICE)
+			"Sacar o guardar la espora [Z]", "Desbloqueala en la tienda (%d ofrendas)", Spore.PRICE, Spore.SACRIFICES)
 	_sync_weapon(_cure_btn, Cure.unlocked, _cure_armed, _slot_cure,
 			"Sacar o guardar curar [C]", "Desbloquealo en la tienda (%d ofrendas)", Cure.PRICE)
 	_sync_weapon(_feed_btn, true, _feed_armed, _slot_feed, "Tirarles comida [F]", "", 0)
 	var charm_hint := ""
 	for k: Charm.Kind in Charm.KINDS:
 		var info: Dictionary = Charm.KINDS[k]
-		_sync_weapon(_charm_btns[k], Charm.unlocked[k], _charm_armed[k], _slot_charms[k], info.tip, info.locked_tip, info.price)
+		_sync_weapon(_charm_btns[k], Charm.unlocked[k], _charm_armed[k], _slot_charms[k], info.tip, info.locked_tip, info.price, info.sacrifices)
 		if _charm_armed[k]:
 			charm_hint = info.hint
 	var miracle_hint := ""
@@ -894,13 +907,19 @@ func _refresh() -> void:
 	_hint.visible = _hint.text != ""
 
 ## Slot de un arma o poder de la tienda: resaltado mientras está afuera; bloqueado se ve
-## apagado, con el cartel "En la tienda".
-func _sync_weapon(slot: Button, unlocked: bool, out: bool, active: StyleBoxFlat, tip: String, locked_tip: String, price: int) -> void:
+## apagado, con el cartel "En la tienda" (y lo que cuesta: las cosas malas, también sacrificios).
+func _sync_weapon(slot: Button, unlocked: bool, out: bool, active: StyleBoxFlat, tip: String, locked_tip: String, price: int,
+		sacrifice_cost := 0) -> void:
 	slot.add_theme_stylebox_override("normal", active if out else _slot_idle)
 	slot.add_theme_stylebox_override("hover", active if out else _slot_hover)
 	slot.get_meta("lock").visible = not unlocked
 	slot.get_meta("icon").modulate = Color.WHITE if unlocked else Color(1, 1, 1, 0.45)
-	slot.tooltip_text = tr(tip) if unlocked else tr(locked_tip) % price
+	if unlocked:
+		slot.tooltip_text = tr(tip)
+	elif sacrifice_cost > 0:
+		slot.tooltip_text = tr(locked_tip.replace("ofrendas)", "ofrendas y %d sacrificios)")) % [price, sacrifice_cost]
+	else:
+		slot.tooltip_text = tr(locked_tip) % price
 
 func _flash(c: Control) -> void:
 	var tw := c.create_tween()
@@ -1121,20 +1140,27 @@ func _build_top() -> void:
 	_tribute_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce set_tribute (lleva el número)
 	stack.add_child(_tribute_label)
 	set_tribute(0.0, tribute_interval)
+	_sacrifice_value = _coin(coins, sacrifice_icon(COIN_ICON),
+			"Sacrificios: cada muerte suma uno (en el altar, más). Se gastan en la tienda: las cosas malas cuestan ofrendas y sacrificios")
+	_sacrifice_chip = _sacrifice_value.get_parent().get_parent()
+	coins.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 14)
+	coins.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+
+## La moneda de los sacrificios: la cabeza de un aldeano muerto, como el logo (de px de alto;
+## también para la tienda).
+static func sacrifice_icon(px: float) -> TextureRect:
 	var head := TextureRect.new()
 	var trimmed := AtlasTexture.new()   # Sin el margen vacío del logo: que la cabeza llene la moneda
 	trimmed.atlas = SACRIFICE_ICON
 	trimmed.region = SACRIFICE_HEAD
 	head.texture = trimmed
-	head.custom_minimum_size = Vector2(COIN_ICON * SACRIFICE_HEAD.size.aspect(), COIN_ICON)
+	head.custom_minimum_size = Vector2(px * SACRIFICE_HEAD.size.aspect(), px)
 	head.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	head.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	head.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_sacrifice_value = _coin(coins, head, "Sacrificios")
-	_sacrifice_chip = _sacrifice_value.get_parent().get_parent()
-	coins.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 14)
-	coins.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	head.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return head
 
 ## Una moneda de arriba a la derecha: el ícono y cuántas hay (devuelve el número).
 func _coin(parent: Control, icon: Control, tip: String) -> Label:
