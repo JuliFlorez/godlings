@@ -123,6 +123,13 @@ const EN := {
 	"Vacuna: %s": "Vaccine: %s",
 	"%d s": "%d s",
 	"%d min": "%d min",
+	# Lo que te dejan rezando (abajo de las ofrendas y en el carnet)
+	"Ofrendas: abajo, lo que te dejan tus aldeanos rezando cada 10 segundos": "Offerings: below, what your villagers give you by praying every 10 seconds",
+	"+%s cada %d s": "+%s every %d s",
+	"No reza: %s": "Not praying: %s",
+	"Se está ahogando": "Drowning",
+	"Es un zombi": "Is a zombie",
+	"Está durmiendo": "Sleeping",
 	"Isla llena: sacrificá aldeanos para ganar puntos y expandirla.": "Island full: sacrifice villagers to earn points and expand it.",
 	"Devoción insuficiente: se recarga con el tiempo.": "Not enough devotion: it refills over time.",
 	"¡Tocá un orbe + en la isla para expandirla!": "Tap a + orb on the island to expand it!",

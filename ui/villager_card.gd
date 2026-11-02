@@ -9,8 +9,9 @@ class_name VillagerCard
 ## muerto de hambre, en rojo), cuánto sueño (ver Villager.tiredness) y, si tiene la espora,
 ## cuánto lo domina ya el hongo (ver Villager.spore).
 ## Después, cuánto cree en vos y cuánto te teme (ver Villager.faith y fear), y qué es por eso:
-## devoto, fanático, hereje o aterrado; y su ánimo (ver Villager.mood): qué tan contento está y
-## por qué.
+## devoto, fanático, hereje o aterrado; su ánimo (ver Villager.mood): qué tan contento está y
+## por qué; y cuántas ofrendas te deja cada vez que reza (ver Villager.tribute), o por qué no
+## reza ahora.
 ## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos; su familia (sus
 ## padres y sus hijos, y "Ver árbol" para el árbol genealógico, ver FamilyTree) y su casa (la
 ## choza donde vive y con quién). Un click en un nombre abre el carnet de ese aldeano, y uno en la
@@ -97,6 +98,9 @@ var _spore_bar: ProgressBar     # Solo si tiene la espora
 var _mood_bar: ProgressBar
 var _mood_label: Label           # Deprimido, triste, tranquilo, contento o feliz...
 var _mood_why: Label             # ...y por qué
+var _tribute_row: Control        # Lo que te deja cuando reza (o por qué no reza)
+var _tribute_coin: Control
+var _tribute: Label
 var _relations: Array[HFlowContainer] = []   # Una fila por cada tipo de relación (RELATIONS)
 var _family: HFlowContainer     # Sus padres y sus hijos
 var _home: HFlowContainer       # Su choza y los que viven con él
@@ -314,6 +318,17 @@ func _update_creed() -> void:
 	_creed.visible = not gone
 	for bar: ProgressBar in [_faith_bar, _fear_bar, _hunger_bar, _sleep_bar, _mood_bar]:
 		bar.modulate.a = 0.4 if gone else 1.0
+	# Lo que te deja cuando reza, o por qué no reza ahora (muerto, nada)
+	var block := v.prayer_block()
+	_tribute_row.visible = not v.dead
+	if block == "":
+		_tribute.text = HUD.per_prayer(v.tribute(), hud.tribute_interval if hud else 10.0)
+		_tribute.add_theme_color_override("font_color", HUD.C_OFFERING)
+		_tribute_coin.modulate.a = 1.0
+	else:
+		_tribute.text = tr("No reza: %s") % tr(block).to_lower()
+		_tribute.add_theme_color_override("font_color", HUD.C_MUTED)
+		_tribute_coin.modulate.a = 0.4
 
 ## Su pareja, sus amigos y sus enemigos (los vivos), con el nombre de cada uno (o su número
 ## si no tiene) en el color de la relación.
@@ -482,6 +497,19 @@ func _build_creed(parent: Control) -> void:
 	_mood_why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_mood_why.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	why_row.add_child(_mood_why)
+	# Lo que te deja cada vez que reza: sale de la fe, el miedo y el ánimo (ver Villager.tribute)
+	var tribute_row := HBoxContainer.new()
+	tribute_row.add_theme_constant_override("separation", 6)
+	box.add_child(tribute_row)
+	var tribute_caption := HUD.make_label("Ofrendas", 13, HUD.C_MUTED)
+	tribute_caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
+	tribute_row.add_child(tribute_caption)
+	_tribute_coin = HUD.HudIcon.make("coin", 13)
+	tribute_row.add_child(_tribute_coin)
+	_tribute = HUD.make_label("", 13, HUD.C_OFFERING)
+	_tribute.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_creed (lleva el número)
+	tribute_row.add_child(_tribute)
+	_tribute_row = tribute_row
 
 ## Una barrita de 0 a 100 con su nombre adelante.
 func _bar(parent: Control, title: String, col: Color) -> ProgressBar:

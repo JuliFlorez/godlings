@@ -1854,6 +1854,29 @@ func add_fear(amount: float) -> void:
 func tribute() -> float:
 	return (faith + fear) / TRIBUTE_PAR * lerpf(MOOD_TRIBUTE.x, MOOD_TRIBUTE.y, mood / 100.0)
 
+## Si te reza (y deja ofrendas, ver World._prayers).
+func prays() -> bool:
+	return prayer_block() == ""
+
+## Por qué no te reza ahora ("" si reza): se murió, se está ahogando, es un zombi, le crecen
+## hongos, tiene gripe, se muere de hambre o está durmiendo (se ve en el carnet).
+func prayer_block() -> String:
+	if dead or eaten or is_queued_for_deletion():
+		return "Muerto"
+	if drowning:
+		return "Se está ahogando"
+	if is_zombie():
+		return "Es un zombi"
+	if spore_shows():
+		return "Le crecen hongos"
+	if is_sick():
+		return "Tiene gripe"
+	if starving():
+		return "Se muere de hambre"
+	if is_sleeping():
+		return "Está durmiendo"
+	return ""
+
 ## Cuánto le afecta algo que pasó en at: 1 bien de cerca, nada si no lo vio.
 func _witness(at: Vector2) -> float:
 	if inside:

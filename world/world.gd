@@ -76,6 +76,9 @@ var props: Node2D
 var ground: Node2D
 var _worship_t := 0.0
 var _tribute := 0.0   # Lo que va quedando de ofrendas sueltas (cada rezo suma fracciones)
+## Cada tanto le avisa al HUD cuánto están dejando entre todos (abajo de las ofrendas).
+const TRIBUTE_SHOW_EVERY := 0.5
+var _tribute_show_t := 0.0
 ## Brotes de gripe (ver Villager.catch_flu): cada tanto (entre 10 y 20 minutos, unos 2 o 3 días),
 ## si hay suficientes aldeanos.
 const OUTBREAK_EVERY := Vector2(600.0, 1200.0)
@@ -358,6 +361,10 @@ func _process(dt: float) -> void:
 	if hud:
 		hud.set_population(alive_villagers(), capacity())
 		hud.faith_rate = _devotion_rate()
+		_tribute_show_t -= dt
+		if _tribute_show_t <= 0.0:
+			_tribute_show_t = TRIBUTE_SHOW_EVERY
+			hud.set_tribute(_prayers(), worship_interval)
 		_worship_t += dt
 		if _worship_t >= worship_interval:
 			_worship_t = 0.0
@@ -491,13 +498,12 @@ func alive_villagers() -> int:
 	return n
 
 ## Lo que dejan de ofrendas los que rezan (los vivos, sanos, no muertos de hambre y despiertos,
-## ver Villager.tribute). Con hongos (o zombis) no rezan.
+## ver Villager.prays y tribute). Con hongos (o zombis) no rezan.
 func _prayers() -> float:
 	var sum := 0.0
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and not v.eaten and not v.drowning and not v.dead and not v.is_sick() and not v.starving() \
-				and not v.spore_shows() and not v.is_sleeping() and not v.is_queued_for_deletion():
+		if v and v.prays():
 			sum += v.tribute()
 	return sum
 

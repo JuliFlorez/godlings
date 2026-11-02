@@ -192,6 +192,9 @@ var _slot_active: StyleBoxFlat
 var _hint: Label
 var _offer_value: Label
 var _offer_chip: Control
+var _tribute_label: Label      # Abajo de las ofrendas: lo que te dejan rezando cada tanto
+## Cada cuántos segundos rezan (ver World.worship_interval; también para el carnet).
+var tribute_interval := 10.0
 var _sacrifice_value: Label
 var _sacrifice_chip: Control
 var _spawn_cost_label: Label   # El costo abajo del +
@@ -426,6 +429,22 @@ func add_offerings(amount: int) -> void:
 	offerings += amount
 	_flash(_offer_chip)
 	_refresh()
+
+## Lo que te dejan rezando todos juntos cada interval segundos (ver World._prayers): va abajo
+## de las ofrendas (apagado si no reza nadie).
+func set_tribute(amount: float, interval: float) -> void:
+	tribute_interval = interval
+	_tribute_label.text = per_prayer(amount, interval)
+	_tribute_label.add_theme_color_override("font_color", C_OFFERING if amount > 0.0 else C_MUTED)
+
+## "+1,5 cada 10 s": lo que dejan (amount) cada vez que rezan (cada interval segundos).
+static func per_prayer(amount: float, interval: float) -> String:
+	return TranslationServer.translate("+%s cada %d s") % [decimal(amount), int(interval)]
+
+## Un número con un decimal ("1,5"; en inglés, "1.5").
+static func decimal(x: float) -> String:
+	var s := "%.1f" % x
+	return s.replace(".", ",") if TranslationServer.get_locale().begins_with("es") else s
 
 ## Se murió un aldeano (ver Villager._grant_sacrifice_xp); en el altar, puede valer más.
 func add_sacrifice(amount := 1) -> void:
@@ -1087,8 +1106,21 @@ func _build_top() -> void:
 	var coins := VBoxContainer.new()
 	coins.add_theme_constant_override("separation", 6)
 	_root.add_child(coins)
-	_offer_value = _coin(coins, HudIcon.make("coin", int(COIN_ICON)), "Ofrendas")
+	_offer_value = _coin(coins, HudIcon.make("coin", int(COIN_ICON)), "Ofrendas: abajo, lo que te dejan tus aldeanos rezando cada 10 segundos")
 	_offer_chip = _offer_value.get_parent().get_parent()
+	# Abajo del número, lo que te dejan rezando (ver set_tribute)
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", -5)
+	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_offer_value.get_parent().add_child(stack)
+	_offer_value.reparent(stack)
+	_tribute_label = make_label("", 11, C_OFFERING)
+	_tribute_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_tribute_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce set_tribute (lleva el número)
+	stack.add_child(_tribute_label)
+	set_tribute(0.0, tribute_interval)
 	var head := TextureRect.new()
 	var trimmed := AtlasTexture.new()   # Sin el margen vacío del logo: que la cabeza llene la moneda
 	trimmed.atlas = SACRIFICE_ICON
