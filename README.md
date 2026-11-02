@@ -1,6 +1,6 @@
 # 🌴 Godlings
 
-Un prototipo de **God Game / simulación de deidades** desarrollado en **Godot 4.7** (GL Compatibility).
+**Versión 0.1** · Un prototipo de **God Game / simulación de deidades** desarrollado en **Godot 4.7** (GL Compatibility).
 
 En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio del océano.
 

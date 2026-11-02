@@ -6,7 +6,8 @@ class_name TitleMenu
 ## World.lift); un click o una tecla mientras baja la apura (skip_requested).
 ## Mientras está abierto, y hasta que la cámara llega, el juego no recibe ni el teclado ni
 ## el mouse. Arriba de todo va el telón negro de los fundidos (al abrir el juego y al
-## volver al menú desde la pausa).
+## volver al menú desde la pausa). Abajo a la izquierda, la versión del juego (la de
+## project.godot).
 
 signal slot_chosen(slot: int)
 signal skip_requested
@@ -31,6 +32,7 @@ var curtain: ColorRect
 var _mode := Mode.PLAYING
 var _root: Control                # Todo el menú: ataja el mouse
 var _content: Control             # Logo y pantallas (se desvanece al bajar)
+var _version: Label               # Abajo a la izquierda (también se desvanece al bajar)
 var _catcher: Control             # Mientras baja la cámara: ataja los clicks y los usa para apurarla
 var _main: Control
 var _slots: Control
@@ -77,6 +79,14 @@ func _ready() -> void:
 		screen.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		screen.visible = false
 		col.add_child(screen)
+
+	_version = HUD.make_label("v%s" % ProjectSettings.get_setting("application/config/version", ""), 14, HUD.C_TEXT)
+	_version.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_version.add_theme_color_override("font_outline_color", C_OUTLINE)
+	_version.add_theme_constant_override("outline_size", 6)
+	_version.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_version)
+	_version.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 12)   # (A la derecha va el contador de FPS)
 
 	_catcher = Control.new()
 	_catcher.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -138,7 +148,9 @@ func _choose(slot: int) -> void:
 		return
 	_mode = Mode.DESCENT
 	_catcher.visible = true
-	create_tween().tween_property(_content, "modulate:a", 0.0, LEAVE_FADE)
+	var tw := create_tween().set_parallel()
+	for c: Control in [_content, _version]:
+		tw.tween_property(c, "modulate:a", 0.0, LEAVE_FADE)
 	slot_chosen.emit(slot)
 
 # ---- Pantallas ----
