@@ -6,8 +6,8 @@ class_name TitleMenu
 ## World.lift); un click o una tecla mientras baja la apura (skip_requested).
 ## Mientras está abierto, y hasta que la cámara llega, el juego no recibe ni el teclado ni
 ## el mouse. Arriba de todo va el telón negro de los fundidos (al abrir el juego y al
-## volver al menú desde la pausa). Abajo a la izquierda, la versión del juego (la de
-## project.godot).
+## volver al menú desde la pausa). Abajo a la izquierda, la versión del juego (ver
+## World.VERSION).
 
 signal slot_chosen(slot: int)
 signal skip_requested
@@ -80,7 +80,7 @@ func _ready() -> void:
 		screen.visible = false
 		col.add_child(screen)
 
-	_version = HUD.make_label("v%s" % ProjectSettings.get_setting("application/config/version", ""), 14, HUD.C_TEXT)
+	_version = HUD.make_label("v" + World.VERSION, 14, HUD.C_TEXT)
 	_version.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_version.add_theme_color_override("font_outline_color", C_OUTLINE)
 	_version.add_theme_constant_override("outline_size", 6)

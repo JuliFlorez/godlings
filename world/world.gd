@@ -4,6 +4,11 @@ class_name World
 ## TitleMenu); al elegir una partida la carga y la cámara baja atravesando las nubes hasta
 ## la isla (ver lift). Recién ahí empieza a correr el juego (playing).
 
+## La versión del juego: la que dice el menú de inicio (ver TitleMenu). Va acá y no se lee de
+## project.godot porque el editor, si está abierto, lo vuelve a guardar con lo que tenía y la
+## borra. (Al cambiarla, también en project.godot y en export_presets.cfg.)
+const VERSION := "0.1"
+
 @onready var isle: Polygon2D = $isle
 @onready var isle_sprite: Sprite2D = $SpriteIsle
 @onready var sea: Sea = $isle/waterRend
