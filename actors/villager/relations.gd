@@ -249,6 +249,30 @@ static func forget(v: Villager) -> void:
 			_affinity.erase(k)
 			_bonds.erase(k)
 
+## Lo que tiene v con cada uno, para cuando se muere (por si vuelve a la vida, ver
+## Villager.resurrect): [[carnet del otro, afinidad, Kind], ...].
+static func snapshot(v: Villager) -> Array:
+	var rows := []
+	for k: Vector2i in _affinity:
+		if k.x == v.id_number or k.y == v.id_number:
+			rows.append([k.y if k.x == v.id_number else k.x, _affinity[k], _bonds.get(k, Kind.NONE)])
+	return rows
+
+## Volvió a la vida: recupera lo que tenía (rows, ver snapshot) con los que siguen vivos (alive:
+## carnet -> aldeano). Si mientras tanto su pareja se puso de novia con otro, quedan amigos.
+static func restore(v: Villager, rows: Array, alive: Dictionary) -> void:
+	for r: Array in rows:
+		var o: Villager = alive.get(r[0])
+		if o == null:
+			continue
+		var key := _key(v, o)
+		var k: Kind = int(r[2]) as Kind
+		if k == Kind.COUPLE and (partner_id(o) != 0 or partner_id(v) != 0):
+			k = Kind.FRIEND
+		_affinity[key] = float(r[1])
+		if k != Kind.NONE:
+			_bonds[key] = k
+
 ## Para la partida guardada: [carnet, carnet, afinidad, Kind] de los que se guardan (ids).
 static func save_state(ids: Array) -> Array:
 	var rows := []

@@ -21,12 +21,13 @@ const COMMANDS := [
 	["gripe / flu [n]", "Contagia de gripe a n aldeanos sanos (por defecto 1)"],
 	["espora / spore [n]", "Les mete la espora zombi a n aldeanos sanos (por defecto 1)"],
 	["zombi / zombie [n]", "Hace zombis a n aldeanos (por defecto 1)"],
+	["matar / kill [n]", "Mata de un tiro a n aldeanos (por defecto 1), para probar la resurrección"],
 	["charlas / chats [n]", "Simula n charlas al azar (por defecto 30) y les da ganas de charlar a todos"],
 	["fe / faith [n]", "Pone la fe de todos en n, de 0 a 100 (por defecto 100)"],
 	["miedo / fear [n]", "Pone el miedo de todos en n, de 0 a 100 (por defecto 100)"],
 	["hambre / hunger [n]", "Pone el hambre de todos en n, de 0 a 100 (por defecto 80)"],
 	["edad / age [n]", "Pone a todos en n días (por defecto 7, ya viejos; con 10 se mueren de viejos)"],
-	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, peste, espora, discordia, curar, Cupido, amistad, Luna de Sangre y todos los tiburones"],
+	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
 	["limpiar / clear", "Borra la consola"],
 ]
@@ -162,6 +163,8 @@ func run(text: String) -> void:
 			_ok(tr("%d aldeanos con la espora") % world.debug_spore(arg if arg > 0 else 1))
 		"zombi", "zombie", "zombis", "zombies":
 			_ok(tr("%d zombis") % world.debug_spore(arg if arg > 0 else 1, true))
+		"matar", "kill", "muerte":
+			_ok(tr("%d aldeanos muertos") % world.debug_kill(arg if arg > 0 else 1))
 		"charlas", "chats", "charlar", "chat":
 			_ok(tr("%d charlas: %d amistades, %d enemistades y %d parejas") % _simulate_chats(arg if arg > 0 else 30))
 		"fe", "faith":
@@ -239,6 +242,8 @@ func _unlock_all() -> void:
 	Cure.unlocked = true
 	for k in Charm.unlocked.size():
 		Charm.unlocked[k] = true
+	for k in Miracle.unlocked.size():
+		Miracle.unlocked[k] = true
 	Moon.blood_unlocked = true
 	for i in Shark.MAX:
 		if not hud.shark_owned[i]:
@@ -246,4 +251,4 @@ func _unlock_all() -> void:
 			hud.shark_on[i] = true
 			hud.shark_changed.emit(i, true)
 	hud._refresh()
-	_ok(tr("Desbloqueado: pistola, rayo, meteorito, tornado, diluvio, peste, espora, discordia, curar, Cupido, amistad, Luna de Sangre y %d tiburones") % Shark.MAX)
+	_ok(tr("Desbloqueado: pistola, rayo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y %d tiburones") % Shark.MAX)

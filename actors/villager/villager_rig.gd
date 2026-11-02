@@ -304,6 +304,21 @@ func set_dead() -> void:
 	_dead_eyes.visible = true
 	_blink.queue_free()
 
+## Volvió a la vida (ver Villager.resurrect): abre los ojos (y vuelve a parpadear) y se le cierran
+## los agujeros de bala.
+func set_alive() -> void:
+	_dead_eyes.visible = false
+	if not is_instance_valid(_blink) or _blink.is_queued_for_deletion():
+		_blink = Blink.new()
+		_blink.use_parent_material = true
+		head.add_child(_blink)
+		head.move_child(_blink, _dead_eyes.get_index() + 1)   # Donde estaba: debajo de la boca y los hongos
+	for b: Node in [head, arm_r, arm_l, hip, leg_r, leg_l]:
+		for mark in b.get_node("Sprite").get_children():
+			if mark is BulletMark:
+				mark.queue_free()
+	_marks = 0
+
 ## Rayos X: muestra o esconde el esqueleto (lo arma la primera vez). mat: con qué se dibuja
 ## (el recorte del agua, pero sin oscurecerse como el cuerpo).
 func set_xray(on: bool, mat: Material) -> void:
@@ -332,6 +347,8 @@ func copy_face(from: VillagerRig) -> void:
 		_blink.stare = from._blink.stare
 	if from._dead_eyes.visible and not _dead_eyes.visible:
 		set_dead()
+	elif not from._dead_eyes.visible and _dead_eyes.visible:
+		set_alive()   # Lo resucitaste con el carnet abierto
 
 ## Deja un agujero de bala pegado a la parte del cuerpo alcanzada (coords globales),
 ## así sigue al miembro cuando se mueve. Si el punto cayó en un hueco transparente

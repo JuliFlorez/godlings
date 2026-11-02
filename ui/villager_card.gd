@@ -3,7 +3,8 @@ class_name VillagerCard
 ## Carnet del aldeano: se abre con un click sobre él en modo seleccionar.
 ## Foto tipo carnet con el género abajo, número, y nombre y apellido para escribir
 ## (se ven arriba de su cabeza, ver NameTag), y su estado: sano, con gripe, curado, con la
-## espora zombi (incubándola, con hongos o ya zombi) o muerto.
+## espora zombi (incubándola, con hongos o ya zombi), muerto o volviendo a la vida; y abajo, si
+## tiene el escudo o la vacuna (ver Miracle), lo que le queda de cada uno.
 ## Debajo del estado (que dice si está durmiendo), cuánta hambre tiene (ver Villager.hunger;
 ## muerto de hambre, en rojo), cuánto sueño (ver Villager.tiredness) y, si tiene la espora,
 ## cuánto lo domina ya el hongo (ver Villager.spore).
@@ -86,6 +87,7 @@ var _last: LineEdit
 var _photo: Control
 var _photo_rig: VillagerRig
 var _status: Label
+var _wards: Label                # El escudo y la vacuna, con lo que les queda
 var _creed: Label
 var _faith_bar: ProgressBar
 var _fear_bar: ProgressBar
@@ -168,6 +170,9 @@ func _ready() -> void:
 	_status = HUD.make_label("", 15, HUD.C_TEXT)
 	_status.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_status (puede decir dos cosas)
 	fields.add_child(_status)
+	_wards = HUD.make_label("", 12, HUD.C_HOLY)
+	_wards.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_status (lleva el tiempo)
+	fields.add_child(_wards)
 	_hunger_bar = _bar(fields, "Hambre", C_HUNGER)
 	_sleep_bar = _bar(fields, "Sueño", C_SLEEP)
 	_spore_bar = _bar(fields, "Espora", C_SPORE)
@@ -227,7 +232,10 @@ func _update_status() -> void:
 	var v := villager
 	var text := "Sano"
 	var col := HUD.C_SHOP
-	if v.dead:
+	if v.is_rising():
+		text = "Volviendo a la vida"
+		col = HUD.C_HOLY
+	elif v.dead:
 		text = "Muerto"
 		col = HUD.C_MUTED
 	else:
@@ -256,6 +264,13 @@ func _update_status() -> void:
 	if v.is_sleeping() and not v.dead:
 		_status.text += " · " + tr("durmiendo")
 	_status.add_theme_color_override("font_color", col)
+	var wards: Array[String] = []
+	if v.shielded():
+		wards.append(tr("Escudo: %s") % _time_left(v.shield_t))
+	if v.vaccinated():
+		wards.append(tr("Vacuna: %s") % _time_left(v.vaccine_t))
+	_wards.text = " · ".join(wards)
+	_wards.visible = not wards.is_empty()
 	# Crece (y envejece) con el carnet abierto
 	_gender.text = (KIDS if v.is_child() else (ELDERS if v.is_elder() else GENDERS))[v.gender]
 	var days := v.days()
@@ -266,6 +281,12 @@ func _update_status() -> void:
 	(_photo_rig.material as ShaderMaterial).set_shader_parameter("grey", v.greyness())
 	(_photo_rig.material as ShaderMaterial).set_shader_parameter("spore", v.spore_look())
 	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
+
+## "45 s" o, con un minuto o más, "4 min".
+func _time_left(seconds: float) -> String:
+	if seconds < 60.0:
+		return tr("%d s") % ceili(seconds)
+	return tr("%d min") % ceili(seconds / 60.0)
 
 ## Cuánto cree en vos, cuánto te teme y qué es por eso.
 func _update_creed() -> void:

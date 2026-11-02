@@ -236,6 +236,45 @@ static var _bite_sound: AudioStreamWAV
 static var _cough_sound: AudioStreamWAV
 static var _burst_sound: AudioStreamWAV
 
+# --- Escudo y vacuna (ver Miracle): el escudo es una bendición, un aura dorada (ver Miracle.Aura)
+# que lo protege un rato de los rayos, de las mordidas de zombi (ni lo persiguen, y con uno cerca ni
+# se asusta) y de los contagios de gripe y de espora. La vacuna lo deja inmune a la gripe y a la
+# espora por un tiempo largo; no cura (el que ya está enfermo sigue enfermo). Morirse se los saca.
+# Se ven en el carnet y se guardan con la partida.
+const SHIELD_TIME := 75.0
+const VACCINE_TIME := 360.0        # Un día entero (ver Sky)
+const FAITH_SHIELDED := 6.0        # Lo bendijiste...
+const FAITH_VACCINATED := 8.0      # ...o lo vacunaste
+var shield_t := 0.0                # Lo que le queda del escudo...
+var vaccine_t := 0.0               # ...y de la vacuna (segundos)
+var _aura: Miracle.Aura
+
+# --- Resurrección (ver Miracle): sobre un cadáver reciente baja un haz de luz, el cuerpo sube
+# flotando, se endereza y vuelve a la vida, sano: sin heridas, sin gripe, sin espora, sin hambre y
+# sin quemaduras. Recupera lo que tenía con los demás (si mientras tanto su pareja se puso de novia
+# con otro, quedan amigos) y sale del árbol de los que ya no están. Mientras sube, los devotos que lo
+# ven se arrodillan, los aterrados salen corriendo y los herejes se quedan mirando; cuando vuelve,
+# su familia (su pareja, sus padres, sus hijos y sus hermanos) te cree muchísimo más, sus amigos
+# también, los que lo vieron te creen más y a los herejes les da miedo (más si lo vieron). A los que
+# se murieron de viejos no: ya les había llegado la hora.
+const RISE_TIME := 2.4             # Lo que tarda en volver, flotando en la luz
+const RISE_FLOAT := 18.0           # Lo que sube flotando (px, sobre lo que mide parado)
+const RISEN_HUNGER := 25.0         # Vuelve con la panza casi llena
+const FAITH_RISEN := 40.0          # El que volvió...
+const FAITH_RISEN_FAMILY := 45.0   # ...su familia...
+const FAITH_RISEN_FRIEND := 20.0   # ...sus amigos...
+const FAITH_RISEN_SEEN := 10.0     # ...y los que lo vieron (de cerca, todo esto)
+const FEAR_RISEN_HERETIC := 40.0   # Al hereje que lo ve le da miedo...
+const FEAR_RISEN_HEARD := 12.0     # ...y aunque no lo vea, se entera
+const MOOD_RISEN := 20.0
+const MOOD_RISEN_FAMILY := 35.0
+const MOOD_RISEN_FRIEND := 15.0
+var _rising := 0.0                 # Volviendo a la vida: lo que le falta
+var _rise_from := Vector2.ZERO     # Dónde estaba tirado...
+var _rise_rot := 0.0               # ...y cómo
+var _old_age_death := false        # Se murió de viejo: ya no vuelve
+var _bonds_at_death: Array = []    # Lo que tenía con los demás al morirse (ver Relations.snapshot)
+
 # --- Espacio personal y empujones ---
 # Los aldeanos no chocan físicamente entre sí: se esquivan con una separación suave.
 # El que está agarrado sí empuja a los demás, y los puede tirar de la isla.
@@ -668,6 +707,9 @@ func exit_water() -> void:
 
 func _physics_process(dt: float) -> void:
 	if eaten:
+		return
+	if _rising > 0.0:
+		_rise(dt)   # Volviendo a la vida: lo mueve la luz
 		return
 	if asleep and (dragging or falling or in_water or tornado or dead or inside):
 		wake_up(false)   # Lo agarraron, lo revolearon, se lo llevó el agua...: ya no está acostado
@@ -1279,6 +1321,7 @@ func _mourn() -> void:
 		elif id_number in o.parents:
 			o.say(Bubble.TEAR, MOURN_TIME * 0.8, false)
 			o.add_mood(MOOD_LOST_PARENT, "Se le murió la mamá" if female else "Se le murió el papá")
+	_bonds_at_death = Relations.snapshot(self)   # Por si vuelve a la vida (ver resurrect)
 	Relations.forget(self)
 
 ## "Bla-bla-bla": unas sílabas cortitas con la vocal que sube y baja de tono.
@@ -1546,6 +1589,7 @@ func _die_of_old_age() -> void:
 	if food:
 		food.release_eater()
 	_gentle_death = true
+	_old_age_death = true
 	var lying := asleep
 	_die()
 	if not lying:
@@ -2017,8 +2061,8 @@ func witness_ritual(time: float, at: Vector2) -> void:
 # --- DISPARO / MUERTE ---
 ## Llamado por la pistola. hit_point y shot_dir en coordenadas globales.
 func shoot(hit_point: Vector2, shot_dir: Vector2) -> void:
-	if eaten:
-		return
+	if eaten or _rising > 0.0:
+		return   # (Volviendo a la vida no lo toca nada)
 	var headshot := to_local(hit_point).y < HEAD_Y
 	var power := 1.3 if headshot else 1.0
 	_spawn_blood(hit_point, shot_dir, 40 if headshot else 24)
@@ -2060,6 +2104,8 @@ func _die() -> void:
 	corpse_timer = 0.0
 	floor_y = global_position.y + FEET_DROP - _sleep_drop   # Durmiendo ya estaba acostado
 	velocity = Vector2.ZERO
+	_drop_shield()   # Morirse se lleva el escudo y la vacuna
+	vaccine_t = 0.0
 	_grant_sacrifice_xp()
 	if rig:
 		rig.set_dead()
@@ -2152,9 +2198,12 @@ class BloodPool extends Node2D:
 func can_zap() -> bool:
 	return can_blast() and modulate.a > 0.2
 
-## Le cayó un rayo (ver Lightning): se electrocuta y muere.
+## Le cayó un rayo (ver Lightning): se electrocuta y muere. Con el escudo, el rayo rebota.
 func zap() -> void:
 	if not can_zap():
+		return
+	if shielded():
+		_ward_off(true)
 		return
 	_put_out()   # El rayo se encarga de carbonizarlo
 	zap_state = Zap.SHOCK
@@ -2385,9 +2434,11 @@ class AshPile extends Node2D:
 		return pts
 
 # --- METEORITO ---
-## Si lo puede alcanzar una explosión (vivo o cadáver; no si se está friendo por un rayo).
+## Si lo puede alcanzar una explosión (vivo o cadáver; no si se está friendo por un rayo ni si
+## está volviendo a la vida).
 func can_blast() -> bool:
-	return not eaten and not inside and altar == null and zap_state == Zap.NONE and not is_queued_for_deletion()
+	return not eaten and not inside and altar == null and zap_state == Zap.NONE and _rising <= 0.0 \
+			and not is_queued_for_deletion()
 
 ## Ve venir un meteorito desde from: lo mira, con la boca abierta, durante time segundos.
 func scare(time: float, from: Vector2) -> void:
@@ -2424,7 +2475,7 @@ func blast(push: Vector2, lethal: bool) -> void:
 
 # --- FUEGO ---
 func _update_fire(dt: float) -> void:
-	if eaten or zap_state != Zap.NONE or is_queued_for_deletion():
+	if eaten or zap_state != Zap.NONE or _rising > 0.0 or is_queued_for_deletion():
 		return
 	if on_fire:
 		if in_water or Storm.wet():   # El agua (o la lluvia del diluvio) lo apaga
@@ -2718,6 +2769,10 @@ func _flood_dry() -> void:
 func catch_flu() -> void:
 	if flu != Flu.HEALTHY or dead or eaten:
 		return
+	if protected_from_disease():
+		_exposure = 0.0
+		_ward_off()
+		return
 	flu = Flu.INCUBATING
 	flu_t = randf_range(INCUBATION.x, INCUBATION.y)
 	_exposure = 0.0
@@ -2729,9 +2784,13 @@ func set_flu(state: Flu, time_left: float) -> void:
 	_flu_tint = FLU_TINT if flu == Flu.SICK else 0.0
 	_sneeze_t = randf_range(SNEEZE_EVERY.x, SNEEZE_EVERY.y)
 
-## La peste (ver Plague): se enferma ya, sin incubarla y aunque estuviera inmune.
+## La peste (ver Plague): se enferma ya, sin incubarla y aunque estuviera inmune (con el escudo o
+## vacunado, no).
 func infect() -> void:
 	if dead or eaten or inside or flu == Flu.SICK:
+		return
+	if protected_from_disease():
+		_ward_off()
 		return
 	flu = Flu.SICK
 	flu_t = randf_range(SICK_TIME.x, SICK_TIME.y)
@@ -2994,9 +3053,12 @@ func zombie_mouth() -> float:
 	return 0.3 + 0.6 * sin((1.0 - _groaning / GROAN_TIME) * PI)
 
 ## Se le metió la espora (el poder, una mordida, una tos o la nube de un brote). Al que ya la
-## tenía, dose lo apura. Adentro de su choza no le llega.
+## tenía, dose lo apura. Adentro de su choza no le llega, ni con el escudo o vacunado.
 func catch_spore(dose := 0.0) -> void:
 	if dead or eaten or inside or is_queued_for_deletion():
+		return
+	if protected_from_disease():
+		_ward_off()
 		return
 	if spore > 0.0:
 		spore = minf(1.0, spore + dose)
@@ -3171,11 +3233,11 @@ func _zombie_pace() -> float:
 		return ZOMBIE_LUNGE
 	return ZOMBIE_CHASE
 
-## Si o es alguien a quien morder: vivo, sin la espora, en la isla (despierto o durmiendo en el
-## piso; no adentro de su choza) y no muy lejos.
+## Si o es alguien a quien morder: vivo, sin la espora ni el escudo, en la isla (despierto o
+## durmiendo en el piso; no adentro de su choza) y no muy lejos.
 func _prey_ok(o: Villager) -> bool:
 	return is_instance_valid(o) and o != self and not o.is_queued_for_deletion() and o.spore <= 0.0 \
-			and not o.dead and (o.is_idle() or o.asleep) \
+			and not o.dead and not o.shielded() and (o.is_idle() or o.asleep) \
 			and o.global_position.distance_to(global_position) < ZOMBIE_SEEK * 1.3
 
 ## Sigue teniendo a quién perseguir (no se lo comió el tiburón, no se curó...).
@@ -3209,8 +3271,12 @@ func _bite(o: Villager) -> void:
 	o.get_bitten(self)
 
 ## Lo mordió un zombi: grita, sangra, sale empujado (capaz que se cae de la isla) y corriendo, y
-## se le metió la espora.
+## se le metió la espora. Con el escudo no le pasa nada (y el zombi rebota).
 func get_bitten(z: Villager) -> void:
+	if shielded():
+		_ward_off(true)
+		z.get_shoved(Vector2.ZERO, Vector2(signf(z.global_position.x - global_position.x), 0.0) * BITE_SHOVE)
+		return
 	wake_up()
 	if chat_with:
 		_end_chat()
@@ -3240,8 +3306,8 @@ func get_bitten(z: Villager) -> void:
 ## Con un zombi cerca se asusta y sale corriendo para el otro lado (y un poco para el medio de la
 ## isla, así no lo arrincona contra la orilla). A veces, al verlo, primero se queda duro del susto.
 func _avoid_zombies(dt: float) -> void:
-	if on_fire:
-		return
+	if on_fire or shielded():
+		return   # (Con el escudo, ni se asusta: no lo pueden morder)
 	_dread_check -= dt
 	if _dread_check > 0.0:
 		return
@@ -3413,6 +3479,225 @@ static func _make_burst() -> AudioStreamWAV:
 		buf[i] = (lp * 1.6 + sin(ph) * 0.8 * pow(1.0 - k, 4.0)) * env
 	return Synth.wav(buf, rate, 0.9)
 
+# --- ESCUDO Y VACUNA ---
+## Tiene el escudo (ver Miracle).
+func shielded() -> bool:
+	return shield_t > 0.0 and not dead
+
+## Está vacunado (ver Miracle).
+func vaccinated() -> bool:
+	return vaccine_t > 0.0 and not dead
+
+## No se contagia de nada: tiene el escudo o está vacunado.
+func protected_from_disease() -> bool:
+	return shielded() or vaccinated()
+
+## Lo bendijiste con el escudo (ver Miracle): un aura que lo protege un rato (time, en segundos; las
+## partidas guardadas traen lo que le quedaba). thank: te lo agradece (es un milagro).
+func give_shield(time := SHIELD_TIME, thank := true) -> void:
+	shield_t = maxf(shield_t, time)
+	if _aura == null:
+		_aura = Miracle.Aura.new()
+		_aura.villager = self
+		add_child(_aura)   # Después del Rig: va por delante del cuerpo
+	if thank:
+		_ensure_hud()
+		if hud:
+			hud.popup_text("¡Bendecida!" if gender == Gender.FEMALE else "¡Bendecido!",
+					get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_HOLY)
+		_thank(FAITH_SHIELDED, false)
+
+## Lo vacunaste (ver Miracle): no se contagia de gripe ni de espora por un tiempo (time, en
+## segundos). thank: te lo agradece.
+func vaccinate(time := VACCINE_TIME, thank := true) -> void:
+	vaccine_t = maxf(vaccine_t, time)
+	if thank:
+		_ensure_hud()
+		if hud:
+			hud.popup_text("¡Vacunada!" if gender == Gender.FEMALE else "¡Vacunado!",
+					get_global_transform_with_canvas().origin + Vector2(0, -80), Miracle.C_TEAL)
+		_thank(FAITH_VACCINATED, false)
+
+## El escudo paró algo (un contagio, un rayo o una mordida): brilla. loud: además suena y lo dice
+## (el rayo y la mordida). Vacunado no se nota nada.
+func _ward_off(loud := false) -> void:
+	if not shielded():
+		return
+	if is_instance_valid(_aura):
+		_aura.flash = 1.0
+	if loud:
+		_play_sfx(Miracle.sound_for("block"), VOICE_DB - 4.0, randf_range(0.95, 1.08))
+		_ensure_hud()
+		if hud:
+			hud.popup_text("¡Protegida!" if gender == Gender.FEMALE else "¡Protegido!",
+					get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_HOLY)
+
+## El escudo y la vacuna se van gastando.
+func _update_wards(dt: float) -> void:
+	if dead or eaten:
+		return
+	vaccine_t = maxf(0.0, vaccine_t - dt)
+	if shield_t > 0.0:
+		shield_t -= dt
+		if shield_t <= 0.0:
+			_drop_shield()
+
+## Se le terminó el escudo (o se murió): el aura se va.
+func _drop_shield() -> void:
+	shield_t = 0.0
+	if is_instance_valid(_aura):
+		_aura.queue_free()
+	_aura = null
+
+# --- RESURRECCIÓN ---
+## Es un cadáver (entero o no) sobre el que se podría hacer el milagro (ver revive_problem).
+func revivable() -> bool:
+	return dead and not eaten and _rising <= 0.0 and not is_queued_for_deletion()
+
+## Está volviendo a la vida (flotando en la luz).
+func is_rising() -> bool:
+	return _rising > 0.0
+
+## Por qué no puede volver a la vida ("" si puede; ver Miracle).
+func revive_problem() -> String:
+	if zap_state != Zap.NONE:
+		return "No quedó nada para resucitar"
+	if _old_age_death:
+		return "Ya le había llegado la hora"
+	if in_water:
+		return "Primero sacala del agua" if gender == Gender.FEMALE else "Primero sacalo del agua"
+	if falling or tornado or dragging:
+		return "Solo sobre la isla"
+	return ""
+
+## El milagro (ver Miracle): sube flotando en la luz, se endereza y vuelve a la vida (ver _rise y
+## _come_back). Mientras tanto no lo alcanza nada. Los que lo ven dejan lo que están haciendo y
+## miran: los devotos se arrodillan, los aterrados salen corriendo y los herejes se quedan mirando
+## con la boca abierta (ver witness_ritual).
+func resurrect() -> void:
+	_rising = RISE_TIME
+	_rise_from = global_position
+	_rise_rot = rotation
+	corpse_grounded = false   # Que los brazos y las piernas cuelguen mientras sube (ver VillagerRig)
+	corpse_vel = Vector2.ZERO
+	corpse_timer = 0.0
+	swing_vel = 0.0
+	modulate.a = 1.0
+	if on_fire:
+		_put_out()
+	var at := Vector2(global_position.x, floor_y)
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o and o != self and not o.dead and not o.eaten and not o.is_queued_for_deletion() and o._witness(at) > 0.0:
+			o.witness_ritual(RISE_TIME + 0.5, at)
+
+## Volviendo a la vida: sube flotando mientras se endereza, y baja hasta quedar parado.
+func _rise(dt: float) -> void:
+	velocity = Vector2.ZERO
+	_rising = maxf(0.0, _rising - dt)
+	var k := 1.0 - _rising / RISE_TIME
+	var stand_y := floor_y - FEET_DROP
+	var land := smoothstep(0.75, 1.0, k)
+	var y := lerpf(_rise_from.y, stand_y - RISE_FLOAT, smoothstep(0.0, 0.55, k))
+	y = lerpf(y, stand_y, land)
+	global_position = Vector2(_rise_from.x, y + sin(k * TAU * 2.0) * 1.5 * (1.0 - land))
+	rotation = lerp_angle(_rise_rot, 0.0, smoothstep(0.1, 0.6, k))
+	if _rising <= 0.0:
+		_come_back()
+
+## Volvió a la vida: parado donde estaba tirado, sano, sin heridas y con lo que tenía con los demás.
+func _come_back() -> void:
+	dead = false
+	xp_granted = false   # Si se vuelve a morir, cuenta otra vez
+	_gentle_death = false
+	corpse_grounded = false
+	corpse_timer = 0.0
+	corpse_vel = Vector2.ZERO
+	rotation = 0.0
+	swing_vel = 0.0
+	shove_vel = Vector2.ZERO
+	shove_timer = 0.0
+	global_position.y = floor_y - FEET_DROP
+	# Sano: sin gripe, sin espora, con la panza casi llena y sin quemaduras
+	if flu == Flu.INCUBATING or flu == Flu.SICK:
+		flu = Flu.IMMUNE
+		flu_t = IMMUNE_TIME
+	_flu_tint = 0.0
+	_clear_spore()
+	_spore_fx = 0.0
+	hunger = minf(hunger, RISEN_HUNGER)
+	_starve_t = 0.0
+	_soot = 0.0
+	_heat = 0.0
+	if _waterline:
+		for param: String in ["burnt", "embers", "sick", "spore"]:
+			_waterline.set_shader_parameter(param, 0.0)
+	if rig:
+		rig.set_alive()
+	if food:
+		food.release_eater()
+	if chat_with:
+		_end_chat()
+	_going_home = false
+	_walk = 0.0
+	_heading = Vector2.ZERO
+	_resting = true
+	wander_timer = 1.5
+	_scared = 1.2   # Se queda un ratito con la boca abierta: ¡está vivo!
+	# Vuelve a contar para los demás
+	Genealogy.revive(id_number)
+	var alive := {}   # carnet -> aldeano
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o and o != self and not o.dead and not o.eaten and not o.is_queued_for_deletion():
+			alive[o.id_number] = o
+	var bonds := _bonds_at_death
+	_bonds_at_death = []
+	Relations.restore(self, bonds, alive)
+	_celebrate(bonds, alive)
+
+## Volvió: él te cree muchísimo más y se alegra; su familia y sus amigos también (y lo festejan),
+## los que lo vieron te creen más y a los herejes les da miedo (más si lo vieron). bonds: lo que
+## tenía con los demás al morirse; alive: los vivos, por carnet.
+func _celebrate(bonds: Array, alive: Dictionary) -> void:
+	_ensure_hud()
+	if hud:
+		hud.popup_text("¡Volvió a la vida!", get_global_transform_with_canvas().origin + Vector2(0, -90), HUD.C_HOLY)
+	add_faith(FAITH_RISEN)
+	add_mood(MOOD_RISEN, "Volvió de la muerte")
+	say(Bubble.HEART, THANKS_TIME, false)
+	var partner := 0
+	var friends := {}
+	for r: Array in bonds:
+		match int(r[2]):
+			Relations.Kind.COUPLE:
+				partner = r[0]
+			Relations.Kind.FRIEND:
+				friends[r[0]] = true
+	var at := body_center()
+	for id: int in alive:
+		var o: Villager = alive[id]
+		if o.is_zombie():
+			continue   # (El zombi ya no siente nada)
+		var heretic := o.creed() == Creed.HERETIC
+		var seen := o._witness(at)
+		var family := id == partner or id in parents or id_number in o.parents \
+				or parents.any(func(p: int) -> bool: return p in o.parents)
+		if family:
+			o.add_faith(FAITH_RISEN_FAMILY)
+			o.add_mood(MOOD_RISEN_FAMILY, "Resucitaste a alguien de su familia")
+			o.say(Bubble.HEART, THANKS_TIME * 1.5, false)
+		elif friends.has(id):
+			o.add_faith(FAITH_RISEN_FRIEND)
+			o.add_mood(MOOD_RISEN_FRIEND, "Resucitaste a un amigo")
+			o.say(Bubble.HEART, THANKS_TIME, false)
+		elif seen > 0.0 and not heretic:
+			o.add_faith(FAITH_RISEN_SEEN * seen)
+		if heretic:
+			o.add_fear(FEAR_RISEN_HERETIC * seen if seen > 0.0 else FEAR_RISEN_HEARD)
+			if seen > 0.0:
+				o.scare(WITNESS_STARE, at)
+
 # --- TIBURÓN ---
 ## En el agua se hunde. En la isla (mouth = la boca del tiburón) se lo chupa hacia la boca.
 func get_eaten(mouth := Vector2.INF) -> void:
@@ -3490,6 +3775,7 @@ func _process(dt: float) -> void:
 	_update_faith(dt)
 	_update_mood(dt)
 	_update_sleep(dt)
+	_update_wards(dt)
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)
 	_tornado_cool = maxf(0.0, _tornado_cool - dt)
@@ -3534,7 +3820,7 @@ func _update_drag(dt: float) -> void:
 
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed and not dragging and not eaten and not HUD.aiming():
+		if event.pressed and not dragging and not eaten and _rising <= 0.0 and not HUD.aiming():
 			# En modo seleccionar no se lo agarra: se abre su carnet. Editando la isla, nada
 			_ensure_hud()
 			if hud and hud.edit_mode:

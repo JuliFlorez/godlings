@@ -23,6 +23,10 @@ static func remember(v: Villager) -> void:
 		"looks": [v.skin_tone, v.skin_warm, v.hair_color, v.greyness()],
 	}
 
+## Volvió a la vida (ver Villager.resurrect): ya no está entre los que se fueron.
+static func revive(id: int) -> void:
+	_gone.erase(id)
+
 ## Lo que se sabe de alguien: {id, first, last, gender, parents, partner, looks, dead, villager
 ## (el aldeano, si todavía está en la isla)}. Vacío si no se sabe nada.
 static func person(tree: SceneTree, id: int) -> Dictionary:

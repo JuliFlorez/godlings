@@ -25,6 +25,7 @@ signal spore_toggled(on: bool)
 signal cure_toggled(on: bool)
 signal feed_toggled(on: bool)
 signal charm_toggled(kind: Charm.Kind, on: bool)
+signal miracle_toggled(kind: Miracle.Kind, on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
@@ -106,11 +107,16 @@ const TOOLS := [
 	["discord", "Discordia", "E", true, "Sacar o guardar la manzana de la discordia [E]", false],
 	["feed", "Comida", "F", true, "Tirarles comida [F]", true],
 	["cure", "Curar", "C", true, "Sacar o guardar curar [C]", true],
+	["vaccine", "Vacuna", "V", true, "Sacar o guardar la vacuna [V]", true],
+	["shield", "Escudo", "O", true, "Sacar o guardar el escudo [O]", true],
+	["resurrect", "Resurrección", "L", true, "Sacar o guardar la resurrección [L]", true],
 	["cupid", "Cupido", "A", true, "Sacar o guardar el arco de Cupido [A]", true],
 	["friendship", "Amistad", "B", true, "Sacar o guardar la pelota de la amistad [B]", true],
 ]
 ## El ícono de cada Charm (Cupido, la Discordia y la Amistad).
 const CHARM_ICONS := {"cupid": Charm.Kind.CUPID, "discord": Charm.Kind.DISCORD, "friendship": Charm.Kind.FRIENDSHIP}
+## El ícono de cada Miracle (la resurrección, el escudo y la vacuna).
+const MIRACLE_ICONS := {"resurrect": Miracle.Kind.RESURRECT, "shield": Miracle.Kind.SHIELD, "vaccine": Miracle.Kind.VACCINE}
 const C_EVIL := Color(0.92, 0.3, 0.26)
 const C_HOLY := Color(1.0, 0.86, 0.4)
 const TAB_SIZE := 38.0
@@ -163,6 +169,10 @@ var _slot_feed: StyleBoxFlat
 var _charm_btns: Array[Button] = [null, null, null]
 var _charm_armed: Array[bool] = [false, false, false]
 var _slot_charms: Array[StyleBoxFlat] = []
+## La resurrección, el escudo y la vacuna (ver Miracle), por tipo.
+var _miracle_btns: Array[Button] = [null, null, null]
+var _miracle_armed: Array[bool] = [false, false, false]
+var _slot_miracles: Array[StyleBoxFlat] = []
 ## Pestañas de la barra de poderes: qué slots van en cada una y cuál se ve.
 var _good_tab := false
 var _tab_evil: Button
@@ -383,6 +393,11 @@ func set_charm_armed(on: bool, k: Charm.Kind) -> void:
 	_charm_armed[k] = on
 	_armed_changed(_charm_btns[k], on)
 
+## (k va último, como en set_charm_armed.)
+func set_miracle_armed(on: bool, k: Miracle.Kind) -> void:
+	_miracle_armed[k] = on
+	_armed_changed(_miracle_btns[k], on)
+
 ## Sacado con su tecla desde la otra pestaña: la barra pasa a la suya, así se ve resaltado.
 func _armed_changed(btn: Button, on: bool) -> void:
 	if on:
@@ -399,7 +414,7 @@ func reveal(duration: float) -> void:
 ## tiburón, cocos ni decoraciones).
 static func aiming() -> bool:
 	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed or Plague.armed or Spore.armed \
-			or Cure.armed or Feed.armed or Charm.any_armed()
+			or Cure.armed or Feed.armed or Charm.any_armed() or Miracle.any_armed()
 
 ## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
 func flash_screen(amount: float) -> void:
@@ -524,6 +539,15 @@ func unlock_charm(k: Charm.Kind) -> bool:
 	_refresh()
 	return true
 
+func unlock_miracle(k: Miracle.Kind) -> bool:
+	var info: Dictionary = Miracle.KINDS[k]
+	if Miracle.unlocked[k] or not spend_offerings(info.price):
+		return false
+	Miracle.unlocked[k] = true
+	popup_text(info.unlocked, get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), info.color)
+	_refresh()
+	return true
+
 func unlock_blood_moon() -> bool:
 	if Moon.blood_unlocked or not spend_offerings(Moon.PRICE):
 		return false
@@ -642,6 +666,7 @@ func save_state() -> Dictionary:
 		"spore": Spore.unlocked,
 		"cure": Cure.unlocked,
 		"charms": Charm.unlocked.duplicate(),
+		"miracles": Miracle.unlocked.duplicate(),
 		"blood_moon": Moon.blood_unlocked,
 		"shark_owned": shark_owned,
 		"shark_on": shark_on,
@@ -665,6 +690,9 @@ func load_state(d: Dictionary) -> void:
 	var charms: Array = d.get("charms", [])
 	for k in Charm.unlocked.size():
 		Charm.unlocked[k] = k < charms.size() and charms[k]
+	var miracles: Array = d.get("miracles", [])
+	for k in Miracle.unlocked.size():
+		Miracle.unlocked[k] = k < miracles.size() and miracles[k]
 	Moon.blood_unlocked = d.get("blood_moon", false)
 	var owned: Array = d.get("shark_owned", [])
 	var on: Array = d.get("shark_on", [])
@@ -786,6 +814,12 @@ func _refresh() -> void:
 		_sync_weapon(_charm_btns[k], Charm.unlocked[k], _charm_armed[k], _slot_charms[k], info.tip, info.locked_tip, info.price)
 		if _charm_armed[k]:
 			charm_hint = info.hint
+	var miracle_hint := ""
+	for k: Miracle.Kind in Miracle.KINDS:
+		var info: Dictionary = Miracle.KINDS[k]
+		_sync_weapon(_miracle_btns[k], Miracle.unlocked[k], _miracle_armed[k], _slot_miracles[k], info.tip, info.locked_tip, info.price)
+		if _miracle_armed[k]:
+			miracle_hint = tr(info.hint) % int(info.cost)
 
 	var dragging := not select_mode and not edit_mode
 	for b: Array in [[_drag_btn, dragging], [_select_btn, select_mode], [_edit_btn, edit_mode]]:
@@ -812,6 +846,8 @@ func _refresh() -> void:
 		_hint.text = tr("Click en la isla para tirarles comida, o sobre un aldeano para dársela a él (−%d devoción) · click derecho, Esc o F para guardarla.") % int(Feed.COST)
 	elif charm_hint != "":
 		_hint.text = tr(charm_hint)
+	elif miracle_hint != "":
+		_hint.text = miracle_hint
 	elif _decor_edit == DecorPlacer.Edit.MOVING:
 		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
 	elif _decor_edit == DecorPlacer.Edit.HOVER:
@@ -1102,6 +1138,9 @@ func _build_toolbar() -> void:
 	for k: Charm.Kind in Charm.KINDS:
 		var col: Color = Charm.KINDS[k].color
 		_slot_charms.append(make_box(Color(col, 0.32), 12, col.lightened(0.3), 2))
+	for k: Miracle.Kind in Miracle.KINDS:
+		var col: Color = Miracle.KINDS[k].color
+		_slot_miracles.append(make_box(Color(col, 0.3), 12, col.lightened(0.3), 2))
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -1193,6 +1232,10 @@ func _build_toolbar() -> void:
 				var k: Charm.Kind = CHARM_ICONS[t[0]]
 				_charm_btns[k] = _weapon_slot(slot, _slot_charms[k], func(): return Charm.unlocked[k],
 						func(): charm_toggled.emit(k, not _charm_armed[k]))
+			"resurrect", "shield", "vaccine":
+				var k: Miracle.Kind = MIRACLE_ICONS[t[0]]
+				_miracle_btns[k] = _weapon_slot(slot, _slot_miracles[k], func(): return Miracle.unlocked[k],
+						func(): miracle_toggled.emit(k, not _miracle_armed[k]))
 	# Del ancho de la pestaña más llena: así la barra no salta al cambiar de pestaña
 	var most := 0
 	for good: bool in [false, true]:
@@ -1569,6 +1612,8 @@ class HudIcon extends Control:
 				draw_arc(face + Vector2(0, 0.06) * s, s * 0.13, 0.15 * PI, 0.85 * PI, 8, ink, maxf(1.2, s * 0.05), true)
 			"cupid", "discord", "friendship":
 				Charm.paint_icon(self, HUD.CHARM_ICONS[kind], s)
+			"resurrect", "shield", "vaccine":
+				Miracle.paint_icon(self, HUD.MIRACLE_ICONS[kind], s)
 			"feed":
 				Manna.paint_bread(self, c + Vector2(0, 0.04) * s, s / 24.0)
 			"edit":

@@ -171,7 +171,11 @@ func _strike(at: Vector2) -> void:
 	var direct: Array[Villager] = []
 	for v in _targets():
 		if v.body_distance(at) <= HIT_RADIUS and not sheltered.has(v):
-			direct.append(v)
+			if v.shielded():
+				v.zap()   # El escudo lo para (ver Villager.zap): no le pasa nada ni salta a otros
+				_sparks(v.body_center(), 14)
+			else:
+				direct.append(v)
 	var victims := direct.duplicate()
 	var zapped_sharks: Array[Shark] = []
 	for node in get_tree().get_nodes_in_group("shark"):
@@ -252,12 +256,12 @@ func _targets() -> Array[Villager]:
 			out.append(v)
 	return out
 
-## El más cercano a p (que no esté en el agua ni en la lista), o null.
+## El más cercano a p (que no esté en el agua, ni en la lista, ni con el escudo), o null.
 func _nearest(p: Vector2, skip: Array) -> Villager:
 	var best: Villager = null
 	var best_d := CHAIN_RADIUS
 	for v in _targets():
-		if v.in_water or skip.has(v):
+		if v.in_water or skip.has(v) or v.shielded():
 			continue
 		var d := v.body_center().distance_to(p)
 		if d < best_d:

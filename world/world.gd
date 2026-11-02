@@ -62,6 +62,7 @@ var spore: Spore
 var cure: Cure
 var feed: Feed
 var charms: Array[Charm] = []   # Cupido, la Discordia y la Amistad (por Charm.Kind)
+var miracles: Array[Miracle] = []   # La resurrección, el escudo y la vacuna (por Miracle.Kind)
 var placer: DecorPlacer
 var sharks: Array[Shark] = []
 ## Aldeanos y decoraciones, ordenados por Y para que el de adelante tape al de atrás.
@@ -218,6 +219,11 @@ func _ready() -> void:
 		c.kind = k
 		add_child(c)
 		charms.append(c)
+	for k: Miracle.Kind in Miracle.KINDS:
+		var m := Miracle.new()
+		m.kind = k
+		add_child(m)
+		miracles.append(m)
 	placer = DecorPlacer.new()
 	placer.hud = hud
 	placer.props = props
@@ -243,6 +249,9 @@ func _ready() -> void:
 		hud.charm_toggled.connect(func(k: Charm.Kind, on: bool): charms[k].set_armed(on))
 		for c in charms:
 			c.armed_changed.connect(hud.set_charm_armed.bind(c.kind))
+		hud.miracle_toggled.connect(func(k: Miracle.Kind, on: bool): miracles[k].set_armed(on))
+		for m in miracles:
+			m.armed_changed.connect(hud.set_miracle_armed.bind(m.kind))
 		# El diluvio no se apunta: no guarda las armas ni ellas a él
 		hud.storm_toggled.connect(storm.set_active)
 		storm.active_changed.connect(hud.set_raining)
@@ -287,6 +296,7 @@ func _ready() -> void:
 func _weapons() -> Array[Node]:
 	var all: Array[Node] = [gun, lightning, meteor, tornado, plague, spore, cure, feed]
 	all.append_array(charms)
+	all.append_array(miracles)
 	return all
 
 ## Guarda las armas y poderes (menos keep).
@@ -520,7 +530,7 @@ func _update_outbreak(dt: float) -> void:
 			continue
 		if v.flu == Villager.Flu.INCUBATING or v.flu == Villager.Flu.SICK:
 			return
-		if v.flu == Villager.Flu.HEALTHY and v.is_idle():
+		if v.flu == Villager.Flu.HEALTHY and v.is_idle() and not v.protected_from_disease():
 			healthy.append(v)
 	if healthy.size() >= OUTBREAK_MIN:
 		healthy.pick_random().catch_flu()
@@ -531,7 +541,7 @@ func debug_spore(n: int, zombie := false) -> int:
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
 		if v and not v.dead and not v.eaten and not v.inside and not v.is_queued_for_deletion() \
-				and (v.spore <= 0.0 or (zombie and not v.is_zombie())):
+				and not v.protected_from_disease() and (v.spore <= 0.0 or (zombie and not v.is_zombie())):
 			healthy.append(v)
 	healthy.shuffle()
 	n = mini(n, healthy.size())
@@ -539,6 +549,22 @@ func debug_spore(n: int, zombie := false) -> int:
 		healthy[i].catch_spore()
 		if zombie:
 			healthy[i].spore = Villager.SPORE_ZOMBIE_AT
+	return n
+
+## Para la consola de trucos (y probar la resurrección): n aldeanos parados en la isla mueren de un
+## tiro. Devuelve cuántos.
+func debug_kill(n: int) -> int:
+	var alive: Array[Villager] = []
+	for node in get_tree().get_nodes_in_group("villager"):
+		var v := node as Villager
+		if v and v.is_idle() and not v.is_queued_for_deletion():
+			alive.append(v)
+	alive.shuffle()
+	n = mini(n, alive.size())
+	for i in n:
+		var v := alive[i]
+		var side := 1.0 if randf() < 0.5 else -1.0
+		v.shoot(v.body_center() + Vector2(-side * 6.0, -4.0), Vector2(side, -0.1))
 	return n
 
 ## Para la consola de trucos: n aldeanos sanos se agarran la gripe (ya con síntomas).
@@ -751,6 +777,8 @@ func save_game() -> void:
 			"flu": v.flu,
 			"flu_t": v.flu_t,
 			"spore": v.spore,
+			"shield": v.shield_t,
+			"vaccine": v.vaccine_t,
 			"faith": v.faith,
 			"fear": v.fear,
 			"hunger": v.hunger,
@@ -818,6 +846,11 @@ func _load_game() -> bool:
 		v.gender = d.get("gender", Villager.Gender.MALE)
 		v.set_flu(d.get("flu", Villager.Flu.HEALTHY) as Villager.Flu, d.get("flu_t", 0.0))
 		v.set_spore(d.get("spore", 0.0))
+		# Después de la espora (si no, el escudo no la dejaría volver a meterse)
+		if d.get("shield", 0.0) > 0.0:
+			v.give_shield(d.shield, false)
+		if d.get("vaccine", 0.0) > 0.0:
+			v.vaccinate(d.vaccine, false)
 		v.faith = d.get("faith", v.faith)
 		v.fear = d.get("fear", v.fear)
 		v.hunger = d.get("hunger", v.hunger)

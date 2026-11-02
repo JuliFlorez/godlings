@@ -2,8 +2,9 @@ extends Control
 class_name Shop
 ## Tienda: se gastan ofrendas. Va en pestañas, de a una por vez: la isla (decoraciones, que se
 ## cobran recién al colocarlas, ver DecorPlacer), los poderes malos (pistola, rayo, meteorito,
-## tornado, diluvio, peste, espora y la manzana de la discordia), los buenos (curar, el arco de Cupido y
-## la pelota de la amistad), y el cielo y los tiburones (la Luna de Sangre y los tiburones).
+## tornado, diluvio, peste, espora y la manzana de la discordia), los buenos (curar, la vacuna, el
+## escudo, la resurrección, el arco de Cupido y la pelota de la amistad), y el cielo y los tiburones
+## (la Luna de Sangre y los tiburones).
 ## Tiene el tamaño de la pestaña más grande, así no salta al cambiar. Se vuelve a abrir en la
 ## última que se miró, o en la del poder bloqueado que se tocó en la barra (ver HUD.open_shop).
 
@@ -42,6 +43,7 @@ var _spore_btn: Button
 var _cure_btn: Button
 var _moon_btn: Button
 var _charm_btns := {}         # Charm.Kind -> Button
+var _miracle_btns := {}       # Miracle.Kind -> Button
 var _sharks: Array[Dictionary] = []   # Por tarjeta: {btn, icon, price, status}
 
 func _ready() -> void:
@@ -163,6 +165,10 @@ func _build_powers(evil_page: Control, good_page: Control) -> void:
 				var k: Charm.Kind = HUD.CHARM_ICONS[t[0]]
 				_charm_btns[k] = _unlock_card(power_row, icon, t[1], Charm.KINDS[k].price, Charm.KINDS[k].shop,
 						hud.unlock_charm.bind(k))
+			"resurrect", "shield", "vaccine":
+				var k: Miracle.Kind = HUD.MIRACLE_ICONS[t[0]]
+				_miracle_btns[k] = _unlock_card(power_row, icon, t[1], Miracle.KINDS[k].price, Miracle.KINDS[k].shop,
+						hud.unlock_miracle.bind(k))
 			_:
 				icon.modulate = Color(1, 1, 1, 0.45)
 				var b := _card(power_row, icon, t[1], -1, "Próximamente")
@@ -260,6 +266,8 @@ func _sync() -> void:
 	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada")
 	for k: Charm.Kind in _charm_btns:
 		_sync_unlock(_charm_btns[k], Charm.unlocked[k], Charm.KINDS[k].price, Charm.KINDS[k].done)
+	for k: Miracle.Kind in _miracle_btns:
+		_sync_unlock(_miracle_btns[k], Miracle.unlocked[k], Miracle.KINDS[k].price, Miracle.KINDS[k].done)
 	var next := hud.shark_owned.find(false)   # Se compran en orden: el primero que falta
 	for i in _sharks.size():
 		var s: Dictionary = _sharks[i]
