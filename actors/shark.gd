@@ -106,6 +106,13 @@ static var _alpha: Image
 static var _jaw_mask: ImageTexture
 
 var water_rect := Rect2(0, 570, 1150, 76)
+## A qué distancia nada (la superficie donde va la aleta): el mar es un piso (ver WaterArea).
+## Patrullando vuelve de a poco a la orilla de adelante (el borde de arriba del agua); cazando
+## va hasta donde flota el aldeano.
+var _lane_y := 570.0
+const LANE_RETURN := 25.0        # px/s hacia la orilla, patrullando
+const LANE_HUNT := 0.7           # Veces hunt_speed, yendo para adelante o para atrás cazando
+const BITE_DEPTH := 12.0         # Además de bite_range de costado, así de cerca en distancia
 var dir := 1.0
 var _t := 0.0
 var _cooldown := 0.0
@@ -173,7 +180,8 @@ func _ready() -> void:
 	var water := get_node_or_null(water_path)
 	if water and water.has_method("get_global_rect"):
 		water_rect = water.get_global_rect()
-	global_position = Vector2(randf_range(_left(), _right()), water_rect.position.y)
+	_lane_y = water_rect.position.y
+	global_position = Vector2(randf_range(_left(), _right()), _lane_y)
 	dir = 1.0 if randf() < 0.5 else -1.0
 	_world = get_parent()
 
@@ -301,6 +309,8 @@ func set_active(on: bool) -> void:
 	if on == active:
 		return
 	active = on
+	if on:
+		_lane_y = water_rect.position.y   # Sale en la orilla de adelante
 	if _tween:
 		_tween.kill()
 	_tween = create_tween()
@@ -354,17 +364,23 @@ func _process(dt: float) -> void:
 func _swim(dt: float) -> void:
 	if dead:
 		# Panza arriba: flota quieto entre la sangre
-		global_position.y = water_rect.position.y + 3.0 + sin(_t * 2.0) * 1.5
+		global_position.y = _lane_y + 3.0 + sin(_t * 2.0) * 1.5
 		return
 	var speed := patrol_speed
+	var goal_y := water_rect.position.y   # Patrullando vuelve de a poco a la orilla...
+	var lane_speed := LANE_RETURN
 	var prey := _find_prey() if active and _cooldown <= 0.0 else null
 	if prey:
+		# ...y cazando va hasta donde flota el aldeano
 		var dx := prey.global_position.x - global_position.x
 		if absf(dx) > 2.0:
 			dir = signf(dx)
-		speed = hunt_speed
-		if absf(dx) < bite_range:
+		speed = hunt_speed * clampf(absf(dx) / 40.0, 0.1, 1.0)   # Ya encima, frena (falta la distancia)
+		goal_y = prey.water_surface_y
+		lane_speed = hunt_speed * LANE_HUNT
+		if absf(dx) < bite_range and absf(goal_y - _lane_y) < BITE_DEPTH:
 			_bite(prey)
+	_lane_y = move_toward(_lane_y, goal_y, lane_speed * dt)
 
 	global_position.x += dir * speed * dt
 	if global_position.x < _left():
@@ -372,14 +388,14 @@ func _swim(dt: float) -> void:
 	elif global_position.x > _right():
 		dir = -1.0
 	global_position.x = clampf(global_position.x, _left(), _right())
-	global_position.y = water_rect.position.y + 3.0 + sin(_t * 3.0) * 2.0
+	global_position.y = _lane_y + 3.0 + sin(_t * 3.0) * 2.0
 
 ## Nadando el dibujo se corre hacia abajo y el agua lo corta: solo se ve la aleta
 ## (o la panza, si está muerto).
 func _update_sprite() -> void:
 	_place_sprite()
 	_material.set_shader_parameter("cut", state == State.SWIM)
-	_material.set_shader_parameter("water_y", water_rect.position.y + 4.0)
+	_material.set_shader_parameter("water_y", _lane_y + 4.0)
 	_material.set_shader_parameter("jaw", _jaw)
 	_build_mesh()
 	_sprite.queue_redraw()
@@ -636,7 +652,8 @@ func _find_prey() -> Villager:
 		var villager := v as Villager
 		if villager == null or not villager.in_water or villager.flooded or villager.drowning or villager.dragging or villager.eaten:
 			continue   # (Los que flotan en la isla inundada no están en el mar)
-		var d := absf(villager.global_position.x - global_position.x)
+		# El más cerca en el piso del mar (la distancia para adelante, achatada como se ve)
+		var d := Vector2(villager.global_position.x - global_position.x, (villager.water_surface_y - _lane_y) / Sea.SQUASH).length()
 		if d < best_d:
 			best_d = d
 			best = villager
@@ -724,7 +741,7 @@ func _start_hold(m: Vector2) -> void:
 		global_position.y += _swim_offset()
 		_dive = 0.0
 		rotation = 0.0
-		_splash(Vector2(global_position.x, water_rect.position.y), 26)
+		_splash(Vector2(global_position.x, _lane_y), 26)
 	_set_on_land_layer(false)
 	state = State.HELD
 	_prey = null
@@ -782,7 +799,7 @@ func fling(vel: Vector2) -> void:
 	global_position.y += _swim_offset()
 	_dive = 0.0
 	rotation = 0.0
-	_splash(Vector2(global_position.x, water_rect.position.y), 26)
+	_splash(Vector2(global_position.x, _lane_y), 26)
 	_set_on_land_layer(false)
 	_prey = null
 	state = State.FLYING
@@ -811,7 +828,10 @@ func _fly(dt: float) -> void:
 			_start_land()
 	else:
 		_left_island = true
-		if global_position.y >= water_rect.position.y + 8.0 and _vel.y > 0.0:
+		# Cae al agua a la distancia de donde salió (o en la orilla, si venía de más atrás)
+		var level := WaterArea.level_at(get_tree(), maxf(_launch_y, water_rect.position.y))
+		if global_position.y >= level + 8.0 and _vel.y > 0.0:
+			_lane_y = level
 			_back_to_water(true)
 
 # ---- En la isla ----
@@ -927,7 +947,7 @@ func is_shot_at(p: Vector2) -> bool:
 	if state == State.SWIM:
 		if not dead:
 			return _hit(p)
-		if p.y > water_rect.position.y + 4.0:
+		if p.y > _lane_y + 4.0:
 			return false   # Flotando panza arriba: lo que está bajo el agua no se ve
 	if absf(_sprite.scale.y) < 0.05:
 		return false
@@ -967,9 +987,11 @@ func blast(push: Vector2) -> void:
 func alive_near(p: Vector2, radius: float) -> bool:
 	return visible and active and not dead and global_position.distance_to(p) <= radius
 
-## Si está nadando cerca de x (para la descarga del rayo en el agua).
-func swims_near(x: float, radius: float) -> bool:
-	return visible and active and not dead and state == State.SWIM and absf(global_position.x - x) <= radius
+## Si está nadando cerca de p (la descarga del rayo en el agua, el tornado): a menos de radius
+## de costado, medido en el piso del mar (la distancia para adelante, achatada como se ve).
+func swims_near(p: Vector2, radius: float) -> bool:
+	return visible and active and not dead and state == State.SWIM \
+			and Vector2(global_position.x - p.x, (_lane_y - p.y) / Sea.SQUASH).length() <= radius
 
 ## Se muere (si no lo estaba) y sale despedido según push.
 func _kill(push: Vector2) -> void:
@@ -1141,7 +1163,7 @@ func _back_to_water(splash: bool) -> void:
 	rotation = 0.0
 	_prey = null
 	_jolt_reset = true
-	global_position = Vector2(clampf(global_position.x, _left(), _right()), water_rect.position.y + 3.0)
+	global_position = Vector2(clampf(global_position.x, _left(), _right()), _lane_y + 3.0)
 	if absf(_vel.x) > 20.0:
 		dir = signf(_vel.x)
 	if not splash:

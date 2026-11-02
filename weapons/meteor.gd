@@ -144,14 +144,14 @@ func _set_shake(off: Vector2) -> void:
 		world.shake = off
 
 # ---- El meteorito ----
-## Dónde cae un meteorito tirado a p: en la isla ahí mismo y en el agua en la superficie.
-## INF si p no está ni en la isla ni en el agua.
+## Dónde cae un meteorito tirado a p: en la isla ahí mismo y en el agua en la superficie, a
+## esa distancia (el mar es un piso, ver WaterArea). INF si p no está ni en la isla ni en el agua.
 func _target(p: Vector2) -> Vector2:
 	if _on_island(p):
 		return p
 	var water := _water_rect()
 	if water.has_point(p):
-		return Vector2(p.x, water.position.y + 2.0)
+		return Vector2(p.x, maxf(p.y, water.position.y + 2.0))
 	return Vector2.INF
 
 func _drop(p: Vector2) -> void:

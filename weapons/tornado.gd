@@ -181,13 +181,14 @@ func _process(dt: float) -> void:
 
 # ---- El tornado ----
 ## Dónde toca el tornado con el mouse en p: en la isla ahí mismo y en el agua en la
-## superficie. INF si p no está ni en la isla ni en el agua.
+## superficie, a esa distancia (el mar es un piso, ver WaterArea). INF si p no está ni en la
+## isla ni en el agua.
 func _target(p: Vector2) -> Vector2:
 	if _on_island(p):
 		return p
 	var water := _water_rect()
 	if water.has_point(p):
-		return Vector2(p.x, water.position.y + 2.0)
+		return Vector2(p.x, maxf(p.y, water.position.y + 2.0))
 	return Vector2.INF
 
 func _touch_down(p: Vector2) -> void:
@@ -235,7 +236,7 @@ func _suck() -> void:
 	if _wet:
 		for node in get_tree().get_nodes_in_group("shark"):
 			var shark := node as Shark
-			if shark.swims_near(_base.x, CAPTURE_R * 0.8):
+			if shark.swims_near(_base, CAPTURE_R * 0.8):
 				var side := 1.0 if randf() < 0.5 else -1.0
 				shark.fling(Vector2(side * randf_range(SHARK_FLING.x * 0.5, SHARK_FLING.x), -SHARK_FLING.y * randf_range(0.85, 1.0)))
 	for node in get_tree().get_nodes_in_group("coconut"):

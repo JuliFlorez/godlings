@@ -190,16 +190,25 @@ func _strike(at: Vector2) -> void:
 	for v in direct:
 		wet = wet or v.in_water
 	if wet:
-		var center := Vector2(at.x, water.position.y if water.has_area() else at.y)
+		# En la superficie, a la distancia donde cayó (el mar es un piso, ver WaterArea): la del
+		# que flotaba y le pegó, o donde apuntaste
+		var level := WaterArea.level_at(get_tree(), at.y)
+		for v in direct:
+			if v.in_water:
+				level = v.water_surface_y
+				break
+		var center := Vector2(at.x, level)
 		var targets: Array[Node2D] = []
 		for v in _targets():
-			if v.in_water and absf(v.global_position.x - at.x) <= WATER_RADIUS and not victims.has(v):
+			# Los que flotan cerca, medido en el piso del mar (la distancia para adelante, achatada)
+			var off := Vector2(v.global_position.x - center.x, (v.water_surface_y - center.y) / AIM_SQUASH)
+			if v.in_water and off.length() <= WATER_RADIUS and not victims.has(v):
 				victims.append(v)
 				targets.append(v)
 				_sparks(v.body_center(), 10)
 		for node in get_tree().get_nodes_in_group("shark"):
 			var shark := node as Shark
-			if not zapped_sharks.has(shark) and shark.swims_near(at.x, WATER_RADIUS):
+			if not zapped_sharks.has(shark) and shark.swims_near(center, WATER_RADIUS):
 				shark.zap(shark.global_position)
 				targets.append(shark)
 		_discharges.append({"pos": center, "t": 0.0, "seed": randi(), "targets": targets})

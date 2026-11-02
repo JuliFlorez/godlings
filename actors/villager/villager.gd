@@ -664,11 +664,14 @@ func _ensure_hud() -> void:
 func full_name() -> String:
 	return ("%s %s" % [first_name, last_name]).strip_edges()
 
+## Tocó el agua del mar (ver WaterArea; surface_y: la orilla de adelante). El mar es un piso:
+## lo que cae desde arriba (de la isla o del aire) flota en la orilla, y lo que entra más
+## adelante, donde está.
 func enter_water(surface_y: float) -> void:
 	touching_water = true
 	if flooded:
 		return   # Flota en la isla inundada: lo maneja la inundación, no el mar
-	water_surface_y = surface_y
+	water_surface_y = maxf(surface_y, global_position.y)
 	# Caminando por la orilla el cuerpo roza el agua, pero sigue en tierra
 	if falling or dragging:
 		Sea.ripple_at(self, Vector2(global_position.x, surface_y), 1.0 if falling else 0.6)
@@ -787,10 +790,15 @@ func _physics_process(dt: float) -> void:
 			fall_vx *= -0.5
 			swing_vel *= -0.6
 
-		# Lanzado dentro del agua (sin entrar de nuevo al área): al bajar vuelve a flotar
+		# Lanzado dentro del agua (sin entrar de nuevo al área): al bajar hasta donde salió, vuelve
+		# a flotar (el mar es un piso: no se va a la orilla)
 		if touching_water and v_fall > 0.0:
-			_start_floating()
-			return
+			var level := WaterArea.level_at(get_tree(), _launch_y)
+			if global_position.y >= level:
+				water_surface_y = level
+				Sea.ripple_at(self, Vector2(global_position.x, level), 0.8)
+				_start_floating()
+				return
 
 		# Si cae de regreso a la tierra (no mientras sube, ni apenas lanzado sobre la isla)
 		if island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly):
@@ -3923,15 +3931,17 @@ func _stop_drag() -> void:
 		_land_on_island()
 	else:
 		if in_water:
-			# Soltado dentro del agua: continúa flotando
+			# Soltado dentro del agua: sigue flotando donde lo soltaste (no vuelve a la orilla)
 			falling = false
 			velocity = Vector2.ZERO
+			water_surface_y = WaterArea.level_at(get_tree(), global_position.y)
 		else:
 			# Soltado en el aire fuera de la isla: empieza caída libre
 			_start_fall()
 
 func _start_fall() -> void:
 	if touching_water:
+		water_surface_y = WaterArea.level_at(get_tree(), global_position.y)   # Ahí mismo (o en la orilla)
 		_start_floating()
 		return
 	falling = true
