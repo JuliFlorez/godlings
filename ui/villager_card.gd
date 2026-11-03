@@ -339,7 +339,7 @@ func _update_relations() -> void:
 	var family: Array[Villager] = []
 	for node in villager.get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o == null or o.dead or o.eaten or o.is_queued_for_deletion():
+		if o == null or not o.is_alive():
 			continue
 		var k := Relations.kind(villager, o)
 		if lists.has(k):

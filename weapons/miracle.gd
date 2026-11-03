@@ -215,7 +215,12 @@ func _problem(v: Villager) -> String:
 	var female := v.gender == Villager.Gender.FEMALE
 	match kind:
 		Kind.RESURRECT:
-			return v.revive_problem()
+			var why := v.revive_problem()
+			# El que vuelve ocupa lugar: con la isla llena no (ver World.alive_villagers)
+			var world := get_parent() as World
+			if why == "" and world and world.alive_villagers() >= world.capacity():
+				why = "¡La isla está llena!"
+			return why
 		Kind.SHIELD:
 			if v.is_zombie():
 				return "El hongo ya la domina" if female else "El hongo ya lo domina"
@@ -246,7 +251,7 @@ func _villager_at(p: Vector2) -> Villager:
 	var best: Villager = null
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v == null or v.dead or v.eaten or v.inside or not v.visible or v.is_queued_for_deletion():
+		if v == null or not v.is_alive() or v.inside or not v.visible:
 			continue
 		if v.body_distance(p) < REACH and (best == null or Gun.drawn_in_front(v, best)):
 			best = v
@@ -398,7 +403,7 @@ func _draw_marks() -> void:
 				draw_arc(Vector2.ZERO, 28.0, -PI * 0.5, -PI * 0.5 + TAU * left, 36, C_GOLD, 3.0, true)
 				draw_set_transform(Vector2.ZERO)
 			Kind.VACCINE:
-				if v.dead or v.eaten or not v.vaccinated():
+				if not v.is_alive() or not v.vaccinated():
 					continue
 				var head := v.to_global(Vector2(0, Villager.HEAD_TOP - 12.0))
 				for pass_i in 2:

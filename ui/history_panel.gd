@@ -162,7 +162,7 @@ func _update() -> void:
 	var alive := {}   # carnet -> Villager
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and not v.dead and not v.eaten and not v.is_queued_for_deletion():
+		if v and v.is_alive():
 			alive[v.id_number] = v
 	var only: Array = FILTERS[_filter][1]
 	var shown: Array[Dictionary] = []

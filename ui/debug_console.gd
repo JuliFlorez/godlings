@@ -188,7 +188,7 @@ func run(text: String) -> void:
 			var count := 0
 			for node in get_tree().get_nodes_in_group("villager"):
 				var v := node as Villager
-				if v and not v.dead and not v.eaten and not v.is_queued_for_deletion():
+				if v and v.is_alive():
 					v.set_age(n)
 					count += 1
 			_ok(tr("%d aldeanos con %d días") % [count, n])
@@ -211,7 +211,7 @@ func _set_all(prop: String, value: float) -> int:
 	var n := 0
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and not v.dead and not v.eaten and not v.is_queued_for_deletion():
+		if v and v.is_alive():
 			v.set(prop, value)
 			n += 1
 	return n
@@ -223,7 +223,7 @@ func _simulate_chats(n: int) -> Array:
 	var alive: Array[Villager] = []
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and not v.dead and not v.eaten and not v.is_queued_for_deletion():
+		if v and v.is_alive():
 			alive.append(v)
 			v._chat_cool = 0.0
 	if alive.size() < 2:

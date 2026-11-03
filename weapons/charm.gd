@@ -382,7 +382,7 @@ func _befriend(group: Array[Villager]) -> void:
 # ---- Ayudas ----
 ## Vivo y en el juego (v puede ser uno que ya no está, por eso sin tipo).
 static func _alive(v: Variant) -> bool:
-	return is_instance_valid(v) and not v.dead and not v.eaten and not v.is_queued_for_deletion()
+	return is_instance_valid(v) and v.is_alive()
 
 func _villagers() -> Array[Villager]:
 	var out: Array[Villager] = []

@@ -33,7 +33,7 @@ static func person(tree: SceneTree, id: int) -> Dictionary:
 	for node in tree.get_nodes_in_group("villager"):
 		var v := node as Villager
 		if v and v.id_number == id and not v.is_queued_for_deletion():
-			var dead := v.dead or v.eaten
+			var dead := not v.is_alive()
 			if dead and _gone.has(id):
 				break   # Su cadáver todavía está, pero lo anotado al morirse tiene su pareja
 			return {"id": id, "first": v.first_name, "last": v.last_name, "gender": v.gender,

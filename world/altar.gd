@@ -85,7 +85,7 @@ func _start(v: Villager) -> void:
 	var at := deco.altar_top()
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o and o != v and not o.dead and not o.eaten and o.body_center().distance_to(at) <= WITNESS_RADIUS:
+		if o and o != v and o.is_alive() and o.body_center().distance_to(at) <= WITNESS_RADIUS:
 			o.witness_ritual(RITUAL_TIME + 1.5, at)
 
 ## Lo sacaron del altar antes de tiempo (o quitaron el altar): no hay sacrificio.
@@ -96,7 +96,7 @@ func _process(dt: float) -> void:
 	_cooldown = maxf(0.0, _cooldown - dt)
 	if victim == null:
 		return
-	if not is_instance_valid(victim) or victim.altar != self or victim.dead or victim.eaten \
+	if not is_instance_valid(victim) or victim.altar != self or not victim.is_alive() \
 			or not deco.is_in_group("altar"):
 		if is_instance_valid(victim) and victim.altar == self:
 			victim.leave_altar()
@@ -132,7 +132,7 @@ func _finish() -> void:
 	var offering := roundi(lerpf(OFFERING.x, OFFERING.y, v.faith / 100.0))
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o == null or o == v or o.dead or o.eaten:
+		if o == null or o == v or not o.is_alive():
 			continue
 		var seen := o._witness(at)
 		if seen > 0.0:

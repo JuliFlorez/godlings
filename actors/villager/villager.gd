@@ -938,6 +938,12 @@ func _physics_process(dt: float) -> void:
 				_pick_dir()
 				wander_timer = randf_range(2.0, 5.0)
 
+## Vivo: ni muerto, ni comido, ni a punto de desaparecer. El que se está ahogando todavía está vivo
+## (mientras se hunde se lo puede rescatar), así que cuenta para la capacidad de la isla (ver
+## World.alive_villagers).
+func is_alive() -> bool:
+	return not dead and not eaten and not is_queued_for_deletion()
+
 # --- COMIDA ---
 ## Parado o caminando en la isla (no agarrado, volando, en el agua, en un tornado, adentro de su
 ## choza ni muerto).
@@ -1293,7 +1299,7 @@ func _mourn() -> void:
 	var scary := FEAR_DEATH * (FEAR_DEATH_GENTLE if _gentle_death else 1.0)
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o == null or o == self or o.dead or o.eaten or o.is_queued_for_deletion() or o.is_zombie():
+		if o == null or o == self or not o.is_alive() or o.is_zombie():
 			continue   # (El zombi ya no siente nada)
 		var k := Relations.kind(self, o)
 		var seen := o._witness(at)
@@ -1365,7 +1371,7 @@ func is_sad() -> bool:
 ## Le pasó algo que lo pone más contento (o más triste). why: lo que dice el carnet de por qué
 ## está así (ver mood_reason), si fue fuerte.
 func add_mood(amount: float, why := "") -> void:
-	if dead or eaten:
+	if not is_alive():
 		return
 	mood = clampf(mood + amount, 0.0, 100.0)
 	if why != "" and absf(amount) >= MOOD_NOTE \
@@ -1391,7 +1397,7 @@ func _mood_factors() -> Array:
 		out.append(["Tiene enemigos", maxf(bonds[Relations.Kind.ENEMY] * MOOD_ENEMY, MOOD_ENEMIES_MAX)])
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o and id_number in o.parents and not o.dead and not o.eaten:
+		if o and id_number in o.parents and o.is_alive():
 			out.append(["Tiene hijos", MOOD_KIDS])
 			break
 	if _home_ok():
@@ -1417,7 +1423,7 @@ func _mood_factors() -> Array:
 ## Se va acercando a lo que le toca (lo que le pasó se le va pasando). Feliz, a veces canta;
 ## deprimido, a veces llora.
 func _update_mood(dt: float) -> void:
-	if dead or eaten or is_queued_for_deletion() or is_zombie():
+	if not is_alive() or is_zombie():
 		return   # (El zombi ya no está ni contento ni triste)
 	_mood_why_t += dt
 	_mood_check -= dt
@@ -1465,7 +1471,7 @@ func is_sleeping() -> bool:
 
 ## El cansancio sube despierto y baja durmiendo (o descansando en su choza). Con sueño bosteza.
 func _update_sleep(dt: float) -> void:
-	if dead or eaten or is_queued_for_deletion() or is_zombie():
+	if not is_alive() or is_zombie():
 		return   # (El zombi no se cansa)
 	if is_sleeping():
 		tiredness -= SLEEP_RECOVER * dt
@@ -1654,7 +1660,7 @@ func can_have_baby() -> bool:
 ## llegó la hora, se muere de viejo. Se le va pasando lo del último bebé y cada tanto se fija
 ## dónde vivir.
 func _update_family(dt: float) -> void:
-	if dead or eaten:
+	if not is_alive():
 		return
 	baby_cool = maxf(0.0, baby_cool - dt)
 	var was_child := is_child()
@@ -1685,7 +1691,7 @@ func _partner() -> Villager:
 		return null
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and v.id_number == id and not v.dead and not v.eaten:
+		if v and v.id_number == id and v.is_alive():
 			return v
 	return null
 
@@ -1867,7 +1873,7 @@ func prays() -> bool:
 ## Por qué no te reza ahora ("" si reza): se murió, se está ahogando, es un zombi, le crecen
 ## hongos, tiene gripe, se muere de hambre o está durmiendo (se ve en el carnet).
 func prayer_block() -> String:
-	if dead or eaten or is_queued_for_deletion():
+	if not is_alive():
 		return "Muerto"
 	if drowning:
 		return "Se está ahogando"
@@ -1901,7 +1907,7 @@ func _thank(amount: float, seen_by_others: bool) -> void:
 	var at := body_center()
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o and o != self and not o.dead and not o.eaten:
+		if o and o != self and o.is_alive():
 			o.add_faith(FAITH_MIRACLE * o._witness(at))
 
 ## La fe se le va gastando y el miedo se le va pasando (o crece, con el cielo perturbado). Si
@@ -1910,7 +1916,7 @@ func _thank(amount: float, seen_by_others: bool) -> void:
 func _update_faith(dt: float) -> void:
 	_scram = maxf(0.0, _scram - dt)
 	pose = Pose.NONE
-	if dead or eaten or is_queued_for_deletion() or is_zombie():
+	if not is_alive() or is_zombie():
 		return   # (El zombi ya no cree en nada ni le tiene miedo a nada)
 	add_faith(-(FAITH_DRIFT + (FAITH_DRIFT_STARVING if starving() else 0.0)) * dt)
 	add_fear(-FEAR_FADE * (FEAR_FADE_CHAT if chat_with else 1.0) * dt)
@@ -2796,7 +2802,7 @@ func _flood_dry() -> void:
 ## Se contagió: la incuba un rato sin que se note (solo lo dice el carnet). Los sanos nada más:
 ## el que ya la tiene o se acaba de curar no.
 func catch_flu() -> void:
-	if flu != Flu.HEALTHY or dead or eaten:
+	if flu != Flu.HEALTHY or not is_alive():
 		return
 	if protected_from_disease():
 		_exposure = 0.0
@@ -2816,7 +2822,7 @@ func set_flu(state: Flu, time_left: float) -> void:
 ## La peste (ver Plague): se enferma ya, sin incubarla y aunque estuviera inmune (con el escudo o
 ## vacunado, no).
 func infect() -> void:
-	if dead or eaten or inside or flu == Flu.SICK:
+	if not is_alive() or inside or flu == Flu.SICK:
 		return
 	if protected_from_disease():
 		_ward_off()
@@ -2830,7 +2836,7 @@ func infect() -> void:
 ## un zombi: ahí ya no tiene cura) y, si se estaba quemando, se apaga y se le va el tizne. true
 ## si tenía algo que curar.
 func cure() -> bool:
-	if dead or eaten or inside or zap_state != Zap.NONE:
+	if not is_alive() or inside or zap_state != Zap.NONE:
 		return false
 	_ensure_hud()
 	var zombie := is_zombie()   # Al zombi ya no lo salva nada (si se quema, se apaga igual)
@@ -2955,7 +2961,7 @@ func _recover() -> void:
 ## Le sube el hambre; con hambre lo dice cada tanto, y con la panza vacía aguanta un rato
 ## (parado en la isla, como con la gripe) y se muere.
 func _update_hunger(dt: float) -> void:
-	if dead or eaten or is_queued_for_deletion() or is_zombie():
+	if not is_alive() or is_zombie():
 		return   # (El zombi no tiene hambre: lo alimenta el hongo)
 	hunger = minf(100.0, hunger + HUNGER_RATE * dt)
 	if hunger < 100.0:
@@ -3084,7 +3090,7 @@ func zombie_mouth() -> float:
 ## Se le metió la espora (el poder, una mordida, una tos o la nube de un brote). Al que ya la
 ## tenía, dose lo apura. Adentro de su choza no le llega, ni con el escudo o vacunado.
 func catch_spore(dose := 0.0) -> void:
-	if dead or eaten or inside or is_queued_for_deletion():
+	if not is_alive() or inside:
 		return
 	if protected_from_disease():
 		_ward_off()
@@ -3120,7 +3126,7 @@ func _clear_spore() -> void:
 ## final, parado en la isla, le brota el tallo de la cabeza y revienta.
 func _update_spore(dt: float) -> void:
 	_bite_cool = maxf(0.0, _bite_cool - dt)
-	if spore > 0.0 and not dead and not eaten and not is_queued_for_deletion():
+	if spore > 0.0 and is_alive():
 		spore = minf(1.0, spore + _spore_rate * dt)
 		var stage := infection()
 		if stage != _spore_seen:
@@ -3181,7 +3187,7 @@ func _spore_turned(stage: Infection) -> void:
 			var at := body_center()
 			for node in get_tree().get_nodes_in_group("villager"):
 				var o := node as Villager
-				if o and o != self and not o.dead and not o.eaten and not o.is_zombie():
+				if o and o != self and o.is_alive() and not o.is_zombie():
 					var seen := o._witness(at)
 					if seen > 0.0:
 						o.add_fear(FEAR_DEATH * 0.6 * seen)
@@ -3563,7 +3569,7 @@ func _ward_off(loud := false) -> void:
 
 ## El escudo y la vacuna se van gastando.
 func _update_wards(dt: float) -> void:
-	if dead or eaten:
+	if not is_alive():
 		return
 	vaccine_t = maxf(0.0, vaccine_t - dt)
 	if shield_t > 0.0:
@@ -3617,7 +3623,7 @@ func resurrect() -> void:
 	var at := Vector2(global_position.x, floor_y)
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o and o != self and not o.dead and not o.eaten and not o.is_queued_for_deletion() and o._witness(at) > 0.0:
+		if o and o != self and o.is_alive() and o._witness(at) > 0.0:
 			o.witness_ritual(RISE_TIME + 0.5, at)
 
 ## Volviendo a la vida: sube flotando mientras se endereza, y baja hasta quedar parado.
@@ -3678,7 +3684,7 @@ func _come_back() -> void:
 	var alive := {}   # carnet -> aldeano
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o and o != self and not o.dead and not o.eaten and not o.is_queued_for_deletion():
+		if o and o != self and o.is_alive():
 			alive[o.id_number] = o
 	var bonds := _bonds_at_death
 	_bonds_at_death = []

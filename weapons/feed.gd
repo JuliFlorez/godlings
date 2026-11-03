@@ -94,7 +94,7 @@ func _villager_at(at: Vector2) -> Villager:
 	var best: Villager = null
 	for r in get_world_2d().direct_space_state.intersect_point(q, 16):
 		var v := r.collider as Villager
-		if v and not v.dead and not v.eaten and (best == null or Gun.drawn_in_front(v, best)):
+		if v and v.is_alive() and (best == null or Gun.drawn_in_front(v, best)):
 			best = v
 	return best
 

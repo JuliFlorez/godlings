@@ -489,11 +489,13 @@ func max_level() -> int:
 func capacity() -> int:
 	return ISLAND_LEVELS[island_level].capacity
 
+## Los que ocupan lugar en la isla (ver Villager.is_alive): también el que se está ahogando, que
+## todavía se puede rescatar. Los cadáveres no, pero resucitar pide lugar (ver Miracle._problem).
 func alive_villagers() -> int:
 	var n := 0
 	for v in get_tree().get_nodes_in_group("villager"):
 		var villager := v as Villager
-		if villager and not villager.eaten and not villager.drowning and not villager.dead and not villager.is_queued_for_deletion():
+		if villager and villager.is_alive():
 			n += 1
 	return n
 
@@ -513,7 +515,7 @@ func _devotion_rate() -> float:
 	var n := 0
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and not v.eaten and not v.drowning and not v.dead and not v.is_queued_for_deletion():
+		if v and v.is_alive():
 			sum += v.faith
 			n += 1
 	if n == 0:
@@ -537,7 +539,7 @@ func _update_outbreak(dt: float) -> void:
 	var healthy: Array[Villager] = []
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v == null or v.dead or v.eaten:
+		if v == null or not v.is_alive():
 			continue
 		if v.flu == Villager.Flu.INCUBATING or v.flu == Villager.Flu.SICK:
 			return
@@ -551,7 +553,7 @@ func debug_spore(n: int, zombie := false) -> int:
 	var healthy: Array[Villager] = []
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and not v.dead and not v.eaten and not v.inside and not v.is_queued_for_deletion() \
+		if v and v.is_alive() and not v.inside \
 				and not v.protected_from_disease() and (v.spore <= 0.0 or (zombie and not v.is_zombie())):
 			healthy.append(v)
 	healthy.shuffle()
@@ -583,7 +585,7 @@ func debug_infect(n: int) -> int:
 	var healthy: Array[Villager] = []
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and v.flu == Villager.Flu.HEALTHY and not v.dead and not v.eaten:
+		if v and v.flu == Villager.Flu.HEALTHY and v.is_alive():
 			healthy.append(v)
 	healthy.shuffle()
 	n = mini(n, healthy.size())
@@ -774,7 +776,7 @@ func save_game() -> void:
 	var ids := []
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v == null or v.dead or v.eaten or v.drowning or v.is_queued_for_deletion():
+		if v == null or not v.is_alive() or v.drowning:   # El que se está hundiendo no se guarda
 			continue
 		var feet := v.global_position - Vector2(0, v._sleep_drop)   # Si está acostado durmiendo, parado
 		var standing := (v.is_idle() or v.asleep) and Geometry2D.is_point_in_polygon(feet, island_poly_global)

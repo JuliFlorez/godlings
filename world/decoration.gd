@@ -731,7 +731,7 @@ func residents() -> Array[Villager]:
 	var out: Array[Villager] = []
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and v.home == self and not v.dead and not v.eaten and not v.is_queued_for_deletion():
+		if v and v.home == self and v.is_alive():
 			out.append(v)
 	return out
 
