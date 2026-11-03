@@ -6,15 +6,12 @@ class_name I18n
 
 const EN := {
 	# HUD
-	"Devoción": "Devotion",
 	"Aldeanos": "Villagers",
 	"Isla": "Island",
-	"Puntos": "Points",
 	"Ofrendas": "Offerings",
 	"Tienda": "Shop",
 	"Máx": "Max",
 	"Invocar aldeano (−%d devoción)": "Summon villager (−%d devotion)",
-	"Sacrificios": "Sacrifices",
 	"Isla al máximo": "Island maxed",
 	"Expandir isla (%d)": "Expand island (%d)",
 	"Devoción: %d / %d": "Devotion: %d / %d",
@@ -347,9 +344,7 @@ const EN := {
 	"Nada de esto todavía.": "None of this yet.",
 	# Tienda
 	"Las ofrendas te las dejan rezando (y cada muerte); los sacrificios, cada muerte (el altar da más). Las cosas malas cuestan las dos.": "Offerings come from prayers (and every death); sacrifices, from every death (the altar gives more). Evil things cost both.",
-	"Decoración para la isla": "Island decorations",
 	"Cielo": "Sky",
-	"Armas y poderes": "Weapons and powers",
 	"Tiburones (máx. %d)": "Sharks (max %d)",
 	"Tiburón %d": "Shark %d",
 	"Luna de Sangre": "Blood Moon",

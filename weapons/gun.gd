@@ -128,7 +128,7 @@ func _target_at(at: Vector2) -> Object:
 		if c is Villager and not c.eaten:
 			if best == null or drawn_in_front(c, best):
 				best = c
-		elif c is Area2D and c.has_method("get_global_rect"):
+		elif c is WaterArea:
 			water = c
 	for s in get_tree().get_nodes_in_group("shark"):
 		var shark := s as Shark

@@ -54,10 +54,10 @@ func get_global_rect() -> Rect2:
 
 ## La superficie del mar a la distancia y (en la orilla si está más atrás).
 static func level_at(tree: SceneTree, y: float) -> float:
-	var w := tree.get_first_node_in_group("water")
-	if w == null or not w.has_method("get_global_rect"):
+	var w := tree.get_first_node_in_group("water") as WaterArea
+	if w == null:
 		return y
-	var r: Rect2 = w.get_global_rect()
+	var r := w.get_global_rect()
 	return clampf(y, r.position.y, r.end.y)
 
 func _on_body_entered(b: Node) -> void:

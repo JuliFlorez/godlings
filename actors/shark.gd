@@ -178,8 +178,8 @@ var _flop_t := 0.0
 
 func _ready() -> void:
 	add_to_group("shark")
-	var water := get_node_or_null(water_path)
-	if water and water.has_method("get_global_rect"):
+	var water := get_node_or_null(water_path) as WaterArea
+	if water:
 		water_rect = water.get_global_rect()
 	_lane_y = water_rect.position.y
 	global_position = Vector2(randf_range(_left(), _right()), _lane_y)

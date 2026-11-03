@@ -630,10 +630,9 @@ func _on_spawn_btn_pressed() -> void:
 		return
 
 	if hud:
+		# Sin devoción suficiente el + ya está apagado (ver HUD._refresh)
 		if hud.spend_energy(spawn_devotion_cost):
 			_spawn_villagers(1)
-		else:
-			print("[WORLD] Devoción insuficiente para crear un aldeano (requiere %d)." % int(spawn_devotion_cost))
 	else:
 		# Fallback si no hay HUD presente
 		_spawn_villagers(1)

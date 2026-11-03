@@ -153,7 +153,7 @@ func _finish() -> void:
 		hud.flash_screen(0.25)
 		hud.popup_text(tr("+%d sacrificios") % gained if gained > 1 else tr("+1 sacrificio"),
 				get_viewport().get_canvas_transform() * at + Vector2(0, -95), C_SACRIFICE)
-		_beam(hud, at)
+		_beam(hud)
 	if sky:
 		sky.flash(0.35)
 	if _boom_player.stream == null:
@@ -167,7 +167,7 @@ func _finish() -> void:
 
 ## El rayo de luz roja que baja del cielo hasta el altar (en el overlay del HUD, así de noche
 ## no se apaga).
-func _beam(hud: HUD, at: Vector2) -> void:
+func _beam(hud: HUD) -> void:
 	var painter := HUD.Painter.new()
 	var t0 := Time.get_ticks_msec()
 	painter.paint = func(ci: CanvasItem):

@@ -330,8 +330,8 @@ func _radius(u: float) -> float:
 	return lerpf(R_BOTTOM, R_TOP, pow(u, 1.7)) * (1.0 + 0.07 * sin(u * 13.0 - _t * 8.0))
 
 func _water_rect() -> Rect2:
-	var water := get_tree().get_first_node_in_group("water")
-	if water and water.has_method("get_global_rect"):
+	var water := get_tree().get_first_node_in_group("water") as WaterArea
+	if water:
 		return water.get_global_rect()
 	return Rect2()
 

@@ -280,8 +280,8 @@ func _nearest(p: Vector2, skip: Array) -> Villager:
 	return best
 
 func _water_rect() -> Rect2:
-	var water := get_tree().get_first_node_in_group("water")
-	if water and water.has_method("get_global_rect"):
+	var water := get_tree().get_first_node_in_group("water") as WaterArea
+	if water:
 		return water.get_global_rect()
 	return Rect2()
 

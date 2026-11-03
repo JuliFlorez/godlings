@@ -37,7 +37,6 @@ var _launch_y := 0.0
 var _flight_left_island := false # Salió de la isla durante el vuelo
 
 # HUD / XP
-@export var hud_path: NodePath
 var hud: HUD
 var xp_granted := false      # Evita sumar dos veces por ahogo
 const SACRIFICE_OFFERING := 5
@@ -765,15 +764,14 @@ func _physics_process(dt: float) -> void:
 				_grant_sacrifice_xp()
 				queue_free()
 			return
-		else:
-			# Flotación suave y balanceo
-			var target_y := water_surface_y + sin(bob_t * BOB_SPEED) * BOB_AMP
-			global_position.y = move_toward(global_position.y, target_y, 120.0 * dt)
-			global_position.x += sin(bob_t * 0.8) * 10.0 * dt
-			var float_rot := _lie_angle() if dead else 0.0
-			rotation = lerp_angle(rotation, float_rot + sin(bob_t * 0.9) * 0.08, 4.0 * dt)
-			velocity = Vector2.ZERO
-			return
+		# Flotación suave y balanceo
+		var target_y := water_surface_y + sin(bob_t * BOB_SPEED) * BOB_AMP
+		global_position.y = move_toward(global_position.y, target_y, 120.0 * dt)
+		global_position.x += sin(bob_t * 0.8) * 10.0 * dt
+		var float_rot := _lie_angle() if dead else 0.0
+		rotation = lerp_angle(rotation, float_rot + sin(bob_t * 0.9) * 0.08, 4.0 * dt)
+		velocity = Vector2.ZERO
+		return
 
 	# --- Caída libre fuera de la isla ---
 	if falling:
@@ -2026,7 +2024,7 @@ func _grant_sacrifice_xp(offering := SACRIFICE_OFFERING, sacrifices := 1) -> voi
 	Genealogy.remember(self)   # Queda en el árbol genealógico (antes del duelo: todavía tiene pareja)
 	_mourn()   # Toda muerte pasa por acá
 	_ensure_hud()
-	if hud and hud.has_method("add_xp"):
+	if hud:
 		hud.add_xp(1)
 		hud.add_sacrifice(sacrifices)
 		hud.add_offerings(offering)
