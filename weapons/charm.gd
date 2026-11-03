@@ -40,7 +40,7 @@ const KINDS := {
 		"sacrifices": 3,   # Es mala: cuesta también sacrificios (ver HUD.buy)
 		"color": Color(1.0, 0.45, 0.4),
 		"tip": "Sacar o guardar la manzana de la discordia [E]",
-		"locked_tip": "Desbloqueala en la tienda (%d ofrendas)",
+		"locked_tip": "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)",
 		"need": "Desbloqueá la manzana de la discordia en la tienda",
 		"unlocked": "¡Manzana de la discordia desbloqueada! Sacala con E",
 		"done": "Desbloqueada",

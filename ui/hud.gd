@@ -824,19 +824,26 @@ func _refresh() -> void:
 	_sacrifice_value.text = str(sacrifices)
 
 	_sync_weapon(_gun_btn, Gun.unlocked, _gun_armed, _slot_active,
-			"Sacar o guardar la pistola [G]", "Desbloqueala en la tienda (%d ofrendas)", Gun.PRICE, Gun.SACRIFICES)
+			"Sacar o guardar la pistola [G]", "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)", Gun.PRICE,
+			Gun.SACRIFICES)
 	_sync_weapon(_lightning_btn, Lightning.unlocked, _lightning_armed, _slot_zap,
-			"Sacar o guardar el rayo [R]", "Desbloquealo en la tienda (%d ofrendas)", Lightning.PRICE, Lightning.SACRIFICES)
+			"Sacar o guardar el rayo [R]", "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)", Lightning.PRICE,
+			Lightning.SACRIFICES)
 	_sync_weapon(_meteor_btn, Meteor.unlocked, _meteor_armed, _slot_meteor,
-			"Sacar o guardar el meteorito [M]", "Desbloquealo en la tienda (%d ofrendas)", Meteor.PRICE, Meteor.SACRIFICES)
+			"Sacar o guardar el meteorito [M]", "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)", Meteor.PRICE,
+			Meteor.SACRIFICES)
 	_sync_weapon(_tornado_btn, Tornado.unlocked, _tornado_armed, _slot_tornado,
-			"Sacar o guardar el tornado [T]", "Desbloquealo en la tienda (%d ofrendas)", Tornado.PRICE, Tornado.SACRIFICES)
+			"Sacar o guardar el tornado [T]", "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)", Tornado.PRICE,
+			Tornado.SACRIFICES)
 	_sync_weapon(_rain_btn, Storm.unlocked, _raining, _slot_rain,
-			"Desatar o calmar el diluvio [D]", "Desbloquealo en la tienda (%d ofrendas)", Storm.PRICE, Storm.SACRIFICES)
+			"Desatar o calmar el diluvio [D]", "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)", Storm.PRICE,
+			Storm.SACRIFICES)
 	_sync_weapon(_plague_btn, Plague.unlocked, _plague_armed, _slot_plague,
-			"Sacar o guardar la peste [P]", "Desbloqueala en la tienda (%d ofrendas)", Plague.PRICE, Plague.SACRIFICES)
+			"Sacar o guardar la peste [P]", "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)", Plague.PRICE,
+			Plague.SACRIFICES)
 	_sync_weapon(_spore_btn, Spore.unlocked, _spore_armed, _slot_spore,
-			"Sacar o guardar la espora [Z]", "Desbloqueala en la tienda (%d ofrendas)", Spore.PRICE, Spore.SACRIFICES)
+			"Sacar o guardar la espora [Z]", "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)", Spore.PRICE,
+			Spore.SACRIFICES)
 	_sync_weapon(_cure_btn, Cure.unlocked, _cure_armed, _slot_cure,
 			"Sacar o guardar curar [C]", "Desbloquealo en la tienda (%d ofrendas)", Cure.PRICE)
 	_sync_weapon(_feed_btn, true, _feed_armed, _slot_feed, "Tirarles comida [F]", "", 0)
@@ -917,7 +924,7 @@ func _sync_weapon(slot: Button, unlocked: bool, out: bool, active: StyleBoxFlat,
 	if unlocked:
 		slot.tooltip_text = tr(tip)
 	elif sacrifice_cost > 0:
-		slot.tooltip_text = tr(locked_tip.replace("ofrendas)", "ofrendas y %d sacrificios)")) % [price, sacrifice_cost]
+		slot.tooltip_text = tr(locked_tip) % [price, sacrifice_cost]   # El texto "... ofrendas y %d sacrificios)"
 	else:
 		slot.tooltip_text = tr(locked_tip) % price
 
