@@ -1129,7 +1129,7 @@ func _bleed_on_sand() -> void:
 	if _pooled:
 		return
 	_pooled = true
-	var pool := Villager.BloodPool.new()
+	var pool := BloodPool.new()
 	pool.scale = Vector2.ONE * 2.5
 	var layer := get_tree().get_first_node_in_group("ground_layer")
 	(layer if layer else get_parent()).add_child(pool)

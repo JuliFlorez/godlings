@@ -165,7 +165,6 @@ var flu_t := 0.0                 # Lo que le falta a la etapa de ahora
 var _flu_tint := 0.0
 var _sneeze_t := 0.0
 var _exposure := 0.0
-static var _sneeze_sound: AudioStreamWAV
 
 # --- Espora zombi: un hongo como el cordyceps. Se agarra por la espora (el poder, ver Spore), por
 # la mordida de un zombi, por la tos de uno al que ya le salen hongos o por la nube que suelta un
@@ -230,10 +229,6 @@ var _prey: Villager                # A quién persigue (zombi)
 var _prey_seek := 0.0
 var _dread_check := 0.0
 var _dread_seen := false           # Ya vio al zombi que tiene cerca (para no paralizarse otra vez)
-static var _groan_sound: AudioStreamWAV
-static var _bite_sound: AudioStreamWAV
-static var _cough_sound: AudioStreamWAV
-static var _burst_sound: AudioStreamWAV
 
 # --- Escudo y vacuna (ver Miracle): el escudo es una bendición, un aura dorada (ver Miracle.Aura)
 # que lo protege un rato de los rayos, de las mordidas de zombi (ni lo persiguen, y con uno cerca ni
@@ -432,7 +427,6 @@ var _chat_delta := 0.0                  # Cómo les va a ir (ver Relations.chat_
 var _chat_cool := 0.0                   # Hasta tener ganas de charlar
 var _chat_seek := 0.0
 var _talking := 0.0                     # Hablando: mueve la boca
-static var _babbles: Array[AudioStreamWAV] = []
 
 # --- Fe y miedo: cuánto creen en vos (el dios de la isla) y cuánto te temen, de 0 a 100. Con
 # eso son devotos, fanáticos, herejes o aterrados (ver creed). La fe sube con los milagros
@@ -1271,11 +1265,8 @@ func say(b: Bubble, time: float, talk := true) -> void:
 	bubble_t = time
 	if not talk:
 		return
-	if _babbles.is_empty():
-		for i in 6:
-			_babbles.append(_make_babble())
 	var p := AudioStreamPlayer.new()
-	p.stream = _babbles.pick_random()
+	p.stream = VillagerSounds.babble()
 	p.volume_db = BABBLE_DB
 	p.pitch_scale = _voice_pitch * randf_range(0.95, 1.05)
 	add_child(p)
@@ -1330,25 +1321,6 @@ func _mourn() -> void:
 			o.add_mood(MOOD_LOST_PARENT, "Se le murió la mamá" if female else "Se le murió el papá")
 	_bonds_at_death = Relations.snapshot(self)   # Por si vuelve a la vida (ver resurrect)
 	Relations.forget(self)
-
-## "Bla-bla-bla": unas sílabas cortitas con la vocal que sube y baja de tono.
-static func _make_babble() -> AudioStreamWAV:
-	var rate := 22050
-	var buf := PackedFloat32Array()
-	var ph := 0.0
-	for s in randi_range(4, 7):
-		var n := int(rate * randf_range(0.05, 0.085))
-		var f0 := randf_range(200.0, 300.0)
-		var f1 := f0 * randf_range(0.8, 1.25)
-		var bright := randf_range(0.2, 0.6)
-		for i in n:
-			var k := float(i) / n
-			ph += TAU * lerpf(f0, f1, k) / rate
-			var env := minf(1.0, k * 10.0) * minf(1.0, (1.0 - k) * 6.0)
-			buf.append((sin(ph) + bright * sin(ph * 2.0) + 0.25 * sin(ph * 3.0)) * env * 0.3)
-		for i in int(rate * randf_range(0.02, 0.045)):   # Pausita entre sílabas
-			buf.append(0.0)
-	return Synth.wav(buf, rate, 0.9)
 
 # --- ÁNIMO ---
 ## Deprimido, triste, tranquilo, contento o feliz.
@@ -2199,25 +2171,6 @@ func _spawn_blood_pool() -> void:
 		get_parent().move_child(pool, get_index())  # Debajo del cuerpo
 	pool.global_position = Vector2(global_position.x, floor_y + 7.0)
 
-class BloodPool extends Node2D:
-	const COLOR := Color(0.55, 0.02, 0.03, 0.85)
-	var radius := 0.0
-
-	func _ready() -> void:
-		var tw := create_tween()
-		tw.tween_property(self, "radius", randf_range(13.0, 18.0), 1.6).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-		tw.tween_interval(CORPSE_TIME)
-		tw.tween_property(self, "modulate:a", 0.0, 2.0)
-		tw.tween_callback(queue_free)
-
-	func _process(_dt: float) -> void:
-		queue_redraw()
-
-	func _draw() -> void:
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.32))
-		draw_circle(Vector2.ZERO, radius, COLOR, true, -1.0, true)
-		draw_circle(Vector2(radius * 0.35, -radius * 0.2), radius * 0.55, COLOR.darkened(0.15), true, -1.0, true)
-
 # --- RAYO ---
 ## Si le puede caer un rayo (vivo o cadáver; no si ya se está friendo).
 func can_zap() -> bool:
@@ -2355,108 +2308,6 @@ static func _fade_ramp(from: Color, to: Color) -> Gradient:
 	var g := Gradient.new()
 	g.colors = PackedColorArray([from, to])
 	return g
-
-## Chispazos que le recorren el cuerpo mientras se electrocuta (coords del aldeano).
-class ZapArcs extends Node2D:
-	var _arcs: Array[PackedVector2Array] = []
-	var _t := 0.0
-
-	func _process(dt: float) -> void:
-		_t -= dt
-		if _t > 0.0:
-			return
-		_t = 0.05
-		_arcs.clear()
-		for i in randi_range(2, 3):
-			var a := Vector2(randf_range(-16.0, 16.0), randf_range(HEAD_TOP + 4.0, FEET - 4.0))
-			var b := a + Vector2.from_angle(randf() * TAU) * randf_range(10.0, 22.0)
-			_arcs.append(Lightning.jagged(a, b, 0.35, 3))
-		queue_redraw()
-
-	func _draw() -> void:
-		for a in _arcs:
-			Lightning.paint_bolt(self, a, 1.1, 1.0)
-
-## Montoncito de cenizas donde se deshizo (en la capa del piso). Mientras se deshace le cae
-## polvo encima (dust: el aldeano lo va poniendo donde se está deshaciendo) y las brasas se
-## apagan solas.
-class AshPile extends Node2D:
-	const ASH := Color(0.25, 0.24, 0.24)
-	const ASH_TOP := Color(0.42, 0.4, 0.39)
-	const SOOT := Color(0.08, 0.07, 0.07, 0.5)
-	const EMBER := Color(1.0, 0.45, 0.1)
-	var width := 12.0
-	var amount := 0.0:   # 0..1: cuánto ya cayó
-		set(v):
-			amount = v
-			queue_redraw()
-	var dust: CPUParticles2D
-	var done := false
-	var _glow := 1.0
-	var _specks: Array[Vector3] = []   # x, y (0..1 del montoncito), radio
-
-	func _ready() -> void:
-		for i in 8:
-			_specks.append(Vector3(randf_range(-0.75, 0.75), randf_range(0.2, 0.8), randf_range(0.8, 1.6)))
-		dust = CPUParticles2D.new()
-		dust.amount = 40
-		dust.lifetime = 0.6
-		dust.local_coords = false
-		dust.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
-		dust.emission_rect_extents = Vector2(12, 1.5)
-		dust.direction = Vector2.DOWN
-		dust.spread = 180.0
-		dust.initial_velocity_min = 5.0
-		dust.initial_velocity_max = 25.0
-		dust.gravity = Vector2(0, 90)
-		dust.scale_amount_min = 1.2
-		dust.scale_amount_max = 2.6
-		dust.color_ramp = Villager._fade_ramp(Color(0.3, 0.29, 0.29), Color(0.5, 0.48, 0.47, 0.0))
-		add_child(dust)
-
-	func _process(_dt: float) -> void:
-		if _glow > 0.0:
-			queue_redraw()
-
-	func finish() -> void:
-		if done:
-			return
-		done = true
-		dust.emitting = false
-		var tw := create_tween()
-		tw.tween_property(self, "_glow", 0.0, 2.5)
-		tw.tween_interval(CORPSE_TIME)
-		tw.tween_property(self, "modulate:a", 0.0, 2.0)
-		tw.tween_callback(queue_free)
-
-	func _draw() -> void:
-		var w := width * (0.4 + 0.6 * amount)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.35))
-		draw_circle(Vector2.ZERO, w * 1.4, SOOT, true, -1.0, true)   # Hollín en la arena
-		draw_set_transform(Vector2.ZERO)
-		var h := 9.0 * amount
-		if h < 0.5:
-			return
-		draw_colored_polygon(_mound(w, h), ASH)
-		draw_set_transform(Vector2(-w * 0.12, -h * 0.2))
-		draw_colored_polygon(_mound(w * 0.65, h * 0.7), ASH_TOP)
-		draw_set_transform(Vector2.ZERO)
-		var t := Time.get_ticks_msec() / 1000.0
-		for i in _specks.size():
-			var s := _specks[i]
-			var p := Vector2(s.x * w, -s.y * h * pow(1.0 - s.x * s.x, 0.6))
-			if i < 3 and _glow > 0.0:   # Brasas
-				draw_circle(p, 1.2, Color(EMBER, _glow * (0.5 + 0.5 * sin(t * 8.0 + i * 2.0))), true, -1.0, true)
-			else:
-				draw_circle(p, s.z, ASH_TOP.lightened(0.15), true, -1.0, true)
-
-	## Lomita de ancho 2w y alto h, apoyada en y = 0.
-	static func _mound(w: float, h: float) -> PackedVector2Array:
-		var pts := PackedVector2Array()
-		for i in 17:
-			var u := lerpf(-1.0, 1.0, i / 16.0)
-			pts.append(Vector2(u * w, 1.5 - h * pow(maxf(0.0, 1.0 - u * u), 0.6)))
-		return pts
 
 # --- METEORITO ---
 ## Si lo puede alcanzar una explosión (vivo o cadáver; no si se está friendo por un rayo ni si
@@ -2632,59 +2483,6 @@ func _make_sparks() -> CPUParticles2D:
 	p.scale_amount_max = 2.5
 	p.color_ramp = _fade_ramp(Color(1.0, 0.85, 0.35), Color(0.9, 0.25, 0.05, 0.0))
 	return p
-
-## Lenguas de fuego por todo el cuerpo (coords del aldeano) que siempre apuntan para arriba,
-## aunque esté tirado o colgando. Se prenden y se apagan de a poco (on).
-class Flames extends Node2D:
-	const GLOW := Color(1.0, 0.6, 0.2, 0.16)
-	const LAYERS := [[1.0, Color(0.92, 0.25, 0.05, 0.92)], [0.68, Color(1.0, 0.55, 0.1)], [0.38, Color(1.0, 0.92, 0.5)]]
-	const TONGUES := 13
-	const SIZE := Vector2(7.0, 22.0)   # Medio ancho y alto de una lengua a pleno
-	const NECK := -8.0                 # Más arriba está la cabeza, que es más ancha que el cuerpo
-	const GROW := 4.0                  # Prenderse / apagarse del todo tarda 1/esto segundos
-	var on := true
-	var amount := 0.0
-	var _tongues: Array[Vector4] = []  # x, y de la base, tamaño, fase
-
-	func _ready() -> void:
-		for i in TONGUES:
-			var y := lerpf(FEET - 6.0, HEAD_TOP + 8.0, float(i) / (TONGUES - 1))
-			var half := 19.0 if y < NECK else 11.0
-			_tongues.append(Vector4(randf_range(-half, half), y, randf_range(0.7, 1.2), randf() * TAU))
-
-	func _process(dt: float) -> void:
-		amount = move_toward(amount, 1.0 if on else 0.0, GROW * dt)
-		visible = amount > 0.0
-		if visible:
-			queue_redraw()
-
-	func _draw() -> void:
-		var t := Time.get_ticks_msec() / 1000.0
-		var up: float = -(get_parent() as Node2D).global_rotation
-		draw_circle(Vector2(0, -6), 34.0 * amount, GLOW, true, -1.0, true)
-		for tg in _tongues:
-			var h := SIZE.y * tg.z * amount * (1.0 + 0.25 * sin(t * 13.0 + tg.w) + 0.12 * sin(t * 23.0 + tg.w * 2.0))
-			var w := SIZE.x * tg.z * amount
-			var sway := 3.0 * sin(t * 7.0 + tg.w)
-			draw_set_transform(Vector2(tg.x, tg.y), up)
-			for layer: Array in LAYERS:
-				var k: float = layer[0]
-				draw_colored_polygon(_tongue(w * k, h * k, sway * k), layer[1])
-		draw_set_transform(Vector2.ZERO)
-
-	## Lengua de fuego apoyada en (0, 0): abajo redonda, arriba en punta (que se mece con sway).
-	static func _tongue(w: float, h: float, sway: float) -> PackedVector2Array:
-		var pts := PackedVector2Array()
-		for i in 7:
-			var a := PI * i / 6.0
-			pts.append(Vector2(cos(a) * w, sin(a) * w * 0.8))
-		for i in range(1, 8):
-			var u := i / 7.0
-			pts.append(Vector2(-w * pow(1.0 - u, 1.3) + sway * u * u, -h * u))
-		for i in range(6, 0, -1):
-			var u := i / 7.0
-			pts.append(Vector2(w * pow(1.0 - u, 1.3) + sway * u * u, -h * u))
-		return pts
 
 ## Bocanada de vapor al apagarse en el agua.
 func _spawn_steam() -> void:
@@ -2917,10 +2715,8 @@ func _sneeze() -> void:
 		rig.hit(mouth, Vector2(facing, 0.6), 0.35)
 		rig.sneeze()
 	_spawn_droplets(mouth, Vector2(facing, 0.15))
-	if _sneeze_sound == null:
-		_sneeze_sound = _make_sneeze()
 	var p := AudioStreamPlayer.new()
-	p.stream = _sneeze_sound
+	p.stream = VillagerSounds.sneeze()
 	p.volume_db = VOICE_DB - 4.0
 	p.pitch_scale = _voice_pitch * randf_range(0.92, 1.05)
 	add_child(p)
@@ -2998,30 +2794,6 @@ func _spawn_droplets(at: Vector2, toward: Vector2) -> void:
 	p.global_position = at
 	p.emitting = true
 	p.finished.connect(p.queue_free)
-
-## "Aaa... ¡chís!": una vocal que sube y un soplido de ruido.
-static func _make_sneeze() -> AudioStreamWAV:
-	var rate := 22050
-	var vowel := int(rate * 0.24)
-	var burst := int(rate * 0.2)
-	var buf := PackedFloat32Array()
-	buf.resize(vowel + burst)
-	var ph := 0.0
-	for i in vowel:
-		var k := float(i) / vowel
-		ph += TAU * lerpf(230.0, 360.0, k * k) / rate
-		var env := minf(1.0, k * 12.0) * (0.55 + 0.45 * k)
-		buf[i] = (sin(ph) + 0.5 * sin(ph * 2.0) + 0.3 * sin(ph * 3.0)) * env * 0.35
-	var prev := 0.0
-	var hp := 0.0
-	for i in burst:
-		var k := float(i) / burst
-		var noise := randf_range(-1.0, 1.0)
-		hp = 0.85 * (hp + noise - prev)   # Pasa-altos: la "ch" y la "s"
-		prev = noise
-		var env := minf(1.0, k * 40.0) * pow(1.0 - k, 2.0)
-		buf[vowel + i] = (hp * 0.8 + sin(ph + TAU * 420.0 * i / rate) * 0.25 * (1.0 - k)) * env
-	return Synth.wav(buf, rate, 0.9)
 
 # --- ESPORA ---
 ## En qué etapa de la espora está (ver Infection).
@@ -3178,9 +2950,7 @@ func _cough() -> void:
 		rig.hit(mouth, Vector2(facing, 0.6), 0.3)
 		rig.sneeze()
 	_spawn_spores(mouth, Vector2(facing, -0.1), 14, 0.6)
-	if _cough_sound == null:
-		_cough_sound = _make_cough()
-	_play_sfx(_cough_sound, VOICE_DB - 5.0, _voice_pitch * randf_range(0.9, 1.05))
+	_play_sfx(VillagerSounds.cough(), VOICE_DB - 5.0, _voice_pitch * randf_range(0.9, 1.05))
 	Game.say("¡Cof!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SPORE)
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
@@ -3193,9 +2963,7 @@ func _cough() -> void:
 
 ## "Uuurgh": el zombi gime (con la boca abierta, ver zombie_mouth).
 func _groan() -> void:
-	if _groan_sound == null:
-		_groan_sound = _make_groan()
-	_play_sfx(_groan_sound, VOICE_DB - 6.0, _voice_pitch * randf_range(0.85, 1.0))
+	_play_sfx(VillagerSounds.groan(), VOICE_DB - 6.0, _voice_pitch * randf_range(0.85, 1.0))
 	_groaning = GROAN_TIME
 
 ## Zombi: arrastrando los pies, busca al sano más cerca y lo persigue; ya encima se le tira y lo
@@ -3275,9 +3043,7 @@ func _bite(o: Villager) -> void:
 	if rig:
 		rig.set_facing_left(o.global_position.x < global_position.x)
 		rig.lunge()
-	if _bite_sound == null:
-		_bite_sound = _make_bite()
-	_play_sfx(_bite_sound, VOICE_DB - 2.0, randf_range(0.9, 1.1))
+	_play_sfx(VillagerSounds.bite(), VOICE_DB - 2.0, randf_range(0.9, 1.1))
 	o.get_bitten(self)
 
 ## Lo mordió un zombi: grita, sangra, sale empujado (capaz que se cae de la isla) y corriendo, y
@@ -3363,9 +3129,7 @@ func _burst() -> void:
 	var tip := rig.bloom_tip() if rig else body_center() + Vector2(0, -40)
 	var feet := ground_point()
 	_spawn_spores(tip, Vector2.UP, 70, 1.6)
-	if _burst_sound == null:
-		_burst_sound = _make_burst()
-	_play_sfx(_burst_sound, VOICE_DB, randf_range(0.9, 1.1))
+	_play_sfx(VillagerSounds.burst(), VOICE_DB, randf_range(0.9, 1.1))
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
 		if o and o != self and not o.dead and Spore.reaches(o, feet, BURST_RADIUS):
@@ -3411,79 +3175,6 @@ func _play_sfx(stream: AudioStream, db: float, pitch: float) -> void:
 	add_child(p)
 	p.play()
 	p.finished.connect(p.queue_free)
-
-## "Uuurgh": una vocal grave y ronca que baja.
-static func _make_groan() -> AudioStreamWAV:
-	var rate := 22050
-	var n := int(rate * GROAN_TIME)
-	var buf := PackedFloat32Array()
-	buf.resize(n)
-	var ph := 0.0
-	var lp := 0.0
-	for i in n:
-		var k := float(i) / n
-		ph += TAU * lerpf(125.0, 80.0, k) * (1.0 + 0.03 * sin(k * 40.0)) / rate
-		var saw := 0.0
-		for h in range(1, 7):
-			saw += sin(ph * h) / h
-		lp = lerpf(lp, randf_range(-1.0, 1.0), 0.15)   # Aire
-		var growl := 0.6 + 0.4 * sin(TAU * 28.0 * i / rate)   # Ronco
-		var env := minf(1.0, k * 6.0) * pow(1.0 - k, 0.8)
-		buf[i] = (saw * 0.4 * growl + lp * 0.5) * env
-	return Synth.wav(buf, rate, 0.8)
-
-## Mordida: un golpe sordo y un crujido.
-static func _make_bite() -> AudioStreamWAV:
-	var rate := 22050
-	var n := int(rate * 0.22)
-	var buf := PackedFloat32Array()
-	buf.resize(n)
-	var ph := 0.0
-	var prev := 0.0
-	var hp := 0.0
-	for i in n:
-		var k := float(i) / n
-		ph += TAU * lerpf(160.0, 60.0, k) / rate
-		var noise := randf_range(-1.0, 1.0)
-		hp = 0.7 * (hp + noise - prev)   # Pasa-altos: el crujido
-		prev = noise
-		var crunch := hp * (0.5 + 0.5 * signf(sin(k * 90.0)))   # A golpecitos
-		buf[i] = (sin(ph) * 0.9 * pow(1.0 - k, 3.0) + crunch * 0.6 * pow(1.0 - k, 1.5)) * minf(1.0, k * 60.0)
-	return Synth.wav(buf, rate, 0.9)
-
-## "¡Cof, cof!": dos soplidos roncos.
-static func _make_cough() -> AudioStreamWAV:
-	var rate := 22050
-	var n := int(rate * 0.42)
-	var buf := PackedFloat32Array()
-	buf.resize(n)
-	var lp := 0.0
-	var ph := 0.0
-	for i in n:
-		var t := float(i) / rate
-		var k := fmod(t, 0.2) / 0.2   # Cada "cof" dura 0.2 s
-		lp = lerpf(lp, randf_range(-1.0, 1.0), 0.35)
-		ph += TAU * 170.0 / rate
-		var loud := 1.0 if t < 0.2 else (0.7 if t < 0.4 else 0.0)
-		var env := minf(1.0, k * 30.0) * pow(1.0 - k, 2.5) * loud
-		buf[i] = (lp * 0.9 + sin(ph) * 0.3) * env
-	return Synth.wav(buf, rate, 0.9)
-
-## El tallo que revienta: un "¡pfuum!" sordo que se va apagando.
-static func _make_burst() -> AudioStreamWAV:
-	var rate := 22050
-	var n := int(rate * 0.9)
-	var buf := PackedFloat32Array()
-	buf.resize(n)
-	var lp := 0.0
-	var ph := 0.0
-	for i in n:
-		var k := float(i) / n
-		lp = lerpf(lp, randf_range(-1.0, 1.0), lerpf(0.4, 0.05, k))   # Lo agudo se apaga primero
-		ph += TAU * lerpf(140.0, 45.0, sqrt(k)) / rate
-		var env := minf(1.0, k * 80.0) * pow(1.0 - k, 2.0)
-		buf[i] = (lp * 1.6 + sin(ph) * 0.8 * pow(1.0 - k, 4.0)) * env
-	return Synth.wav(buf, rate, 0.9)
 
 # --- ESCUDO Y VACUNA ---
 ## Tiene el escudo (ver Miracle).
