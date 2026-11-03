@@ -10,10 +10,11 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
   tenía, así que el cambio se pierde. Lo que haga falta se arma por código (por eso `WaterArea` se
   agranda en código y la versión está en `World.VERSION`). Si algo tiene que ir sí o sí ahí
   (autoload, InputMap, buses de audio), pedile al usuario que lo haga desde el editor.
-- En la nube **no hay Godot**: no se puede correr el juego. Para chequear al menos la sintaxis:
-  `pip install gdtoolkit` y `gdlint` sobre los archivos que tocaste (entiende la sintaxis de todo
-  el proyecto; los avisos de `class-definitions-order` y `max-line-length` se pueden ignorar). El
-  resto lo prueba el usuario en el juego: decile qué probar.
+- En la nube **no hay Godot**: no se puede correr el juego. Antes de commitear corré los chequeos
+  que la CI (`.github/workflows/checks.yml`) corre en cada push:
+  `pip install "gdtoolkit==4.5.0"`, `gdlint $(git ls-files '*.gd')` (la config está en
+  `gdlintrc`; detecta errores de sintaxis) y `python3 tools/check_i18n.py`. El resto lo prueba el
+  usuario en el juego: decile qué probar.
 - Comentarios, textos del juego y docs en **español rioplatense** (voseo); commits en **inglés**
   (título corto y un cuerpo que cuenta qué cambia para el jugador).
 - Si cambia una mecánica, un precio o una tecla, actualizá el README (su sección y Controles).
@@ -48,13 +49,17 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
   `play_time`. Un `static var` nuevo con estado de la partida se tiene que resetear ahí, o pasa de
   una partida a otra.
 - Al HUD se llega con `get_tree().get_first_node_in_group("hud")`; a los aldeanos, con el grupo
-  `"villager"`.
+  `"villager"`. Para saber si un aldeano está vivo, `Villager.is_alive()` (el que se está
+  ahogando cuenta como vivo: se lo puede rescatar); no lo escribas a mano.
 - **Traducciones**: el texto en español es la clave. Todo texto visible nuevo va a `I18n.EN` con
-  su traducción. `Label` y `Button` se traducen solos; los textos con formato usan
-  `tr("... %d") % x`.
-- **Guardado**: `ConfigFile` en `user://save_N.cfg` (3 ranuras, ver `SaveSlots`). No tiene número
-  de versión: las partidas viejas se migran mirando qué claves tienen. Si cambiás el formato,
-  seguí cargando las de antes.
+  su traducción, y si sacás o cambiás un texto, sacá su clave vieja (`tools/check_i18n.py` avisa
+  las dos cosas). `Label` y `Button` se traducen solos; los textos con formato usan
+  `tr("... %d") % x`. No armes claves en tiempo de ejecución (`replace`, concatenar).
+- **Guardado**: `ConfigFile` en `user://save_N.cfg` (3 ranuras). Se escribe y se lee con
+  `SaveSlots.write` / `read`, que guardan a un `.tmp`, dejan la anterior como `.bak` y la usan si
+  la partida no se puede leer. Tiene versión (`meta/version`, `SaveSlots.VERSION`); las partidas
+  de antes no la tienen y se migran mirando qué claves tienen. Si cambiás el formato, subí la
+  versión y seguí cargando las de antes.
 - **Teclas**: cada poder mira la suya en `_unhandled_input` (no hay InputMap). Ocupadas: G R M T D
   P Z E F C V O L A B; S (seleccionar), H (historial), I (editar la isla), F1 o la tecla a la
   izquierda del 1 (consola), flechas, + − 0 (zoom) y Esc. Antes de usar una, fijate que esté
@@ -65,7 +70,9 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 Hay que tocar: el script en `weapons/`; `World._ready()` (crearlo, conectar `armed_changed` y
 `X_toggled`, sumarlo a `_weapons()`); el `HUD` (señal `X_toggled`, `set_X_armed`, `unlock_X`,
 `save_state` / `load_state`, `aiming()`, `_refresh()` con su tooltip y su pista, `_build_toolbar`
-y `TOOLS`); `Shop`; `I18n`; `DebugConsole` (desbloquear todo) y el README. Si tiene variantes,
+y `TOOLS`); `Shop`; `I18n`; `DebugConsole` (desbloquear todo) y el README. Si es malo (cuesta
+sacrificios), su tooltip de bloqueado es la clave "Desbloquealo en la tienda (%d ofrendas y %d
+sacrificios)" (o "Desbloqueala"). Si tiene variantes,
 seguí el patrón de `Charm` / `Miracle` (`Kind` y `KINDS`). La fase 2 de `docs/PLAN.md` propone
 unificar todo esto.
 

@@ -1,6 +1,6 @@
 # Revisión de estructura y plan de mejoras
 
-*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`)*
+*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 y 1 hechas el mismo día.*
 
 **Cómo la hice**: leí la arquitectura (las dos escenas, `World`, `HUD`, las armas, el guardado, la
 i18n), recorrí `Villager` por secciones, medí tamaños y acoplamiento con scripts, pasé `gdlint`
@@ -195,24 +195,33 @@ rig), medir con el contador de FPS en una compu lenta.
 ## Plan
 
 Cada paso es un commit chico que se prueba en el juego antes de seguir. Las fases 0 y 1 no cambian
-cómo se juega (salvo el arreglo de la capacidad).
+cómo se juega, salvo los arreglos de la capacidad y lo que se ve cuando una partida no se puede
+leer o guardar.
 
-### Fase 0 · Red de seguridad (una sesión)
+### Fase 0 · Red de seguridad ✅
 
 - [x] `CLAUDE.md` con la arquitectura y las reglas (junto con esta revisión).
-- [ ] `gdlintrc` (sin `class-definitions-order`, líneas de hasta 140) y `tools/check_i18n.py` (el
-      chequeo de traducciones que usé para esta revisión).
-- [ ] GitHub Actions: `gdlint` y el chequeo de traducciones en cada push. Detecta errores de
-      sintaxis sin necesitar Godot.
-- [ ] Las limpiezas del punto 10.
+- [x] `gdlintrc` y `tools/check_i18n.py`. Al final `gdlintrc` no limita el largo de las líneas: 44
+      de las 73 de más de 140 son pares de traducción que no se pueden partir, y gdtoolkit no deja
+      apagar una regla en un solo archivo. También apaga los `return` tempranos y, hasta las fases
+      2 a 4, el tamaño de los archivos. El chequeo de traducciones mira todos los literales con
+      pinta de texto (no solo los `tr()`), y avisa tanto lo que falta traducir como las claves que
+      sobran.
+- [x] GitHub Actions (`.github/workflows/checks.yml`): `gdlint` y el chequeo de traducciones en
+      cada push. Corre en verde.
+- [x] Las limpiezas del punto 10, menos dos: los nombres de los nodos de `world.tscn` (hay que
+      cambiarlos desde el editor y a la vez los `$isle`... del código) y `company_name` en
+      `export_presets.cfg` (lo tiene que decidir el usuario).
 
-### Fase 1 · Arreglos chicos (una sesión)
+### Fase 1 · Arreglos chicos ✅
 
-- [ ] `Villager.is_alive()` y `counts_as_population()`, y reemplazar las verificaciones a mano.
-- [ ] Que el que se está ahogando cuente para la capacidad (punto 5).
-- [ ] Claves explícitas en `_sync_weapon`.
-- [ ] Guardado: `meta/version`, distinguir "vacía" de "dañada", copia `.bak` y mirar el error de
-      `cfg.save()`.
+- [x] `Villager.is_alive()`, en los 33 lugares donde "vivo" estaba escrito a mano. No hizo falta
+      `counts_as_population()`: con el que se ahoga contado como vivo, es lo mismo.
+- [x] Que el que se está ahogando cuente para la capacidad (punto 5). Apareció otro camino para
+      pasarse: resucitar con la isla llena. Ahora dice "¡La isla está llena!".
+- [x] Claves explícitas en `_sync_weapon`.
+- [x] Guardado: `meta/version`, escritura a `.tmp`, copia `.bak` que se usa si la partida no se
+      puede leer, tarjeta "Dañada" que solo deja borrar, y aviso si no se pudo guardar.
 
 ### Fase 2 · Un solo modelo de poder (2 o 3 sesiones)
 
@@ -259,4 +268,4 @@ aldeano.
 - Un archivo que pasa las 1.000 líneas se parte antes de sumarle otra cosa.
 - Un sistema nuevo del aldeano va en su propio archivo.
 - Un `static var` nuevo con estado de la partida se resetea en un solo lugar.
-- Todo texto visible nuevo va a `I18n.EN` (lo va a chequear `tools/check_i18n.py`).
+- Todo texto visible nuevo va a `I18n.EN` (lo chequea `tools/check_i18n.py` en cada push).
