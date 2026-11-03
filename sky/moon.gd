@@ -10,10 +10,9 @@ signal fed(level: int)
 
 @export var radius := 52.0
 
-## Hay que comprarla en la tienda antes de poder transformarla.
-static var blood_unlocked := false
+## Hay que comprarla en la tienda antes de poder transformarla (ver Game.blood_moon).
 const PRICE := 120
-const SACRIFICES := 5   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
+const SACRIFICES := 5   # Las cosas malas cuestan también sacrificios (ver Game.buy)
 
 const MAX_FEED := 6
 const EAT_MARGIN := 14.0         # Soltarlo hasta esta distancia del borde también cuenta
@@ -41,7 +40,6 @@ const CRATER_EYES := [
 
 func _ready() -> void:
 	super()
-	blood_unlocked = false
 	add_to_group("moon")
 	creepy_changed.connect(func(c: bool):
 		if not c:
@@ -55,7 +53,7 @@ func _process(dt: float) -> void:
 	queue_redraw()
 
 func can_turn_creepy() -> bool:
-	return blood_unlocked
+	return Game.blood_moon
 
 ## 0..1: qué tan alimentada está (para el color del cielo).
 func feed_t() -> float:

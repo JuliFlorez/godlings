@@ -16,7 +16,7 @@ signal armed_changed(on: bool)
 const GROUP := "power"
 
 # ---- Cómo es (lo dice cada poder en su _init) ----
-## Con lo que se guarda en la partida (ver HUD.save_state).
+## Con lo que se guarda en la partida (ver Game.save_state).
 var id := ""
 ## El dibujo de su slot y de su tarjeta en la tienda (ver HUD.HudIcon); si no dice, el de su id.
 var icon := ""
@@ -28,7 +28,7 @@ var key := KEY_NONE
 var good := false
 ## Su color: el del slot mientras está afuera y el del cartel al desbloquearlo.
 var accent := Color.WHITE
-## Lo que cuesta en la tienda: ofrendas y, si es malo, sacrificios (ver HUD.buy)...
+## Lo que cuesta en la tienda: ofrendas y, si es malo, sacrificios (ver Game.buy)...
 var price := 0
 var sacrifices := 0
 ## ...y la devoción que gasta cada vez que se usa (la dice su pista, ver hint_text).
@@ -52,7 +52,7 @@ var done := ""
 var shop := ""
 var hint := ""
 
-# ---- Cómo está (se guarda con la partida, ver HUD.save_state) ----
+# ---- Cómo está (se guarda con la partida, ver Game.save_state) ----
 var unlocked := false
 var armed := false
 

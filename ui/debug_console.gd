@@ -4,7 +4,6 @@ class_name DebugConsole
 ## Solo existe en builds de debug (el editor y los exports de debug), nunca en un release.
 ## Comandos: escribí "ayuda" para ver la lista.
 
-var hud: HUD
 var _log: RichTextLabel
 var _line: LineEdit
 var _history: Array[String] = []
@@ -67,11 +66,10 @@ func _ready() -> void:
 	_print("[color=#ffd75a]%s[/color] — %s" % [tr("Consola de trucos"), tr("escribí [b]ayuda[/b] o [b]help[/b]. F1 para cerrar.")])
 
 func _process(_dt: float) -> void:
-	if infinite and hud:
-		hud.offerings = maxi(hud.offerings, 99999)
-		hud.sacrifices = maxi(hud.sacrifices, 999)
-		hud.energy = hud.energy_max
-		hud._refresh()
+	if infinite:
+		Game.offerings = maxi(Game.offerings, 99999)
+		Game.sacrifices = maxi(Game.sacrifices, 999)
+		Game.fill_devotion()   # (Avisa que cambió: el HUD se actualiza)
 
 func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
@@ -134,26 +132,22 @@ func run(text: String) -> void:
 				_print("  [b]%s[/b] — %s" % [c[0], tr(c[1])])
 		"dinero", "money", "ofrendas":
 			var n := arg if arg > 0 else 99999
-			hud.add_offerings(n)
-			_ok(tr("+%d ofrendas (total %d)") % [n, hud.offerings])
+			Game.add_offerings(n)
+			_ok(tr("+%d ofrendas (total %d)") % [n, Game.offerings])
 		"sacrificios", "sacrifices":
 			var n := arg if arg > 0 else 999
-			hud.sacrifices += n
-			hud._refresh()
-			_ok(tr("+%d sacrificios (total %d)") % [n, hud.sacrifices])
+			Game.add_sacrifices(n)
+			_ok(tr("+%d sacrificios (total %d)") % [n, Game.sacrifices])
 		"devocion", "devoción", "devotion", "energia", "energy":
-			hud.energy = hud.energy_max
-			hud._refresh()
+			Game.fill_devotion()
 			_ok(tr("Devoción llena"))
 		"infinito", "infinite", "dios", "god":
 			infinite = not infinite
 			_ok(tr("Ofrendas, sacrificios y devoción infinitos: %s") % tr("SÍ" if infinite else "NO"))
 		"puntos", "points", "xp":
-			var missing: int = world.max_level() - world.island_level - hud.expansion_points
+			var missing: int = world.max_level() - world.island_level - Game.expansion_points
 			var n := arg if arg > 0 else maxi(missing, 1)
-			hud.expansion_points += n
-			hud.expansion_points_changed.emit(hud.expansion_points)
-			hud._refresh()
+			Game.add_expansion_points(n)
 			_ok(tr("+%d puntos de expansión") % n)
 		"isla", "island":
 			var lvl: int = world.max_level() if arg < 0 else arg - 1
@@ -240,13 +234,11 @@ func _simulate_chats(n: int) -> Array:
 	return [n, count[Relations.Kind.FRIEND], count[Relations.Kind.ENEMY], count[Relations.Kind.COUPLE]]
 
 func _unlock_all() -> void:
-	for power in hud.powers:
+	for power in Power.all():
 		power.unlocked = true
-	Moon.blood_unlocked = true
+	Game.blood_moon = true
 	for i in Shark.MAX:
-		if not hud.shark_owned[i]:
-			hud.shark_owned[i] = true
-			hud.shark_on[i] = true
-			hud.shark_changed.emit(i, true)
-	hud._refresh()
+		if not Game.shark_owned[i]:
+			Game.give_shark(i)
+	Game.events.changed.emit()
 	_ok(tr("Desbloqueado: pistola, rayo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y %d tiburones") % Shark.MAX)

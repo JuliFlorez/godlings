@@ -13,7 +13,7 @@ class_name Shark
 signal killed
 
 const PRICE := 80
-const SACRIFICES := 3   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
+const SACRIFICES := 3   # Las cosas malas cuestan también sacrificios (ver Game.buy)
 const MAX := 2
 
 @export var water_path: NodePath

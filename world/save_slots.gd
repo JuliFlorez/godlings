@@ -14,7 +14,7 @@ const COUNT := 3
 ## cargando las de antes:
 ## - 0: las de antes de que tuviera versión; se cargan mirando qué claves tienen (ver World._load_game).
 ## - 1: con versión.
-## - 2: los poderes comprados van juntos en game/hud/unlocked, {id: bool} (ver HUD.save_state y
+## - 2: los poderes comprados van juntos en game/hud/unlocked, {id: bool} (ver Game.save_state y
 ##   _old_unlocks, que lee los de antes).
 const VERSION := 2
 ## Donde se guardaba la única partida antes de que hubiera ranuras: pasa a ser la 1.

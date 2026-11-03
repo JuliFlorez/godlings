@@ -2029,12 +2029,10 @@ func _grant_sacrifice_xp(offering := SACRIFICE_OFFERING, sacrifices := 1) -> voi
 	xp_granted = true
 	Genealogy.remember(self)   # Queda en el árbol genealógico (antes del duelo: todavía tiene pareja)
 	_mourn()   # Toda muerte pasa por acá
-	_ensure_hud()
-	if hud:
-		hud.add_xp(1)
-		hud.add_sacrifice(sacrifices)
-		hud.add_offerings(offering)
-		hud.popup_text(tr("+%d ofrendas") % offering, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
+	Game.add_xp(1)
+	Game.add_sacrifices(sacrifices)
+	Game.add_offerings(offering)
+	Game.say(tr("+%d ofrendas") % offering, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
 
 # --- ALTAR ---
 ## Lo soltaste encima del altar (ver Altar): queda acostado en la piedra, pataleando y con la

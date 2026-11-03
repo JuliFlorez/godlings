@@ -1,7 +1,7 @@
 extends Control
 class_name Shop
 ## Tienda: se gastan ofrendas, y en las cosas malas (los poderes malos, la Luna de Sangre y los
-## tiburones) también sacrificios (ver HUD.buy). Va en pestañas, de a una por vez: la isla (decoraciones, que se
+## tiburones) también sacrificios (ver Game.buy). Va en pestañas, de a una por vez: la isla (decoraciones, que se
 ## cobran recién al colocarlas, ver DecorPlacer), los poderes malos (pistola, rayo, meteorito,
 ## tornado, diluvio, peste, espora y la manzana de la discordia), los buenos (curar, la vacuna, el
 ## escudo, la resurrección, el arco de Cupido y la pelota de la amistad), y el cielo y los tiburones
@@ -136,7 +136,7 @@ func _build_powers(evil_page: Control, good_page: Control) -> void:
 		var icon := CenterContainer.new()
 		icon.add_child(HUD.HudIcon.make(power.icon_kind(), 40))
 		_power_btns[power] = _unlock_card(rows[power.good], icon, power.title, power.price, power.shop,
-				hud.unlock_power.bind(power), power.sacrifices)
+				Game.unlock_power.bind(power), power.sacrifices)
 
 ## El cielo (la Luna de Sangre y, próximamente, el Sol de Sangre) y los tiburones.
 func _build_sky(page: Control) -> void:
@@ -148,7 +148,7 @@ func _build_sky(page: Control) -> void:
 	var moon_icon := CenterContainer.new()
 	moon_icon.add_child(HUD.HudIcon.make("blood_moon", 44))
 	_moon_btn = _unlock_card(sky_row, moon_icon, "Luna de Sangre", Moon.PRICE,
-			"De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla.", hud.unlock_blood_moon, Moon.SACRIFICES)
+			"De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla.", Game.unlock_blood_moon, Moon.SACRIFICES)
 	var sun_icon := CenterContainer.new()
 	sun_icon.add_child(HUD.HudIcon.make("blood_sun", 44))
 	sun_icon.modulate = Color(1, 1, 1, 0.45)
@@ -170,10 +170,10 @@ func _build_sky(page: Control) -> void:
 		card.add_child(status)
 		card.move_child(status, price.get_index())
 		b.pressed.connect(func():
-			if hud.shark_owned[i]:
-				hud.set_shark_on(i, not hud.shark_on[i])
+			if Game.shark_owned[i]:
+				Game.set_shark_on(i, not Game.shark_on[i])
 			else:
-				hud.buy_shark()
+				Game.buy_shark()
 			_sync())
 		_sharks.append({"btn": b, "icon": icon, "price": price, "status": status})
 
@@ -216,19 +216,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _sync() -> void:
-	_balance.text = str(hud.offerings)
-	_sacrifice_balance.text = str(hud.sacrifices)
+	_balance.text = str(Game.offerings)
+	_sacrifice_balance.text = str(Game.sacrifices)
 	for kind: String in _deco_buttons:
-		_deco_buttons[kind].disabled = not hud.can_afford(Decoration.price_of(kind))
+		_deco_buttons[kind].disabled = not Game.can_afford(Decoration.price_of(kind))
 	for power: Power in _power_btns:
 		_sync_unlock(_power_btns[power], power.unlocked, power.price, power.done, power.sacrifices)
-	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada", Moon.SACRIFICES)
-	var next := hud.shark_owned.find(false)   # Se compran en orden: el primero que falta
+	_sync_unlock(_moon_btn, Game.blood_moon, Moon.PRICE, "Desbloqueada", Moon.SACRIFICES)
+	var next := Game.shark_owned.find(false)   # Se compran en orden: el primero que falta
 	for i in _sharks.size():
 		var s: Dictionary = _sharks[i]
 		var b: Button = s.btn
-		var bought := hud.shark_owned[i]
-		var on := bought and hud.shark_on[i]
+		var bought := Game.shark_owned[i]
+		var on := bought and Game.shark_on[i]
 		s.price.visible = not bought
 		s.status.visible = bought
 		s.status.text = "Activo" if on else "Apagado"
@@ -240,13 +240,13 @@ func _sync() -> void:
 		else:
 			# (Si matan al primero y el segundo sigue vivo, se recompra el primero)
 			b.text = "Comprar"
-			b.disabled = i != next or not hud.can_buy(Shark.PRICE, Shark.SACRIFICES)
+			b.disabled = i != next or not Game.can_buy(Shark.PRICE, Shark.SACRIFICES)
 
 ## done: lo que dice una vez desbloqueado ("Desbloqueada" o "Desbloqueado", según el artículo).
 ## sacrifice_cost: lo que cuesta en sacrificios (las cosas malas).
 func _sync_unlock(b: Button, unlocked: bool, price: int, done: String, sacrifice_cost := 0) -> void:
 	b.text = done if unlocked else "Desbloquear"
-	b.disabled = unlocked or not hud.can_buy(price, sacrifice_cost)
+	b.disabled = unlocked or not Game.can_buy(price, sacrifice_cost)
 
 # ---- Construcción ----
 ## Tarjeta de algo que se desbloquea una sola vez (armas, poderes, la Luna de Sangre).

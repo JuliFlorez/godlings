@@ -46,16 +46,14 @@ func _process(dt: float) -> void:
 func _drop(p: Vector2) -> void:
 	if _cooldown > 0.0:
 		return
-	var hud := get_tree().get_first_node_in_group("hud") as HUD
 	var v := _villager_at(p)
 	var at := v.ground_point() if v else p
 	var screen := get_canvas_transform() * at
 	if not _on_island(at):
-		if hud:
-			hud.popup_text("Solo sobre la isla", screen, HUD.C_WARN)
+		Game.say("Solo sobre la isla", screen, HUD.C_WARN)
 		return
-	if hud and not hud.spend_energy(COST):
-		hud.popup_text("Devoción insuficiente", screen, HUD.C_WARN)
+	if not Game.spend_devotion(COST):
+		Game.say("Devoción insuficiente", screen, HUD.C_WARN)
 		return
 	_cooldown = COOLDOWN
 	var m := Manna.new()

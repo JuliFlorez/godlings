@@ -14,46 +14,20 @@ class_name HUD
 
 signal spawn_pressed
 signal expand_pressed
-signal expansion_points_changed(points: int)
 signal decoration_chosen(kind: String)
-signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
 signal edit_mode_changed(on: bool)
 signal menu_requested
 
-@export var energy_max: float = 100.0
-@export var energy_refill_minutes: float = 5.0  # 5 min para llenarse de 0 a 100
-## XP necesaria para cada punto de expansión (el último valor se repite).
-@export var xp_per_point: Array[int] = [3, 5, 8, 12, 16, 20]
-
-## Ofrendas con las que se arranca (moneda de la tienda).
-@export var start_offerings: int = 20
-
-var xp: int = 0
-var energy: float = 100.0
-var expansion_points: int = 0
-var offerings: int = 0
-## Cuántos aldeanos murieron (cualquier muerte cuenta como sacrificio, ver Villager).
-var sacrifices: int = 0
-## Por tiburón (Shark.MAX): si está comprado y si está prendido.
-## Si lo matan de un tiro deja de estar comprado: hay que volver a comprarlo.
-var shark_owned: Array[bool] = []
-var shark_on: Array[bool] = []
 ## Modo seleccionar: el click sobre un aldeano abre su carnet en vez de agarrarlo.
 var select_mode := false
 ## Modo editar isla: el click es para mover las decoraciones (y el derecho, para quitarlas), y
 ## no agarra aldeanos ni cocos. Fuera de este modo las decoraciones no se tocan (ver
 ## DecorPlacer): así no se mueven sin querer.
 var edit_mode := false
-var _points_earned: int = 0
-var _refill_rate: float = 0.0  # puntos de energía por segundo
-## Lo que rinde la recarga de devoción según cuánto creen en vos (ver World._devotion_rate).
-var faith_rate := 1.0
 
 var _population := -1
 var _capacity := -1
-var _island_level := 0
-var _island_max := 0
 var _spawn_cost := 10.0
 
 # --- Paleta ---
@@ -155,19 +129,15 @@ var _family_tree: FamilyTree
 func _ready() -> void:
 	add_to_group("hud")
 	Settings.init()   # Volumen e idioma guardados, antes de armar los textos
-	if energy_max <= 0.0:
-		energy_max = 100.0
-	if energy_refill_minutes <= 0.0:
-		energy_refill_minutes = 5.0
-	_refill_rate = energy_max / (energy_refill_minutes * 60.0)
-	energy = energy_max
-	offerings = start_offerings
-	shark_owned.resize(Shark.MAX)
-	shark_on.resize(Shark.MAX)
-
 	_build_ui()
-	_xp_bar.value = xp
-	_devotion_ring.value = energy
+	_snap_bars()
+	# La partida (ver Game): muestra lo que cambia, y los carteles
+	Game.events.changed.connect(_refresh)
+	Game.events.loaded.connect(_snap_bars)
+	Game.events.offerings_gained.connect(func(_amount: int): _flash(_offer_chip))
+	Game.events.sacrifices_gained.connect(func(_amount: int): _flash(_sacrifice_chip))
+	Game.events.point_earned.connect(_on_point_earned)
+	Game.events.said.connect(popup_text)
 	_refresh()
 	process_mode = Node.PROCESS_MODE_ALWAYS  # Sigue cargando aunque pierda foco
 
@@ -178,9 +148,7 @@ func _ready() -> void:
 
 	# Consola de trucos (F1): solo en el editor y en exports de debug
 	if OS.is_debug_build():
-		var console := DebugConsole.new()
-		console.hud = self
-		add_child(console)
+		add_child(DebugConsole.new())
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo) or get_tree().paused:
@@ -199,16 +167,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
-	# Recarga suave de Devoción (no durante el menú de pausa)
-	if energy < energy_max and not get_tree().paused:
-		energy = min(energy_max, energy + _refill_rate * faith_rate * delta)
-		_refresh()
-
 	# Las barras siguen a su valor con suavidad
 	var k := 1.0 - exp(-10.0 * delta)
-	var xp_target := _xp_bar.max_value if not _can_earn_points() else float(xp)
+	var xp_target := _xp_bar.max_value if not Game.can_earn_points() else float(Game.xp)
 	_xp_bar.value = lerpf(_xp_bar.value, xp_target, k)
-	_devotion_ring.value = lerpf(_devotion_ring.value, energy, k)
+	_devotion_ring.value = lerpf(_devotion_ring.value, Game.devotion, k)
 
 	_update_day()
 
@@ -241,56 +204,22 @@ func _update_day() -> void:
 	(_day_bar.get_theme_stylebox("fill") as StyleBoxFlat).bg_color = C_MOON if night else C_SUN
 
 # ---- API para otros scripts ----
-func add_xp(amount: int) -> void:
-	if not _can_earn_points():
-		_refresh()
-		return
-	xp += amount
-	while xp >= xp_needed() and _can_earn_points():
-		xp -= xp_needed()
-		_points_earned += 1
-		expansion_points += 1
-		_xp_bar.value = 0.0
-		_flash(_expand_btn)
-		popup_text("+1 punto de expansión", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_EXPAND)
-		expansion_points_changed.emit(expansion_points)
-	if not _can_earn_points():
-		xp = 0
-	_refresh()
+## Ganaste un punto para agrandar la isla (ver Game.add_xp): la barra vuelve a empezar.
+func _on_point_earned() -> void:
+	_xp_bar.value = 0.0
+	_flash(_expand_btn)
+	popup_text("+1 punto de expansión", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_EXPAND)
 
-func xp_needed() -> int:
-	if xp_per_point.is_empty():
-		return 10
-	return xp_per_point[mini(_points_earned, xp_per_point.size() - 1)]
-
-func spend_expansion_point() -> bool:
-	if expansion_points <= 0:
-		return false
-	expansion_points -= 1
-	expansion_points_changed.emit(expansion_points)
-	_refresh()
-	return true
-
-func spend_energy(amount: float) -> bool:
-	if energy >= amount:
-		energy -= amount
-		_refresh()
-		return true
-	return false
-
-func can_spend_energy(amount: float) -> bool:
-	return energy >= amount
+## Las barras en su valor, sin animarlas (al armar el HUD y al cargar una partida).
+func _snap_bars() -> void:
+	_xp_bar.value = Game.xp
+	_devotion_ring.value = Game.devotion
 
 func set_population(count: int, capacity: int) -> void:
 	if count == _population and capacity == _capacity:
 		return
 	_population = count
 	_capacity = capacity
-	_refresh()
-
-func set_island(level: int, max_level: int) -> void:
-	_island_level = level
-	_island_max = max_level
 	_refresh()
 
 func set_spawn_cost(cost: float) -> void:
@@ -334,11 +263,6 @@ func flash_screen(amount: float) -> void:
 	_flash_rect.color.a = _flash_amount
 
 # ---- Ofrendas, sacrificios y tienda ----
-func add_offerings(amount: int) -> void:
-	offerings += amount
-	_flash(_offer_chip)
-	_refresh()
-
 ## Lo que te dejan rezando todos juntos cada interval segundos (ver World._prayers): va abajo
 ## de las ofrendas (apagado si no reza nadie).
 func set_tribute(amount: float, interval: float) -> void:
@@ -354,35 +278,6 @@ static func per_prayer(amount: float, interval: float) -> String:
 static func decimal(x: float) -> String:
 	var s := "%.1f" % x
 	return s.replace(".", ",") if TranslationServer.get_locale().begins_with("es") else s
-
-## Se murió un aldeano (ver Villager._grant_sacrifice_xp); en el altar, puede valer más.
-func add_sacrifice(amount := 1) -> void:
-	sacrifices += amount
-	_flash(_sacrifice_chip)
-	_refresh()
-
-func can_afford(amount: int) -> bool:
-	return offerings >= amount
-
-func spend_offerings(amount: int) -> bool:
-	if offerings < amount:
-		return false
-	offerings -= amount
-	_refresh()
-	return true
-
-## Si alcanzan las ofrendas y los sacrificios (las cosas malas cuestan las dos monedas).
-func can_buy(price: int, sacrifice_cost := 0) -> bool:
-	return offerings >= price and sacrifices >= sacrifice_cost
-
-## Cobra price ofrendas y sacrifice_cost sacrificios (o nada, si no alcanza alguna).
-func buy(price: int, sacrifice_cost := 0) -> bool:
-	if not can_buy(price, sacrifice_cost):
-		return false
-	offerings -= price
-	sacrifices -= sacrifice_cost
-	_refresh()
-	return true
 
 ## Abre la tienda (en la pestaña tab, o en la última que se miró; ver Shop.Tab).
 func open_shop(tab := -1) -> void:
@@ -406,45 +301,6 @@ func toggle_history() -> void:
 	if _shop:
 		_shop.close()
 	_history.open()
-
-## Compra un poder en la tienda (ver Shop).
-func unlock_power(power: Power) -> bool:
-	if power.unlocked or not buy(power.price, power.sacrifices):
-		return false
-	power.unlocked = true
-	popup_text(power.unlocked_text, get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), power.unlock_color())
-	_refresh()
-	return true
-
-func unlock_blood_moon() -> bool:
-	if Moon.blood_unlocked or not buy(Moon.PRICE, Moon.SACRIFICES):
-		return false
-	Moon.blood_unlocked = true
-	popup_text("¡Luna de Sangre desbloqueada! De noche, tocá la luna 5 veces", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), Color(1.0, 0.45, 0.4))
-	return true
-
-## Compra el primer tiburón que falta (se compran en orden).
-func buy_shark() -> bool:
-	var index := shark_owned.find(false)
-	if index < 0 or not buy(Shark.PRICE, Shark.SACRIFICES):
-		return false
-	shark_owned[index] = true
-	shark_on[index] = true
-	shark_changed.emit(index, true)
-	popup_text("¡Tiburón suelto en el agua!", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_DEVOTION)
-	return true
-
-func set_shark_on(index: int, on: bool) -> void:
-	if index < 0 or index >= shark_on.size() or not shark_owned[index] or shark_on[index] == on:
-		return
-	shark_on[index] = on
-	shark_changed.emit(index, on)
-
-## Lo mataron de un tiro: hay que volver a comprarlo.
-func lose_shark(index: int) -> void:
-	shark_owned[index] = false
-	shark_on[index] = false
-	popup_text("¡Mataste al tiburón! Comprá otro en la tienda", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_WARN)
 
 # ---- Modo del click: arrastrar, seleccionar (carnet) o editar la isla ----
 func set_select_mode(on: bool) -> void:
@@ -515,64 +371,6 @@ func add_name_tag(v: Villager) -> void:
 	tag.hud = self
 	_tags.add_child(tag)
 
-# ---- Partida guardada (ver World.save_game) ----
-## Progreso y compras.
-func save_state() -> Dictionary:
-	var unlocks := {}
-	for power in powers:
-		if not power.always:
-			unlocks[power.id] = power.unlocked
-	return {
-		"xp": xp,
-		"energy": energy,
-		"offerings": offerings,
-		"sacrifices": sacrifices,
-		"expansion_points": expansion_points,
-		"points_earned": _points_earned,
-		"unlocked": unlocks,   # Los poderes comprados, {id: bool} (ver Power.id)
-		"blood_moon": Moon.blood_unlocked,
-		"shark_owned": shark_owned,
-		"shark_on": shark_on,
-	}
-
-func load_state(d: Dictionary) -> void:
-	xp = d.get("xp", xp)
-	energy = clampf(d.get("energy", energy), 0.0, energy_max)
-	offerings = d.get("offerings", offerings)
-	sacrifices = d.get("sacrifices", 0)
-	expansion_points = d.get("expansion_points", expansion_points)
-	_points_earned = d.get("points_earned", _points_earned)
-	var unlocks: Dictionary = d["unlocked"] if d.has("unlocked") else _old_unlocks(d)
-	for power in powers:
-		if not power.always:
-			power.unlocked = unlocks.get(power.id, false)
-	Moon.blood_unlocked = d.get("blood_moon", false)
-	var owned: Array = d.get("shark_owned", [])
-	var on: Array = d.get("shark_on", [])
-	for i in mini(shark_owned.size(), mini(owned.size(), on.size())):
-		shark_owned[i] = owned[i]
-		shark_on[i] = owned[i] and on[i]
-		if shark_on[i]:
-			shark_changed.emit(i, true)
-	_xp_bar.value = xp       # Sin la animación de las barras llenándose
-	_devotion_ring.value = energy
-	expansion_points_changed.emit(expansion_points)
-	_refresh()
-
-## Las partidas de antes (formato 1, ver SaveSlots.VERSION) guardaban cada poder con su propia
-## clave, y los de Charm y Miracle en listas por tipo.
-static func _old_unlocks(d: Dictionary) -> Dictionary:
-	var unlocks := {}
-	for power_id: String in ["gun", "lightning", "meteor", "tornado", "storm", "plague", "spore", "cure"]:
-		unlocks[power_id] = d.get(power_id, false)
-	var by_kind := {"charms": ["cupid", "discord", "friendship"], "miracles": ["resurrect", "shield", "vaccine"]}
-	for list: String in by_kind:
-		var ids: Array = by_kind[list]
-		var saved: Array = d.get(list, [])
-		for i in mini(saved.size(), ids.size()):
-			unlocks[ids[i]] = saved[i]
-	return unlocks
-
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, el historial, la colocación
 ## de decoraciones, las armas y poderes ni el carnet o el cartel de una choza, que la usan para
 ## cerrar/terminar/guardar).
@@ -623,40 +421,37 @@ func popup_text(text: String, screen_pos: Vector2, color: Color = C_TEXT) -> voi
 	tw.chain().tween_callback(l.queue_free)
 
 # ---- Estado ----
-func _can_earn_points() -> bool:
-	return _island_max == 0 or _island_level + expansion_points < _island_max
-
 func _refresh() -> void:
 	if _root == null:
 		return
-	var maxed := not _can_earn_points()
-	_xp_bar.max_value = xp_needed()
-	_xp_value.text = tr("Máx") if maxed else "%d / %d" % [xp, xp_needed()]
+	var maxed := not Game.can_earn_points()
+	_xp_bar.max_value = Game.xp_needed()
+	_xp_value.text = tr("Máx") if maxed else "%d / %d" % [Game.xp, Game.xp_needed()]
 	if maxed:
 		_xp_bar.value = _xp_bar.max_value
 
-	_devotion_ring.max_value = energy_max
+	_devotion_ring.max_value = Game.DEVOTION_MAX
 	_devotion_ring.cost = _spawn_cost
 
 	var full := _capacity >= 0 and _population >= _capacity
 	_pop_value.text = "%d / %d" % [maxi(_population, 0), maxi(_capacity, 0)]
 	_pop_value.add_theme_color_override("font_color", C_WARN if full else C_TEXT)
-	_level_value.text = "%d / %d" % [_island_level + 1, _island_max + 1]
+	_level_value.text = "%d / %d" % [Game.island_level + 1, Game.island_max + 1]
 
-	var has_energy := energy >= _spawn_cost
+	var has_energy := Game.devotion >= _spawn_cost
 	_spawn_btn.disabled = full or not has_energy
 	_spawn_btn.tooltip_text = tr("Invocar aldeano (−%d devoción)") % int(_spawn_cost) + "\n" \
-			+ tr("Devoción: %d / %d") % [int(energy), int(energy_max)]
+			+ tr("Devoción: %d / %d") % [int(Game.devotion), int(Game.DEVOTION_MAX)]
 	_spawn_btn.get_meta("icon").modulate.a = 0.45 if _spawn_btn.disabled else 1.0
 	_spawn_cost_label.text = str(int(_spawn_cost))
 	_spawn_cost_label.add_theme_color_override("font_color", C_TEXT if has_energy else C_WARN)
 
-	var island_maxed := _island_level >= _island_max
-	_expand_btn.disabled = expansion_points <= 0 or island_maxed
-	_expand_btn.text = tr("Isla al máximo") if island_maxed else tr("Expandir isla (%d)") % expansion_points
+	var island_maxed := Game.island_level >= Game.island_max
+	_expand_btn.disabled = Game.expansion_points <= 0 or island_maxed
+	_expand_btn.text = tr("Isla al máximo") if island_maxed else tr("Expandir isla (%d)") % Game.expansion_points
 
-	_offer_value.text = str(offerings)
-	_sacrifice_value.text = str(sacrifices)
+	_offer_value.text = str(Game.offerings)
+	_sacrifice_value.text = str(Game.sacrifices)
 
 	var aimed_hint := ""   # La pista del que se está apuntando...
 	var out_hint := ""     # ...y la del que está afuera sin apuntar (el diluvio: va más abajo)
@@ -699,7 +494,7 @@ func _refresh() -> void:
 		_hint.text = tr("Isla llena: sacrificá aldeanos para ganar puntos y expandirla.")
 	elif not has_energy:
 		_hint.text = tr("Devoción insuficiente: se recarga con el tiempo.")
-	elif expansion_points > 0 and not island_maxed:
+	elif Game.expansion_points > 0 and not island_maxed:
 		_hint.text = tr("¡Tocá un orbe + en la isla para expandirla!")
 	else:
 		_hint.text = ""

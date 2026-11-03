@@ -35,7 +35,7 @@ const EN := {
 	"Para castigar a tus aldeanos (y sacrificarlos). Cuestan ofrendas y sacrificios.": "To punish your villagers (and sacrifice them). They cost offerings and sacrifices.",
 	"Para cuidar a tus aldeanos y juntarlos.": "To look after your villagers and bring them together.",
 	"La Luna de Sangre se come a los que le soltás encima; los tiburones patrullan el agua. Cuestan ofrendas y sacrificios.": "The Blood Moon eats whoever you drop on it; sharks patrol the water. They cost offerings and sacrifices.",
-	# Las cosas malas cuestan las dos monedas (ver HUD.buy)
+	# Las cosas malas cuestan las dos monedas (ver Game.buy)
 	"Desbloquealo en la tienda (%d ofrendas y %d sacrificios)": "Unlock it in the shop (%d offerings and %d sacrifices)",
 	"Desbloqueala en la tienda (%d ofrendas y %d sacrificios)": "Unlock it in the shop (%d offerings and %d sacrifices)",
 	"Sacrificios: cada muerte suma uno (en el altar, más). Se gastan en la tienda: las cosas malas cuestan ofrendas y sacrificios": "Sacrifices: every death adds one (more at the altar). Spend them in the shop: evil things cost offerings and sacrifices",

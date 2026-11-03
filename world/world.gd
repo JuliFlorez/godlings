@@ -49,7 +49,7 @@ const HEIGHT_MAX := 1.05
 ## Cada tantos segundos, cada aldeano vivo, sano y no muerto de hambre reza y deja ofrendas:
 ## más cuanto más cree en vos y más te teme (ver Villager.tribute).
 @export var worship_interval: float = 10.0
-## Con esta fe promedio en la isla la devoción se recarga a velocidad normal (ver HUD.faith_rate):
+## Con esta fe promedio en la isla la devoción se recarga a velocidad normal (ver Game.refill):
 ## con más, más rápido; con menos, más lento (sin parar del todo, así siempre se puede invocar).
 const DEVOTION_FAITH := 65.0
 const DEVOTION_RATE := Vector2(0.25, 1.5)
@@ -153,6 +153,7 @@ func _apply_view() -> void:
 			_view + Vector2(0.0, lift) + shake)
 
 func _ready() -> void:
+	Game.reset()   # Una partida nueva (la guardada se carga al elegirla, ver _start_slot)
 	# Capas sobre la isla y el tiburón: primero el piso, después lo que tiene altura
 	ground = Node2D.new()
 	ground.name = "Ground"
@@ -181,16 +182,16 @@ func _ready() -> void:
 	island_level = clampi(start_level, 0, max_level())
 	_apply_island_width(ISLAND_LEVELS[island_level].width)
 
+	Game.set_island(island_level, max_level())
+	Game.events.expansion_points_changed.connect(func(_p): _refresh_markers())
+	Game.events.shark_changed.connect(func(i: int, on: bool): sharks[i].set_active(on))
+	for i in sharks.size():
+		sharks[i].killed.connect(func(): Game.lose_shark(i))
 	_ensure_hud()
 	if hud:
 		hud.set_spawn_cost(spawn_devotion_cost)
-		hud.set_island(island_level, max_level())
 		hud.spawn_pressed.connect(_on_spawn_btn_pressed)
 		hud.expand_pressed.connect(expand_island)
-		hud.expansion_points_changed.connect(func(_p): _refresh_markers())
-		hud.shark_changed.connect(func(i: int, on: bool): sharks[i].set_active(on))
-		for i in sharks.size():
-			sharks[i].killed.connect(hud.lose_shark.bind(i))
 		hud.menu_requested.connect(_to_title)
 
 	# Últimos hijos: reciben los clicks antes que el sol/luna y los aldeanos
@@ -222,10 +223,6 @@ func _ready() -> void:
 					_disarm(power)
 					placer.stop())
 
-	Villager.ids_issued = 0
-	play_time = 0.0
-	Relations.clear()
-	Genealogy.clear()
 	_start_music()
 
 	# Arranca en el cielo, con el menú de inicio; la partida se carga al elegirla
@@ -303,22 +300,22 @@ func _process(dt: float) -> void:
 	_update_home(dt)
 	_update_zoom(dt)
 	_update_pan(dt)
+	Game.refill(dt, _devotion_rate())
+	_worship_t += dt
+	if _worship_t >= worship_interval:
+		_worship_t = 0.0
+		_tribute += _prayers()
+		var n := int(_tribute)
+		_tribute -= n
+		if n > 0:
+			Game.add_offerings(n)
+	_update_outbreak(dt)
 	if hud:
 		hud.set_population(alive_villagers(), capacity())
-		hud.faith_rate = _devotion_rate()
 		_tribute_show_t -= dt
 		if _tribute_show_t <= 0.0:
 			_tribute_show_t = TRIBUTE_SHOW_EVERY
 			hud.set_tribute(_prayers(), worship_interval)
-		_worship_t += dt
-		if _worship_t >= worship_interval:
-			_worship_t = 0.0
-			_tribute += _prayers()
-			var n := int(_tribute)
-			_tribute -= n
-			if n > 0:
-				hud.add_offerings(n)
-		_update_outbreak(dt)
 
 	play_time += dt
 	_autosave_t += dt
@@ -570,18 +567,11 @@ func _rand_point_in_poly(poly: PackedVector2Array, box: Rect2) -> Vector2:
 	return box.get_center()
 
 func _on_spawn_btn_pressed() -> void:
-	_ensure_hud()
 	if alive_villagers() >= capacity():
-		if hud:
-			hud.popup_text("¡La isla está llena!", _pivot + Vector2(0, -120), HUD.C_WARN)
+		Game.say("¡La isla está llena!", _pivot + Vector2(0, -120), HUD.C_WARN)
 		return
-
-	if hud:
-		# Sin devoción suficiente el + ya está apagado (ver HUD._refresh)
-		if hud.spend_energy(spawn_devotion_cost):
-			_spawn_villagers(1)
-	else:
-		# Fallback si no hay HUD presente
+	# Sin devoción suficiente el + ya está apagado (ver HUD._refresh)
+	if Game.spend_devotion(spawn_devotion_cost):
 		_spawn_villagers(1)
 
 # ---- Tamaño de la isla ----
@@ -619,10 +609,7 @@ func _apply_island_width(w: float) -> void:
 	_place_markers()
 
 func expand_island() -> void:
-	if _expanding or island_level >= max_level():
-		return
-	_ensure_hud()
-	if hud and not hud.spend_expansion_point():
+	if _expanding or island_level >= max_level() or not Game.spend_expansion_point():
 		return
 
 	_expanding = true
@@ -637,9 +624,8 @@ func expand_island() -> void:
 
 	_sand_burst(_edge_point(-1.0))
 	_sand_burst(_edge_point(1.0))
-	if hud:
-		hud.set_island(island_level, max_level())
-		hud.popup_text(tr("¡La isla creció! Capacidad: %d aldeanos") % capacity(), _pivot + Vector2(0, -130), HUD.C_EXPAND)
+	Game.set_island(island_level, max_level())
+	Game.say(tr("¡La isla creció! Capacidad: %d aldeanos") % capacity(), _pivot + Vector2(0, -130), HUD.C_EXPAND)
 
 func _on_expand_finished() -> void:
 	_expanding = false
@@ -647,7 +633,7 @@ func _on_expand_finished() -> void:
 
 # ---- Orbes de expansión ----
 func _refresh_markers() -> void:
-	var want := hud != null and hud.expansion_points > 0 and island_level < max_level() and not _expanding
+	var want := Game.expansion_points > 0 and island_level < max_level() and not _expanding
 	if want and _markers.is_empty():
 		for side in [-1.0, 1.0]:
 			var m := ExpandMarker.new()
@@ -686,8 +672,7 @@ func set_island_level(level: int) -> void:
 	_clear_markers()
 	island_level = level
 	_apply_island_width(ISLAND_LEVELS[island_level].width)
-	if hud:
-		hud.set_island(island_level, max_level())
+	Game.set_island(island_level, max_level())
 	_refresh_markers()
 
 ## Para la consola de trucos: aldeanos gratis (sin pasarse de la capacidad).
@@ -695,7 +680,7 @@ func debug_spawn_villagers(n: int) -> void:
 	_spawn_villagers(clampi(n, 0, capacity() - alive_villagers()))
 
 # ---- Partida guardada ----
-## Guarda lo que hace a la partida: progreso y compras (ver HUD.save_state), el tamaño
+## Guarda lo que hace a la partida: progreso y compras (ver Game.save_state), el tamaño
 ## de la isla, los aldeanos con su carnet y lo que se quieren entre ellos (con el historial,
 ## ver Relations), las decoraciones y cómo está el cielo.
 ## Lo que pasa en el momento no (cadáveres, cocos sueltos, aldeanos volando o en el
@@ -703,7 +688,7 @@ func debug_spawn_villagers(n: int) -> void:
 ## Solo jugando: en el menú de inicio no hay partida, y mientras la cámara baja ya está
 ## guardada tal cual se cargó.
 func save_game() -> void:
-	if not playing or hud == null:
+	if not playing:
 		return
 	var decorations := []
 	var deco_index := {}   # Decoration -> lugar en la lista (para saber en qué choza vive cada uno)
@@ -752,7 +737,7 @@ func save_game() -> void:
 
 	var sky := $Sky
 	var cfg := ConfigFile.new()
-	cfg.set_value("game", "hud", hud.save_state())
+	cfg.set_value("game", "hud", Game.save_state())   # (Se llama "hud" porque antes lo tenía él)
 	cfg.set_value("island", "level", island_level)
 	cfg.set_value("island", "villagers", villagers)
 	cfg.set_value("island", "next_id", Villager.ids_issued)
@@ -773,14 +758,12 @@ func save_game() -> void:
 	if err != OK:
 		push_error("No se pudo guardar la partida %d: %s" % [slot, error_string(err)])
 		if not _save_failed:
-			hud.popup_text("No se pudo guardar la partida", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
+			Game.announce("No se pudo guardar la partida", HUD.C_WARN)
 	_save_failed = err != OK
 
 ## Sigue la partida guardada en la ranura. false si estaba vacía (arranca una nueva). Si el archivo
 ## está roto, sigue desde la copia (ver SaveSlots.read); el menú no deja elegir una ranura dañada.
 func _load_game() -> bool:
-	if hud == null:
-		return false
 	var cfg := SaveSlots.read(slot)
 	if cfg == null:
 		return false
@@ -788,7 +771,7 @@ func _load_game() -> bool:
 	if version > SaveSlots.VERSION:
 		push_warning("La partida %d es de una versión más nueva del juego (formato %d)" % [slot, version])
 	play_time = cfg.get_value("meta", "play_time", 0.0)
-	hud.load_state(cfg.get_value("game", "hud", {}))
+	Game.load_state(cfg.get_value("game", "hud", {}))
 	set_island_level(cfg.get_value("island", "level", island_level))
 	var decos := []   # En el mismo orden que la lista guardada (null las que ya no existen)
 	for d: Dictionary in cfg.get_value("island", "decorations", []):

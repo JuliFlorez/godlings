@@ -126,7 +126,7 @@ func _place() -> void:
 		hud.popup_text("Solo sobre la isla", screen, HUD.C_WARN)
 		return
 	var price := Decoration.price_of(kind)
-	if not hud.spend_offerings(price):
+	if not Game.spend_offerings(price):
 		hud.popup_text("No te alcanzan las ofrendas", screen, HUD.C_WARN)
 		stop()
 		return
@@ -135,7 +135,7 @@ func _place() -> void:
 	props.add_child(d)
 	d.global_position = pos
 	_puff(pos + Vector2(0, Decoration.LIFT))
-	if not hud.can_afford(price):
+	if not Game.can_afford(price):
 		stop()
 
 # ---- Editar decoraciones ya puestas y agarrar cocos ----
@@ -288,7 +288,7 @@ func _cancel_move() -> void:
 func _remove(d: Decoration) -> void:
 	_set_hover({})
 	var refund := maxi(1, int(Decoration.price_of(d.kind) * REFUND))
-	hud.add_offerings(refund)
+	Game.add_offerings(refund)
 	hud.popup_text(tr("+%d ofrendas") % refund, get_viewport().get_canvas_transform() * d.global_position + Vector2(0, -40), HUD.C_OFFERING)
 	_puff(d.global_position + Vector2(0, Decoration.LIFT))
 	# Fuera de Props: ya no cuenta para el espacio libre ni se puede volver a agarrar (ni

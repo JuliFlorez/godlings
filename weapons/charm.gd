@@ -41,7 +41,7 @@ const KINDS := {
 		"good": false,
 		"key": KEY_E,
 		"price": 100,
-		"sacrifices": 3,   # Es mala: cuesta también sacrificios (ver HUD.buy)
+		"sacrifices": 3,   # Es mala: cuesta también sacrificios (ver Game.buy)
 		"color": Color(1.0, 0.45, 0.4),
 		"tip": "Sacar o guardar la manzana de la discordia [E]",
 		"locked_tip": "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)",

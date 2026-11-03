@@ -182,8 +182,7 @@ func _cast(p: Vector2) -> void:
 	if why != "":
 		_popup(why, v.body_center(), HUD.C_MUTED)
 		return
-	var hud := get_tree().get_first_node_in_group("hud") as HUD
-	if hud and not hud.spend_energy(KINDS[kind].cost):
+	if not Game.spend_devotion(KINDS[kind].cost):
 		_popup("Devoción insuficiente", v.body_center(), HUD.C_WARN)
 		return
 	_cooldown = COOLDOWN

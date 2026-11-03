@@ -91,11 +91,14 @@ func _init() -> void:
 	shop = "Una tormenta que inunda la orilla: el agua se lleva a los que alcanza. La lluvia apaga el fuego."
 	hint = "¡Diluvio! Rescatá a los que se lleva el agua: arrastralos a lo seco · D para calmarlo."
 
-func _ready() -> void:
+## Lo de la partida que guarda en estáticos (ver Game.reset).
+static func clear() -> void:
 	rain = 0.0
 	charge = 1.0
 	_line = DRY
 	_surge = 0.0
+
+func _ready() -> void:
 	z_index = 30   # Encima de todo lo del mundo (también de los aldeanos volando)
 	var view := get_viewport_rect().size
 	_drops.resize(DROPS)
