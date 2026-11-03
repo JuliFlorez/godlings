@@ -1,0 +1,19 @@
+# Chequeos que no necesitan Godot: la sintaxis de todos los scripts (gdlint, ver gdlintrc) y que
+# las traducciones estén al día (tools/check_i18n.py). Corre en cada push, en cualquier rama.
+name: Chequeos
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Sintaxis y reglas básicas (gdlint)
+        run: pipx run --spec "gdtoolkit==4.5.0" gdlint $(git ls-files '*.gd')
+
+      - name: Traducciones
+        run: python3 tools/check_i18n.py

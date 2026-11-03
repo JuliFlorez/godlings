@@ -1,0 +1,14 @@
+# gdlint (gdtoolkit 4.5): `pip install "gdtoolkit==4.5.0"` y `gdlint <archivos .gd>`.
+# Lo corre la CI en cada push (.github/workflows/checks.yml). Detecta errores de sintaxis sin
+# necesitar Godot, y además nombres mal puestos, argumentos sin usar, etc. Se apaga lo que choca
+# con cómo está escrito el juego:
+disable:
+  # Las constantes y las variables van agrupadas por sistema (ver Villager), no todas juntas
+  - class-definitions-order
+  # Las líneas largas son casi todas textos (traducciones, descripciones) que no conviene partir
+  - max-line-length
+  # Los return tempranos son el estilo del proyecto
+  - max-returns
+  # Villager y HUD se pasan; se vuelven a prender al partirlos (ver docs/PLAN.md, fases 2 a 4)
+  - max-file-lines
+  - max-public-methods
