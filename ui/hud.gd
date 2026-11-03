@@ -15,17 +15,6 @@ class_name HUD
 signal spawn_pressed
 signal expand_pressed
 signal expansion_points_changed(points: int)
-signal gun_toggled(on: bool)
-signal lightning_toggled(on: bool)
-signal meteor_toggled(on: bool)
-signal tornado_toggled(on: bool)
-signal storm_toggled(on: bool)
-signal plague_toggled(on: bool)
-signal spore_toggled(on: bool)
-signal cure_toggled(on: bool)
-signal feed_toggled(on: bool)
-signal charm_toggled(kind: Charm.Kind, on: bool)
-signal miracle_toggled(kind: Miracle.Kind, on: bool)
 signal decoration_chosen(kind: String)
 signal shark_changed(index: int, on: bool)
 signal select_mode_changed(on: bool)
@@ -94,28 +83,8 @@ const C_FEED := Color(1.0, 0.68, 0.32)
 const C_SUN := Color(1.0, 0.8, 0.3)
 const C_MOON := Color(0.72, 0.76, 1.0)
 
-## Menú inferior de armas y poderes: [ícono, nombre, tecla, disponible, descripción, bueno]
-## Van en dos pestañas: los malos (la carita con cuernos) y los buenos (la de la aureola).
-const TOOLS := [
-	["gun", "Pistola", "G", true, "Sacar o guardar la pistola [G]", false],
-	["lightning", "Rayo", "R", true, "Sacar o guardar el rayo [R]", false],
-	["meteor", "Meteorito", "M", true, "Sacar o guardar el meteorito [M]", false],
-	["tornado", "Tornado", "T", true, "Sacar o guardar el tornado [T]", false],
-	["rain", "Diluvio", "D", true, "Desatar o calmar el diluvio [D]", false],
-	["plague", "Peste", "P", true, "Sacar o guardar la peste [P]", false],
-	["spore", "Espora", "Z", true, "Sacar o guardar la espora [Z]", false],
-	["discord", "Discordia", "E", true, "Sacar o guardar la manzana de la discordia [E]", false],
-	["feed", "Comida", "F", true, "Tirarles comida [F]", true],
-	["cure", "Curar", "C", true, "Sacar o guardar curar [C]", true],
-	["vaccine", "Vacuna", "V", true, "Sacar o guardar la vacuna [V]", true],
-	["shield", "Escudo", "O", true, "Sacar o guardar el escudo [O]", true],
-	["resurrect", "Resurrección", "L", true, "Sacar o guardar la resurrección [L]", true],
-	["cupid", "Cupido", "A", true, "Sacar o guardar el arco de Cupido [A]", true],
-	["friendship", "Amistad", "B", true, "Sacar o guardar la pelota de la amistad [B]", true],
-]
-## El ícono de cada Charm (Cupido, la Discordia y la Amistad).
+## El dibujo de cada Charm y de cada Miracle (ver HudIcon), por su ícono.
 const CHARM_ICONS := {"cupid": Charm.Kind.CUPID, "discord": Charm.Kind.DISCORD, "friendship": Charm.Kind.FRIENDSHIP}
-## El ícono de cada Miracle (la resurrección, el escudo y la vacuna).
 const MIRACLE_ICONS := {"resurrect": Miracle.Kind.RESURRECT, "shield": Miracle.Kind.SHIELD, "vaccine": Miracle.Kind.VACCINE}
 const C_EVIL := Color(0.92, 0.3, 0.26)
 const C_HOLY := Color(1.0, 0.86, 0.4)
@@ -142,46 +111,15 @@ var _pop_value: Label
 var _level_value: Label
 var _spawn_btn: Button
 var _expand_btn: Button
-var _gun_btn: Button
-var _gun_armed := false
-var _lightning_btn: Button
-var _lightning_armed := false
-var _meteor_btn: Button
-var _meteor_armed := false
-var _tornado_btn: Button
-var _tornado_armed := false
-var _rain_btn: Button
-var _raining := false
-var _rain_charge: ColorRect   # Barrita de abajo del slot: se llena mientras el diluvio se recarga
-var _plague_btn: Button
-var _plague_armed := false
-var _spore_btn: Button
-var _spore_armed := false
-var _slot_spore: StyleBoxFlat
-var _cure_btn: Button
-var _cure_armed := false
-var _slot_plague: StyleBoxFlat
-var _slot_cure: StyleBoxFlat
-var _feed_btn: Button
-var _feed_armed := false
-var _slot_feed: StyleBoxFlat
-## Cupido, la Discordia y la Amistad (ver Charm), por tipo.
-var _charm_btns: Array[Button] = [null, null, null]
-var _charm_armed: Array[bool] = [false, false, false]
-var _slot_charms: Array[StyleBoxFlat] = []
-## La resurrección, el escudo y la vacuna (ver Miracle), por tipo.
-var _miracle_btns: Array[Button] = [null, null, null]
-var _miracle_armed: Array[bool] = [false, false, false]
-var _slot_miracles: Array[StyleBoxFlat] = []
+## Los poderes de la barra (ver set_powers), en su orden, y el slot de cada uno.
+var powers: Array[Power] = []
+var _power_slots := {}        # Power -> Button
+var _power_row: HBoxContainer
 ## Pestañas de la barra de poderes: qué slots van en cada una y cuál se ve.
 var _good_tab := false
 var _tab_evil: Button
 var _tab_holy: Button
 var _tool_slots := {}         # Button -> bueno (bool)
-var _slot_zap: StyleBoxFlat
-var _slot_meteor: StyleBoxFlat
-var _slot_tornado: StyleBoxFlat
-var _slot_rain: StyleBoxFlat
 ## Encima del mundo y debajo de la interfaz, sin el tinte de la noche.
 var overlay: Control
 var _flash_rect: ColorRect
@@ -278,13 +216,17 @@ func _process(delta: float) -> void:
 		_flash_amount = move_toward(_flash_amount, 0.0, 6.0 * delta)
 		_flash_rect.color.a = _flash_amount
 
-	# Diluvio recargándose: la barrita se va llenando (y el ícono, apagado)
-	var charging := Storm.unlocked and Storm.charge < 1.0 and not _raining
-	_rain_charge.visible = charging
-	if charging:
-		_rain_charge.size.x = (SLOT_SIZE.x - 16.0) * Storm.charge
-	if Storm.unlocked:
-		_rain_btn.get_meta("icon").modulate = Color(1, 1, 1, 0.45) if charging else Color.WHITE
+	# Recargándose (el diluvio): la barrita de abajo del slot se va llenando y el ícono, apagado
+	for power in powers:
+		var fill := power.recharge()
+		var charging := power.unlocked and fill < 1.0 and not power.armed
+		var slot: Button = _power_slots[power]
+		var bar: ColorRect = slot.get_meta("charge")
+		bar.visible = charging
+		if charging:
+			bar.size.x = (SLOT_SIZE.x - 16.0) * fill
+		if power.unlocked:
+			slot.get_meta("icon").modulate = Color(1, 1, 1, 0.45) if charging else Color.WHITE
 
 ## Qué día es y lo que va del día (o de la noche), con el sol o la luna.
 func _update_day() -> void:
@@ -355,51 +297,24 @@ func set_spawn_cost(cost: float) -> void:
 	_spawn_cost = cost
 	_refresh()
 
-func set_gun_armed(on: bool) -> void:
-	_gun_armed = on
-	_armed_changed(_gun_btn, on)
-
-func set_lightning_armed(on: bool) -> void:
-	_lightning_armed = on
-	_armed_changed(_lightning_btn, on)
-
-func set_meteor_armed(on: bool) -> void:
-	_meteor_armed = on
-	_armed_changed(_meteor_btn, on)
-
-func set_tornado_armed(on: bool) -> void:
-	_tornado_armed = on
-	_armed_changed(_tornado_btn, on)
-
-func set_raining(on: bool) -> void:
-	_raining = on
+## Los poderes de la barra (ver World._create_powers), en su orden: un slot para cada uno, en la
+## pestaña de los malos o de los buenos.
+func set_powers(list: Array[Power]) -> void:
+	powers = list
+	for power in powers:
+		_power_slots[power] = _power_slot(power)
+		power.armed_changed.connect(_on_power_armed.bind(power))
+	# Del ancho de la pestaña más llena: así la barra no salta al cambiar de pestaña
+	var most := 0
+	for good: bool in [false, true]:
+		most = maxi(most, _tool_slots.values().count(good))
+	_power_row.custom_minimum_size.x = most * SLOT_SIZE.x + (most - 1) * _power_row.get_theme_constant("separation")
+	_set_tab(false)
 	_refresh()
 
-func set_plague_armed(on: bool) -> void:
-	_plague_armed = on
-	_armed_changed(_plague_btn, on)
-
-func set_spore_armed(on: bool) -> void:
-	_spore_armed = on
-	_armed_changed(_spore_btn, on)
-
-func set_cure_armed(on: bool) -> void:
-	_cure_armed = on
-	_armed_changed(_cure_btn, on)
-
-func set_feed_armed(on: bool) -> void:
-	_feed_armed = on
-	_armed_changed(_feed_btn, on)
-
-## (k va último: World lo conecta con bind, que agrega al final.)
-func set_charm_armed(on: bool, k: Charm.Kind) -> void:
-	_charm_armed[k] = on
-	_armed_changed(_charm_btns[k], on)
-
-## (k va último, como en set_charm_armed.)
-func set_miracle_armed(on: bool, k: Miracle.Kind) -> void:
-	_miracle_armed[k] = on
-	_armed_changed(_miracle_btns[k], on)
+## (power va último: se conecta con bind, que lo agrega al final.)
+func _on_power_armed(on: bool, power: Power) -> void:
+	_armed_changed(_power_slots[power], on)
 
 ## Sacado con su tecla desde la otra pestaña: la barra pasa a la suya, así se ve resaltado.
 func _armed_changed(btn: Button, on: bool) -> void:
@@ -412,12 +327,6 @@ func reveal(duration: float) -> void:
 	visible = true
 	_root.modulate.a = 0.0
 	create_tween().tween_property(_root, "modulate:a", 1.0, duration)
-
-## Si hay un arma o poder afuera: el click es para eso (no para agarrar aldeanos, el
-## tiburón, cocos ni decoraciones).
-static func aiming() -> bool:
-	return Gun.armed or Lightning.armed or Meteor.armed or Tornado.armed or Plague.armed or Spore.armed \
-			or Cure.armed or Feed.armed or Charm.any_armed() or Miracle.any_armed()
 
 ## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
 func flash_screen(amount: float) -> void:
@@ -498,85 +407,12 @@ func toggle_history() -> void:
 		_shop.close()
 	_history.open()
 
-func unlock_gun() -> bool:
-	if Gun.unlocked or not buy(Gun.PRICE, Gun.SACRIFICES):
+## Compra un poder en la tienda (ver Shop).
+func unlock_power(power: Power) -> bool:
+	if power.unlocked or not buy(power.price, power.sacrifices):
 		return false
-	Gun.unlocked = true
-	popup_text("¡Pistola desbloqueada! Sacala con G", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_GUN.lightened(0.3))
-	_refresh()
-	return true
-
-func unlock_lightning() -> bool:
-	if Lightning.unlocked or not buy(Lightning.PRICE, Lightning.SACRIFICES):
-		return false
-	Lightning.unlocked = true
-	popup_text("¡Rayo desbloqueado! Sacalo con R", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_ZAP)
-	_refresh()
-	return true
-
-func unlock_meteor() -> bool:
-	if Meteor.unlocked or not buy(Meteor.PRICE, Meteor.SACRIFICES):
-		return false
-	Meteor.unlocked = true
-	popup_text("¡Meteorito desbloqueado! Sacalo con M", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_METEOR)
-	_refresh()
-	return true
-
-func unlock_tornado() -> bool:
-	if Tornado.unlocked or not buy(Tornado.PRICE, Tornado.SACRIFICES):
-		return false
-	Tornado.unlocked = true
-	popup_text("¡Tornado desbloqueado! Sacalo con T", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_TORNADO)
-	_refresh()
-	return true
-
-func unlock_storm() -> bool:
-	if Storm.unlocked or not buy(Storm.PRICE, Storm.SACRIFICES):
-		return false
-	Storm.unlocked = true
-	popup_text("¡Diluvio desbloqueado! Desatalo con D", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_RAIN)
-	_refresh()
-	return true
-
-func unlock_plague() -> bool:
-	if Plague.unlocked or not buy(Plague.PRICE, Plague.SACRIFICES):
-		return false
-	Plague.unlocked = true
-	popup_text("¡Peste desbloqueada! Sacala con P", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_PLAGUE)
-	_refresh()
-	return true
-
-func unlock_spore() -> bool:
-	if Spore.unlocked or not buy(Spore.PRICE, Spore.SACRIFICES):
-		return false
-	Spore.unlocked = true
-	popup_text("¡Espora desbloqueada! Sacala con Z", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_SPORE)
-	_refresh()
-	return true
-
-func unlock_cure() -> bool:
-	if Cure.unlocked or not buy(Cure.PRICE):
-		return false
-	Cure.unlocked = true
-	popup_text("¡Curar desbloqueado! Sacalo con C", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_CURE)
-	_refresh()
-	return true
-
-func unlock_charm(k: Charm.Kind) -> bool:
-	var info: Dictionary = Charm.KINDS[k]
-	if Charm.unlocked[k] or not buy(info.price, info.sacrifices):
-		return false
-	Charm.unlocked[k] = true
-	popup_text(info.unlocked, get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), info.color)
-	_refresh()
-	return true
-
-func unlock_miracle(k: Miracle.Kind) -> bool:
-	var info: Dictionary = Miracle.KINDS[k]
-	if Miracle.unlocked[k] or not buy(info.price):
-		return false
-	Miracle.unlocked[k] = true
-	popup_text(info.unlocked, get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), info.color)
+	power.unlocked = true
+	popup_text(power.unlocked_text, get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), power.unlock_color())
 	_refresh()
 	return true
 
@@ -682,6 +518,10 @@ func add_name_tag(v: Villager) -> void:
 # ---- Partida guardada (ver World.save_game) ----
 ## Progreso y compras.
 func save_state() -> Dictionary:
+	var unlocks := {}
+	for power in powers:
+		if not power.always:
+			unlocks[power.id] = power.unlocked
 	return {
 		"xp": xp,
 		"energy": energy,
@@ -689,16 +529,7 @@ func save_state() -> Dictionary:
 		"sacrifices": sacrifices,
 		"expansion_points": expansion_points,
 		"points_earned": _points_earned,
-		"gun": Gun.unlocked,
-		"lightning": Lightning.unlocked,
-		"meteor": Meteor.unlocked,
-		"tornado": Tornado.unlocked,
-		"storm": Storm.unlocked,
-		"plague": Plague.unlocked,
-		"spore": Spore.unlocked,
-		"cure": Cure.unlocked,
-		"charms": Charm.unlocked.duplicate(),
-		"miracles": Miracle.unlocked.duplicate(),
+		"unlocked": unlocks,   # Los poderes comprados, {id: bool} (ver Power.id)
 		"blood_moon": Moon.blood_unlocked,
 		"shark_owned": shark_owned,
 		"shark_on": shark_on,
@@ -711,20 +542,10 @@ func load_state(d: Dictionary) -> void:
 	sacrifices = d.get("sacrifices", 0)
 	expansion_points = d.get("expansion_points", expansion_points)
 	_points_earned = d.get("points_earned", _points_earned)
-	Gun.unlocked = d.get("gun", false)
-	Lightning.unlocked = d.get("lightning", false)
-	Meteor.unlocked = d.get("meteor", false)
-	Tornado.unlocked = d.get("tornado", false)
-	Storm.unlocked = d.get("storm", false)
-	Plague.unlocked = d.get("plague", false)
-	Spore.unlocked = d.get("spore", false)
-	Cure.unlocked = d.get("cure", false)
-	var charms: Array = d.get("charms", [])
-	for k in Charm.unlocked.size():
-		Charm.unlocked[k] = k < charms.size() and charms[k]
-	var miracles: Array = d.get("miracles", [])
-	for k in Miracle.unlocked.size():
-		Miracle.unlocked[k] = k < miracles.size() and miracles[k]
+	var unlocks: Dictionary = d["unlocked"] if d.has("unlocked") else _old_unlocks(d)
+	for power in powers:
+		if not power.always:
+			power.unlocked = unlocks.get(power.id, false)
 	Moon.blood_unlocked = d.get("blood_moon", false)
 	var owned: Array = d.get("shark_owned", [])
 	var on: Array = d.get("shark_on", [])
@@ -738,6 +559,20 @@ func load_state(d: Dictionary) -> void:
 	expansion_points_changed.emit(expansion_points)
 	_refresh()
 
+## Las partidas de antes (formato 1, ver SaveSlots.VERSION) guardaban cada poder con su propia
+## clave, y los de Charm y Miracle en listas por tipo.
+static func _old_unlocks(d: Dictionary) -> Dictionary:
+	var unlocks := {}
+	for power_id: String in ["gun", "lightning", "meteor", "tornado", "storm", "plague", "spore", "cure"]:
+		unlocks[power_id] = d.get(power_id, false)
+	var by_kind := {"charms": ["cupid", "discord", "friendship"], "miracles": ["resurrect", "shield", "vaccine"]}
+	for list: String in by_kind:
+		var ids: Array = by_kind[list]
+		var saved: Array = d.get(list, [])
+		for i in mini(saved.size(), ids.size()):
+			unlocks[ids[i]] = saved[i]
+	return unlocks
+
 ## Si Esc puede abrir el menú de pausa (no la está usando la tienda, el historial, la colocación
 ## de decoraciones, las armas y poderes ni el carnet o el cartel de una choza, que la usan para
 ## cerrar/terminar/guardar).
@@ -749,7 +584,7 @@ func esc_is_free() -> bool:
 		return false
 	return not (_shop and _shop.visible) and not (_history and _history.visible) and not _placing \
 			and not (_family_tree and _family_tree.visible) \
-			and not aiming() and _decor_edit != DecorPlacer.Edit.MOVING and not _card.visible and not _hut_card.visible
+			and not Power.aiming() and _decor_edit != DecorPlacer.Edit.MOVING and not _card.visible and not _hut_card.visible
 
 ## Al cambiar de idioma: los textos con formato se rearman y la tienda se reconstruye.
 func _on_locale_changed() -> void:
@@ -823,42 +658,17 @@ func _refresh() -> void:
 	_offer_value.text = str(offerings)
 	_sacrifice_value.text = str(sacrifices)
 
-	_sync_weapon(_gun_btn, Gun.unlocked, _gun_armed, _slot_active,
-			"Sacar o guardar la pistola [G]", "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)", Gun.PRICE,
-			Gun.SACRIFICES)
-	_sync_weapon(_lightning_btn, Lightning.unlocked, _lightning_armed, _slot_zap,
-			"Sacar o guardar el rayo [R]", "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)", Lightning.PRICE,
-			Lightning.SACRIFICES)
-	_sync_weapon(_meteor_btn, Meteor.unlocked, _meteor_armed, _slot_meteor,
-			"Sacar o guardar el meteorito [M]", "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)", Meteor.PRICE,
-			Meteor.SACRIFICES)
-	_sync_weapon(_tornado_btn, Tornado.unlocked, _tornado_armed, _slot_tornado,
-			"Sacar o guardar el tornado [T]", "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)", Tornado.PRICE,
-			Tornado.SACRIFICES)
-	_sync_weapon(_rain_btn, Storm.unlocked, _raining, _slot_rain,
-			"Desatar o calmar el diluvio [D]", "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)", Storm.PRICE,
-			Storm.SACRIFICES)
-	_sync_weapon(_plague_btn, Plague.unlocked, _plague_armed, _slot_plague,
-			"Sacar o guardar la peste [P]", "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)", Plague.PRICE,
-			Plague.SACRIFICES)
-	_sync_weapon(_spore_btn, Spore.unlocked, _spore_armed, _slot_spore,
-			"Sacar o guardar la espora [Z]", "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)", Spore.PRICE,
-			Spore.SACRIFICES)
-	_sync_weapon(_cure_btn, Cure.unlocked, _cure_armed, _slot_cure,
-			"Sacar o guardar curar [C]", "Desbloquealo en la tienda (%d ofrendas)", Cure.PRICE)
-	_sync_weapon(_feed_btn, true, _feed_armed, _slot_feed, "Tirarles comida [F]", "", 0)
-	var charm_hint := ""
-	for k: Charm.Kind in Charm.KINDS:
-		var info: Dictionary = Charm.KINDS[k]
-		_sync_weapon(_charm_btns[k], Charm.unlocked[k], _charm_armed[k], _slot_charms[k], info.tip, info.locked_tip, info.price, info.sacrifices)
-		if _charm_armed[k]:
-			charm_hint = info.hint
-	var miracle_hint := ""
-	for k: Miracle.Kind in Miracle.KINDS:
-		var info: Dictionary = Miracle.KINDS[k]
-		_sync_weapon(_miracle_btns[k], Miracle.unlocked[k], _miracle_armed[k], _slot_miracles[k], info.tip, info.locked_tip, info.price)
-		if _miracle_armed[k]:
-			miracle_hint = tr(info.hint) % int(info.cost)
+	var aimed_hint := ""   # La pista del que se está apuntando...
+	var out_hint := ""     # ...y la del que está afuera sin apuntar (el diluvio: va más abajo)
+	for power in powers:
+		var slot: Button = _power_slots[power]
+		_sync_weapon(slot, power.unlocked, power.armed, slot.get_meta("active"), power.tooltip, power.locked_tooltip,
+				power.price, power.sacrifices)
+		if power.armed:
+			if power.aims:
+				aimed_hint = power.hint_text()
+			else:
+				out_hint = power.hint_text()
 
 	var dragging := not select_mode and not edit_mode
 	for b: Array in [[_drag_btn, dragging], [_select_btn, select_mode], [_edit_btn, edit_mode]]:
@@ -867,26 +677,8 @@ func _refresh() -> void:
 
 	if _placing:
 		_hint.text = tr("Click en la isla para colocar · click derecho o Esc para terminar.")
-	elif _gun_armed:
-		_hint.text = tr("Click para disparar · click derecho, Esc o G para guardarla.")
-	elif _lightning_armed:
-		_hint.text = tr("Click para lanzar un rayo · click derecho, Esc o R para guardarlo.")
-	elif _meteor_armed:
-		_hint.text = tr("Click en la isla o el agua para tirar un meteorito · click derecho, Esc o M para guardarlo.")
-	elif _tornado_armed:
-		_hint.text = tr("Mantené apretado el click en la isla o el agua para que baje el tornado, y llevalo con el mouse · click derecho, Esc o T para guardarlo.")
-	elif _plague_armed:
-		_hint.text = tr("Click sobre los aldeanos para enfermarlos de gripe · click derecho, Esc o P para guardarla.")
-	elif _spore_armed:
-		_hint.text = tr("Click sobre los aldeanos para meterles la espora (al que ya la tiene, se la apura) · click derecho, Esc o Z para guardarla.")
-	elif _cure_armed:
-		_hint.text = tr("Click sobre un aldeano para curarlo de la gripe, de la espora (si todavía no es un zombi) o de las quemaduras · click derecho, Esc o C para guardarlo.")
-	elif _feed_armed:
-		_hint.text = tr("Click en la isla para tirarles comida, o sobre un aldeano para dársela a él (−%d devoción) · click derecho, Esc o F para guardarla.") % int(Feed.COST)
-	elif charm_hint != "":
-		_hint.text = tr(charm_hint)
-	elif miracle_hint != "":
-		_hint.text = miracle_hint
+	elif aimed_hint != "":
+		_hint.text = aimed_hint
 	elif _decor_edit == DecorPlacer.Edit.MOVING:
 		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
 	elif _decor_edit == DecorPlacer.Edit.HOVER:
@@ -901,8 +693,8 @@ func _refresh() -> void:
 		_hint.text = tr("Click en un aldeano para ver su carnet y ponerle nombre, o en una choza para escribir su cartel · S para volver a arrastrar.")
 	elif edit_mode:
 		_hint.text = tr("Arrastrá una decoración para moverla · click derecho para quitarla (devuelve la mitad) · I para volver a arrastrar aldeanos.")
-	elif _raining:
-		_hint.text = tr("¡Diluvio! Rescatá a los que se lleva el agua: arrastralos a lo seco · D para calmarlo.")
+	elif out_hint != "":
+		_hint.text = out_hint
 	elif full and not island_maxed:
 		_hint.text = tr("Isla llena: sacrificá aldeanos para ganar puntos y expandirla.")
 	elif not has_energy:
@@ -1192,20 +984,6 @@ func _build_toolbar() -> void:
 	_slot_hover = make_box(Color(1, 1, 1, 0.13), 12, Color(1, 1, 1, 0.28), 1)
 	_slot_active = make_box(Color(C_GUN, 0.38), 12, C_GUN.lightened(0.3), 2)
 	_slot_mode = make_box(Color(C_DEVOTION, 0.30), 12, C_DEVOTION.lightened(0.2), 2)
-	_slot_zap = make_box(Color(C_ZAP, 0.32), 12, C_ZAP.lightened(0.3), 2)
-	_slot_meteor = make_box(Color(C_METEOR, 0.34), 12, C_METEOR.lightened(0.3), 2)
-	_slot_tornado = make_box(Color(C_TORNADO, 0.3), 12, C_TORNADO.lightened(0.3), 2)
-	_slot_rain = make_box(Color(C_RAIN, 0.34), 12, C_RAIN.lightened(0.3), 2)
-	_slot_plague = make_box(Color(C_PLAGUE, 0.3), 12, C_PLAGUE.lightened(0.3), 2)
-	_slot_spore = make_box(Color(C_SPORE, 0.3), 12, C_SPORE.lightened(0.3), 2)
-	_slot_cure = make_box(Color(C_CURE, 0.3), 12, C_CURE.lightened(0.3), 2)
-	_slot_feed = make_box(Color(C_FEED, 0.32), 12, C_FEED.lightened(0.3), 2)
-	for k: Charm.Kind in Charm.KINDS:
-		var col: Color = Charm.KINDS[k].color
-		_slot_charms.append(make_box(Color(col, 0.32), 12, col.lightened(0.3), 2))
-	for k: Miracle.Kind in Miracle.KINDS:
-		var col: Color = Miracle.KINDS[k].color
-		_slot_miracles.append(make_box(Color(col, 0.3), 12, col.lightened(0.3), 2))
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -1255,57 +1033,7 @@ func _build_toolbar() -> void:
 	_tab_holy.pressed.connect(_set_tab.bind(true))
 	var row := _toolbar_panel(tools_col)
 
-	for t in TOOLS:
-		var slot := _tool_slot(row, t[0], t[1], t[2], t[3], t[4])
-		_tool_slots[slot] = t[5]
-		match t[0]:
-			"gun":
-				_gun_btn = _weapon_slot(slot, _slot_active, func(): return Gun.unlocked,
-						func(): gun_toggled.emit(not _gun_armed))
-			"lightning":
-				_lightning_btn = _weapon_slot(slot, _slot_zap, func(): return Lightning.unlocked,
-						func(): lightning_toggled.emit(not _lightning_armed))
-			"meteor":
-				_meteor_btn = _weapon_slot(slot, _slot_meteor, func(): return Meteor.unlocked,
-						func(): meteor_toggled.emit(not _meteor_armed))
-			"tornado":
-				_tornado_btn = _weapon_slot(slot, _slot_tornado, func(): return Tornado.unlocked,
-						func(): tornado_toggled.emit(not _tornado_armed))
-			"rain":
-				_rain_btn = _weapon_slot(slot, _slot_rain, func(): return Storm.unlocked,
-						func(): storm_toggled.emit(not _raining))
-				_rain_charge = ColorRect.new()
-				_rain_charge.color = C_RAIN
-				_rain_charge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				_rain_charge.position = Vector2(8.0, SLOT_SIZE.y - 6.0)
-				_rain_charge.size = Vector2(0.0, 3.0)
-				_rain_charge.visible = false
-				slot.add_child(_rain_charge)
-			"plague":
-				_plague_btn = _weapon_slot(slot, _slot_plague, func(): return Plague.unlocked,
-						func(): plague_toggled.emit(not _plague_armed))
-			"spore":
-				_spore_btn = _weapon_slot(slot, _slot_spore, func(): return Spore.unlocked,
-						func(): spore_toggled.emit(not _spore_armed))
-			"cure":
-				_cure_btn = _weapon_slot(slot, _slot_cure, func(): return Cure.unlocked,
-						func(): cure_toggled.emit(not _cure_armed))
-			"feed":   # Está desde el principio
-				_feed_btn = _weapon_slot(slot, _slot_feed, func(): return true,
-						func(): feed_toggled.emit(not _feed_armed))
-			"cupid", "discord", "friendship":
-				var k: Charm.Kind = CHARM_ICONS[t[0]]
-				_charm_btns[k] = _weapon_slot(slot, _slot_charms[k], func(): return Charm.unlocked[k],
-						func(): charm_toggled.emit(k, not _charm_armed[k]))
-			"resurrect", "shield", "vaccine":
-				var k: Miracle.Kind = MIRACLE_ICONS[t[0]]
-				_miracle_btns[k] = _weapon_slot(slot, _slot_miracles[k], func(): return Miracle.unlocked[k],
-						func(): miracle_toggled.emit(k, not _miracle_armed[k]))
-	# Del ancho de la pestaña más llena: así la barra no salta al cambiar de pestaña
-	var most := 0
-	for good: bool in [false, true]:
-		most = maxi(most, _tool_slots.values().count(good))
-	row.custom_minimum_size.x = most * SLOT_SIZE.x + (most - 1) * row.get_theme_constant("separation")
+	_power_row = row   # Los slots de los poderes van acá (ver set_powers)
 	_set_tab(false)
 
 ## Muestra los poderes malos o los buenos.
@@ -1343,16 +1071,29 @@ func _tab_button(parent: Control, kind: String, tip: String) -> Button:
 	b.set_meta("icon", icon)
 	return b
 
-## Arma o poder que se compra en la tienda: lo saca o lo guarda, y bloqueado lleva a la tienda
-## (a la pestaña de los poderes buenos o de los malos, según cuál sea).
-func _weapon_slot(slot: Button, active: StyleBoxFlat, unlocked: Callable, toggle: Callable) -> Button:
+## El slot de un poder: lo saca o lo guarda, y bloqueado lleva a la tienda (a la pestaña de los
+## poderes buenos o de los malos). Abajo tiene una barrita que se llena mientras se recarga.
+func _power_slot(power: Power) -> Button:
+	var slot := _tool_slot(_power_row, power.icon_kind(), power.title, OS.get_keycode_string(power.key), true,
+			power.tooltip)
+	_tool_slots[slot] = power.good
+	var active := make_box(Color(power.accent, 0.32), 12, power.accent.lightened(0.3), 2)
+	slot.set_meta("active", active)
 	slot.add_theme_stylebox_override("pressed", active)
 	slot.set_meta("lock", _slot_badge(slot, "EN LA TIENDA", C_SHOP))
+	var bar := ColorRect.new()
+	bar.color = power.accent
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.position = Vector2(8.0, SLOT_SIZE.y - 6.0)
+	bar.size = Vector2(0.0, 3.0)
+	bar.visible = false
+	slot.add_child(bar)
+	slot.set_meta("charge", bar)
 	slot.pressed.connect(func():
-		if unlocked.call():
-			toggle.call()
+		if power.unlocked:
+			power.set_armed(not power.armed)
 		else:
-			open_shop(Shop.Tab.GOOD if _tool_slots.get(slot, false) else Shop.Tab.EVIL))
+			open_shop(Shop.Tab.GOOD if power.good else Shop.Tab.EVIL))
 	return slot
 
 ## Panel de la barra de abajo; devuelve la fila donde van los slots.

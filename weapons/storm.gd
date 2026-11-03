@@ -1,4 +1,4 @@
-extends Node2D
+extends Power
 class_name Storm
 ## Diluvio: se desbloquea en la tienda y se desata desde el HUD o con la tecla D (otra vez D
 ## lo calma antes de tiempo). Se nubla, llueve a cántaros, cada tanto truena y el mar sube:
@@ -9,13 +9,6 @@ class_name Storm
 ## No se apunta: mientras llueve se pueden seguir agarrando aldeanos (para rescatarlos).
 ## La lluvia y las nubes de tormenta se dibujan en el mundo, encima de todo (así de noche se
 ## oscurecen); el agua de la inundación, sobre la arena y debajo de los aldeanos.
-
-signal active_changed(on: bool)
-
-## Hay que comprarlo en la tienda antes de poder desatarlo.
-static var unlocked := false
-const PRICE := 420
-const SACRIFICES := 10   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 ## Para los demás: cuánto llueve (0..1), cuánto le falta para recargarse (1 = listo) y hasta
 ## dónde llega el agua (ver flooded_at).
@@ -66,7 +59,6 @@ const C_SPLASH := Color(0.86, 0.93, 1.0, 0.75)
 const C_CLOUD := Color(0.3, 0.32, 0.38)
 const C_CLOUD_BACK := Color(0.42, 0.44, 0.5)
 
-var active := false
 var _time_left := 0.0
 var _cooldown := 0.0
 var _level := 0.0                # 0 seca .. 1 inundada hasta FLOOD_LINE
@@ -82,8 +74,24 @@ var _flood: Flood
 var _rain_sound: AudioStreamPlayer
 var _thunder: AudioStreamPlayer
 
+func _init() -> void:
+	id = "storm"
+	icon = "rain"
+	title = "Diluvio"
+	key = KEY_D
+	accent = HUD.C_RAIN
+	aims = false   # No se apunta: mientras llueve se pueden seguir agarrando aldeanos
+	price = 420
+	sacrifices = 10
+	tooltip = "Desatar o calmar el diluvio [D]"
+	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)"
+	need = "Desbloqueá el diluvio en la tienda"
+	unlocked_text = "¡Diluvio desbloqueado! Desatalo con D"
+	done = "Desbloqueado"
+	shop = "Una tormenta que inunda la orilla: el agua se lleva a los que alcanza. La lluvia apaga el fuego."
+	hint = "¡Diluvio! Rescatá a los que se lleva el agua: arrastralos a lo seco · D para calmarlo."
+
 func _ready() -> void:
-	unlocked = false
 	rain = 0.0
 	charge = 1.0
 	_line = DRY
@@ -110,51 +118,41 @@ func _ready() -> void:
 	_thunder.volume_db = -6.0
 	add_child(_thunder)
 
-## Lo desata (si está desbloqueado y recargado) o lo calma.
-func set_active(on: bool) -> void:
-	var hud := get_tree().get_first_node_in_group("hud") as HUD
-	var center := get_viewport_rect().size * Vector2(0.5, 0.42)
-	if on and not unlocked:
-		if hud:
-			hud.popup_text("Desbloqueá el diluvio en la tienda", center, HUD.C_WARN)
-		return
-	if on == active:
-		return
-	if on and _cooldown > 0.0:
-		if hud:
-			hud.popup_text(tr("El diluvio se está recargando (%d s)") % ceili(_cooldown), center, HUD.C_WARN)
-		return
-	active = on
+## Recargándose no se puede desatar.
+func _can_arm() -> bool:
+	if _cooldown > 0.0:
+		say(tr("El diluvio se está recargando (%d s)") % ceili(_cooldown), HUD.C_WARN)
+		return false
+	return true
+
+## Al desatarlo se larga a llover; al calmarlo (o cuando se termina), empieza a recargarse.
+func _on_armed(on: bool) -> void:
 	if on:
 		_time_left = DURATION
 		_thunder_t = randf_range(1.0, 2.5)
 		if _rain_sound.stream == null:
 			_rain_sound.stream = _make_rain()
 			_thunder.stream = Lightning._make_thunder()
-		if hud:
-			hud.popup_text("¡Se largó el diluvio!", center, HUD.C_DEVOTION)
+		say("¡Se largó el diluvio!", HUD.C_DEVOTION)
 	else:
 		_cooldown = COOLDOWN
-	active_changed.emit(on)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_D:
-		set_active(not active)
-		get_viewport().set_input_as_handled()
+func recharge() -> float:
+	return charge
 
 func _process(dt: float) -> void:
 	_t += dt
-	if active:
+	if armed:
 		_time_left -= dt
 		if _time_left <= 0.0:
-			set_active(false)
+			set_armed(false)
 	else:
 		_cooldown = maxf(0.0, _cooldown - dt)
 	charge = 1.0 - _cooldown / COOLDOWN
-	rain = move_toward(rain, 1.0 if active else 0.0, dt / (RAIN_IN if active else RAIN_OUT))
-	_level = move_toward(_level, 1.0 if active and rain > 0.5 else 0.0, dt / (RISE_TIME if active else RECEDE_TIME))
+	rain = move_toward(rain, 1.0 if armed else 0.0, dt / (RAIN_IN if armed else RAIN_OUT))
+	_level = move_toward(_level, 1.0 if armed and rain > 0.5 else 0.0, dt / (RISE_TIME if armed else RECEDE_TIME))
 	var elapsed := DURATION - _time_left
-	var cresting := active and _level >= 1.0 and elapsed >= CREST_AT and elapsed < CREST_AT + CREST_RAMP + CREST_HOLD
+	var cresting := armed and _level >= 1.0 and elapsed >= CREST_AT and elapsed < CREST_AT + CREST_RAMP + CREST_HOLD
 	_crest = move_toward(_crest, 1.0 if cresting else 0.0, dt / CREST_RAMP)
 	_line = lerpf(lerpf(DRY, FLOOD_LINE, smoothstep(0.0, 1.0, _level)), CREST_LINE, smoothstep(0.0, 1.0, _crest))
 	# Olas: picos cortos, cada SURGE_EVERY segundos
@@ -259,7 +257,7 @@ func _update_thunder(dt: float) -> void:
 		if _rumble_t < 0.0:
 			_thunder.pitch_scale = randf_range(0.8, 1.05)
 			_thunder.play()
-	if not active or rain < 0.7:
+	if not armed or rain < 0.7:
 		return
 	_thunder_t -= dt
 	if _thunder_t > 0.0:

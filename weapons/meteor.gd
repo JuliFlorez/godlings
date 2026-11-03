@@ -1,4 +1,4 @@
-extends Node2D
+extends Power
 class_name Meteor
 ## Meteorito: se desbloquea en la tienda y después se saca desde el HUD o con la tecla M
 ## (Esc o click derecho lo guardan). Cada click en la isla o en el agua hace caer un
@@ -10,15 +10,6 @@ class_name Meteor
 ## Mientras cae, los que están cerca lo miran venir con la boca abierta (Villager.scare).
 ## El fuego y la mira se dibujan en HUD.overlay (así de noche no se apagan); la sombra y las
 ## olas, en el mundo.
-
-signal armed_changed(on: bool)
-
-## Mientras está afuera, los clicks tiran meteoritos en vez de agarrar aldeanos.
-static var armed := false
-## Hay que comprarlo en la tienda antes de poder sacarlo.
-static var unlocked := false
-const PRICE := 260
-const SACRIFICES := 6   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 const COOLDOWN := 2.0
 const FALL_TIME := 0.8          # Lo que tarda en caer
@@ -54,9 +45,22 @@ static var _whistle_wav: AudioStreamWAV
 static var _boom_wav: AudioStreamWAV
 static var _fire_ramp: Gradient
 
+func _init() -> void:
+	id = "meteor"
+	title = "Meteorito"
+	key = KEY_M
+	accent = HUD.C_METEOR
+	price = 260
+	sacrifices = 6
+	tooltip = "Sacar o guardar el meteorito [M]"
+	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)"
+	need = "Desbloqueá el meteorito en la tienda"
+	unlocked_text = "¡Meteorito desbloqueado! Sacalo con M"
+	done = "Desbloqueado"
+	shop = "Explota y deja un cráter: mata a los que están cerca y hace volar a los demás."
+	hint = "Click en la isla o el agua para tirar un meteorito · click derecho, Esc o M para guardarlo."
+
 func _ready() -> void:
-	armed = false
-	unlocked = false
 	_fx = HUD.Painter.new()
 	_fx.paint = _paint
 	var hud := get_tree().get_first_node_in_group("hud") as HUD
@@ -74,38 +78,12 @@ func _player(db: float) -> AudioStreamPlayer:
 	add_child(p)
 	return p
 
-func set_armed(on: bool) -> void:
-	if on and not unlocked:
-		var hud := get_tree().get_first_node_in_group("hud") as HUD
-		if hud:
-			hud.popup_text("Desbloqueá el meteorito en la tienda", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
-		return
-	if on == armed:
-		return
-	armed = on
+func _on_armed(on: bool) -> void:
 	if on:
 		_make_sounds()
-	armed_changed.emit(on)   # Antes del cursor: al sacarlo se guardan las otras armas, que lo dejan en la flecha
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_M:
-			set_armed(not armed)
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and armed:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
-
-	if not armed or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_drop(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+func _use(at: Vector2) -> void:
+	_drop(at)
 
 func _process(dt: float) -> void:
 	_t += dt

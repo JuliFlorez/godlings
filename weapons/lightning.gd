@@ -1,4 +1,4 @@
-extends Node2D
+extends Power
 class_name Lightning
 ## Rayo: se desbloquea en la tienda y después se saca desde el HUD o con la tecla R
 ## (Esc o click derecho lo guardan). Mientras está afuera, una nube de tormenta sigue al
@@ -10,15 +10,6 @@ class_name Lightning
 ## de adentro salen enteros: el rayo se lo llevó la choza.
 ## La nube, los rayos y la mira se dibujan en HUD.overlay (con un HUD.Painter): encima del
 ## mundo pero sin el tinte de la noche (si no, de noche el rayo se vería apagado).
-
-signal armed_changed(on: bool)
-
-## Mientras está afuera, los clicks lanzan rayos en vez de agarrar aldeanos.
-static var armed := false
-## Hay que comprarlo en la tienda antes de poder sacarlo.
-static var unlocked := false
-const PRICE := 180
-const SACRIFICES := 4   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 const COOLDOWN := 0.8
 const HIT_RADIUS := 16.0        # Aldeanos con el cuerpo a menos de esto del impacto
@@ -56,9 +47,22 @@ static var _thunder_wav: AudioStreamWAV
 static var _buzz_wav: AudioStreamWAV
 static var _spark_ramp: Gradient
 
+func _init() -> void:
+	id = "lightning"
+	title = "Rayo"
+	key = KEY_R
+	accent = HUD.C_ZAP
+	price = 180
+	sacrifices = 4
+	tooltip = "Sacar o guardar el rayo [R]"
+	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)"
+	need = "Desbloqueá el rayo en la tienda"
+	unlocked_text = "¡Rayo desbloqueado! Sacalo con R"
+	done = "Desbloqueado"
+	shop = "Fulmina aldeanos y salta a los que están cerca. En el agua fríe a todos los que flotan."
+	hint = "Click para lanzar un rayo · click derecho, Esc o R para guardarlo."
+
 func _ready() -> void:
-	armed = false
-	unlocked = false
 	_fx = HUD.Painter.new()
 	_fx.paint = _paint
 	var hud := get_tree().get_first_node_in_group("hud") as HUD
@@ -76,40 +80,14 @@ func _player(db: float) -> AudioStreamPlayer:
 	add_child(p)
 	return p
 
-func set_armed(on: bool) -> void:
-	if on and not unlocked:
-		var hud := get_tree().get_first_node_in_group("hud") as HUD
-		if hud:
-			hud.popup_text("Desbloqueá el rayo en la tienda", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
-		return
-	if on == armed:
-		return
-	armed = on
+func _on_armed(on: bool) -> void:
 	if on:
 		_make_sounds()
 		if _cloud_a <= 0.0:
 			_cloud = _cloud_target()
-	armed_changed.emit(on)   # Antes del cursor: al sacarlo se guarda la pistola, que lo deja en la flecha
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_R:
-			set_armed(not armed)
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and armed:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
-
-	if not armed or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_strike(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+func _use(at: Vector2) -> void:
+	_strike(at)
 
 func _process(dt: float) -> void:
 	_t += dt

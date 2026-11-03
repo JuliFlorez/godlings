@@ -1,4 +1,4 @@
-extends Node2D
+extends Power
 class_name Charm
 ## Poderes para las relaciones (ver Relations.make): se desbloquean en la tienda y se sacan
 ## desde el HUD o con su tecla (Esc o click derecho los guardan). Como la pistola, cada click
@@ -15,13 +15,14 @@ class_name Charm
 ##   enemigos hacen las paces; las parejas siguen siendo pareja).
 ## World crea uno de cada tipo (kind).
 
-signal armed_changed(on: bool)
-
 enum Kind { CUPID, DISCORD, FRIENDSHIP }
-## Por tipo: su tecla, su precio, su color (el de la relación que arma) y lo que dicen el HUD
-## (ver HUD.TOOLS) y la tienda.
+## Por tipo: su id, su nombre, su tecla, si es bueno, su precio, su color (el de la relación que arma)
+## y lo que dicen la barra y la tienda (ver Power y kind).
 const KINDS := {
 	Kind.CUPID: {
+		"id": "cupid",
+		"title": "Cupido",
+		"good": true,
 		"key": KEY_A,
 		"price": 110,
 		"sacrifices": 0,
@@ -35,6 +36,9 @@ const KINDS := {
 		"hint": "Flechá a un aldeano y después a otro para que se enamoren · click derecho, Esc o A para guardarlo.",
 	},
 	Kind.DISCORD: {
+		"id": "discord",
+		"title": "Discordia",
+		"good": false,
 		"key": KEY_E,
 		"price": 100,
 		"sacrifices": 3,   # Es mala: cuesta también sacrificios (ver HUD.buy)
@@ -48,6 +52,9 @@ const KINDS := {
 		"hint": "Tirá la manzana cerca de varios aldeanos: se pelean por ella · click derecho, Esc o E para guardarla.",
 	},
 	Kind.FRIENDSHIP: {
+		"id": "friendship",
+		"title": "Amistad",
+		"good": true,
 		"key": KEY_B,
 		"price": 80,
 		"sacrifices": 0,
@@ -61,10 +68,6 @@ const KINDS := {
 		"hint": "Tirale la pelota a un aldeano: rebota entre los que están cerca y se hacen amigos · click derecho, Esc o B para guardarla.",
 	},
 }
-
-## Si están comprados, por tipo (se guardan con la partida, ver HUD.save_state).
-static var unlocked: Array[bool] = [false, false, false]
-static var _armed: Array[bool] = [false, false, false]
 
 const ANCHOR_FROM_CORNER := Vector2(120, 70)   # Donde se dibuja el arco (o la manzana, o la pelota)
 const DRAW_SCALE := 1.6
@@ -95,7 +98,25 @@ const C_PINK := Color(1.0, 0.52, 0.74)
 const C_HEART := Color(0.93, 0.25, 0.42)
 const BALL_COLORS := [Color(0.95, 0.3, 0.3), Color.WHITE, Color(0.3, 0.55, 1.0), Color.WHITE, Color(1.0, 0.85, 0.25), Color.WHITE]
 
-var kind := Kind.CUPID
+## Cuál es (World crea uno de cada uno con make). Al ponerlo, toma de KINDS cómo es.
+var kind := Kind.CUPID:
+	set(k):
+		kind = k
+		var info: Dictionary = KINDS[k]
+		id = info.id
+		title = info.title
+		good = info.good
+		key = info.key
+		accent = info.color
+		price = info.price
+		sacrifices = info.sacrifices
+		tooltip = info.tip
+		locked_tooltip = info.locked_tip
+		need = info.need
+		unlocked_text = info.unlocked
+		done = info.done
+		shop = info.shop
+		hint = info.hint
 var _cooldown := 0.0
 var _t := 0.0
 var _pull := 1.0                 # Cupido: la cuerda tensa (1) o recién disparada (0)
@@ -121,51 +142,22 @@ class Shot:
 	var touched: Array[Villager] = []   # La pelota: los que ya tocó
 	var dropping := false               # La pelota: ya no hay a quién más, cae al piso
 
+static func make(k: Kind) -> Charm:
+	var charm := Charm.new()
+	charm.kind = k
+	return charm
+
 func _ready() -> void:
-	_armed[kind] = false
-	unlocked[kind] = false
 	z_index = 50
 
-## Si hay alguno afuera (ver HUD.aiming).
-static func any_armed() -> bool:
-	return _armed.has(true)
-
-func set_armed(on: bool) -> void:
-	if on and not unlocked[kind]:
-		var hud := get_tree().get_first_node_in_group("hud") as HUD
-		if hud:
-			hud.popup_text(KINDS[kind].need, get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
-		return
-	if on == _armed[kind]:
-		return
-	_armed[kind] = on
-	armed_changed.emit(on)   # Antes del cursor: al sacarlo se guarda el rayo, que lo deja en la flecha
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KINDS[kind].key:
-			set_armed(not _armed[kind])
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and _armed[kind]:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
-
-	if not _armed[kind] or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_throw(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+func _use(at: Vector2) -> void:
+	_throw(at)
 
 func _process(dt: float) -> void:
 	_t += dt
 	_cooldown -= dt
 	_pull = move_toward(_pull, 1.0 if _cooldown <= 0.0 else 0.0, 5.0 * dt)
-	if _armed[kind]:
+	if armed:
 		global_position = get_canvas_transform().affine_inverse() * (get_viewport_rect().size - ANCHOR_FROM_CORNER)
 	for i in range(_shots.size() - 1, -1, -1):
 		if _fly(_shots[i], dt):
@@ -458,7 +450,7 @@ func _draw() -> void:
 				paint_apple(self, xf.rotated_local(s.spin), 1.0)
 			Kind.FRIENDSHIP:
 				paint_ball(self, xf.rotated_local(s.spin), 1.0)
-	if _armed[kind]:
+	if armed:
 		_draw_aim()
 		_draw_launcher()
 
@@ -494,7 +486,7 @@ func _draw_pierced() -> void:
 	draw_set_transform(feet, 0.0, Vector2(1.0, SQUASH))
 	draw_arc(Vector2.ZERO, 18.0 + beat * 3.0, 0.0, TAU, 32, Color(C_PINK, 0.5 + 0.4 * beat), 3.0, true)
 	draw_set_transform(Vector2.ZERO)
-	if _armed[kind]:
+	if armed:
 		draw_dashed_line(to_local(_pierced.body_center()), get_local_mouse_position(), Color(C_PINK, 0.7), 2.0, 6.0)
 
 func _draw_aim() -> void:

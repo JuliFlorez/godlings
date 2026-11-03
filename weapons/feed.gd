@@ -1,14 +1,10 @@
-extends Node2D
+extends Power
 class_name Feed
 ## Comida: se saca desde el HUD o con la tecla F (Esc o click derecho la guardan). Está desde el
 ## principio, no hay que comprarla. Cada click en la isla gasta un poco de devoción y baja del
 ## cielo un pan (ver Manna) que se come el que tenga hambre; si hacés click sobre un aldeano,
 ## es para él.
 
-signal armed_changed(on: bool)
-
-## Mientras está afuera, los clicks tiran comida en vez de agarrar aldeanos.
-static var armed := false
 const COST := 3.0                # Devoción por pan
 const COOLDOWN := 0.4
 const C_AIM := Color(1.0, 0.72, 0.35)
@@ -18,36 +14,27 @@ var _cooldown := 0.0
 var _t := 0.0
 static var _wav: AudioStreamWAV
 
+func _init() -> void:
+	id = "feed"
+	title = "Comida"
+	key = KEY_F
+	good = true
+	accent = HUD.C_FEED
+	always = true
+	unlocked = true
+	scares = false
+	cost = COST
+	tooltip = "Tirarles comida [F]"
+	hint = "Click en la isla para tirarles comida, o sobre un aldeano para dársela a él (−%d devoción) · click derecho, Esc o F para guardarla."
+
 func _ready() -> void:
-	armed = false
 	z_index = 30   # Encima de los aldeanos
 
-func set_armed(on: bool) -> void:
-	if on == armed:
-		return
-	armed = on
+func _on_armed(_on: bool) -> void:
 	queue_redraw()   # Al guardarla, que se borre la mira
-	armed_changed.emit(on)
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_F:
-			set_armed(not armed)
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and armed:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
-
-	if not armed or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_drop(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+func _use(at: Vector2) -> void:
+	_drop(at)
 
 func _process(dt: float) -> void:
 	_t += dt

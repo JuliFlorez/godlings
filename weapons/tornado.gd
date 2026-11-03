@@ -1,4 +1,4 @@
-extends Node2D
+extends Power
 class_name Tornado
 ## Tornado: se desbloquea en la tienda y después se saca desde el HUD o con la tecla T
 ## (Esc o click derecho lo guardan). Manteniendo apretado el click en la isla o en el agua
@@ -10,15 +10,6 @@ class_name Tornado
 ## hace pedazos las chozas (Decoration.smash): los de adentro salen y se los chupa.
 ## El embudo se dibuja en el mundo (Funnel, ordenado por Y con los aldeanos: lo que está
 ## adelante lo tapa); la mira, en HUD.overlay.
-
-signal armed_changed(on: bool)
-
-## Mientras está afuera, los clicks hacen bajar el tornado en vez de agarrar aldeanos.
-static var armed := false
-## Hay que comprarlo en la tienda antes de poder sacarlo.
-static var unlocked := false
-const PRICE := 340
-const SACRIFICES := 8   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 enum State { IDLE, DOWN, FADING }
 
@@ -83,9 +74,22 @@ var _funnel: Funnel
 var _fx: HUD.Painter
 var _wind: AudioStreamPlayer
 
+func _init() -> void:
+	id = "tornado"
+	title = "Tornado"
+	key = KEY_T
+	accent = HUD.C_TORNADO
+	price = 340
+	sacrifices = 8
+	tooltip = "Sacar o guardar el tornado [T]"
+	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)"
+	need = "Desbloqueá el tornado en la tienda"
+	unlocked_text = "¡Tornado desbloqueado! Sacalo con T"
+	done = "Desbloqueado"
+	shop = "Mantené el click y llevalo con el mouse: levanta aldeanos, cocos y tiburones, los hace girar y los revolea."
+	hint = "Mantené apretado el click en la isla o el agua para que baje el tornado, y llevalo con el mouse · click derecho, Esc o T para guardarlo."
+
 func _ready() -> void:
-	armed = false
-	unlocked = false
 	_fx = HUD.Painter.new()
 	_fx.paint = _paint
 	var hud := get_tree().get_first_node_in_group("hud") as HUD
@@ -101,38 +105,13 @@ func _ready() -> void:
 	_wind.volume_db = -60.0
 	add_child(_wind)
 
-func set_armed(on: bool) -> void:
-	if on and not unlocked:
-		var hud := get_tree().get_first_node_in_group("hud") as HUD
-		if hud:
-			hud.popup_text("Desbloqueá el tornado en la tienda", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
-		return
-	if on == armed:
-		return
-	armed = on
+func _on_armed(on: bool) -> void:
 	if not on and _state == State.DOWN:
 		_lift_off()
-	armed_changed.emit(on)   # Antes del cursor: al sacarlo se guardan las otras armas, que lo dejan en la flecha
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_T:
-			set_armed(not armed)
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and armed:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
-
-	if not armed or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_touch_down(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+## Baja el tornado (y se disuelve al soltar el click, ver _input).
+func _use(at: Vector2) -> void:
+	_touch_down(at)
 
 func _input(event: InputEvent) -> void:
 	# Al soltar el click (en cualquier parte de la pantalla) se disuelve

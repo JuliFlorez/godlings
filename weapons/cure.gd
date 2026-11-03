@@ -1,18 +1,10 @@
-extends Node2D
+extends Power
 class_name Cure
 ## Curar: se desbloquea en la tienda y se saca desde el HUD o con la tecla C (Esc o click
 ## derecho lo guardan). Cada click baja un haz de luz dorada: los aldeanos que alcanza se
 ## curan de la gripe (aunque la estuvieran incubando, y quedan inmunes un rato), de la espora
 ## (si todavía no son zombis: ahí ya no tiene cura) y, si se estaban quemando, se apagan y se les
 ## va el tizne (ver Villager.cure). Ver también Plague y Spore.
-
-signal armed_changed(on: bool)
-
-## Mientras está afuera, los clicks curan en vez de agarrar aldeanos.
-static var armed := false
-## Hay que comprarlo en la tienda antes de poder sacarlo.
-static var unlocked := false
-const PRICE := 130
 
 const COOLDOWN := 0.5
 const RADIUS := 26.0             # Aldeanos con el cuerpo a menos de esto del centro del haz
@@ -30,46 +22,33 @@ var _beams: Array[Vector3] = []   # x, y, edad
 var _sound: AudioStreamPlayer
 static var _wav: AudioStreamWAV
 
+func _init() -> void:
+	id = "cure"
+	title = "Curar"
+	key = KEY_C
+	good = true
+	accent = HUD.C_CURE
+	price = 130
+	tooltip = "Sacar o guardar curar [C]"
+	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas)"
+	need = "Desbloqueá curar en la tienda"
+	unlocked_text = "¡Curar desbloqueado! Sacalo con C"
+	done = "Desbloqueado"
+	shop = "Un haz de luz que cura la gripe (y deja inmune un rato) y la espora (si todavía no son zombis), y apaga y sana a los que se queman."
+	hint = "Click sobre un aldeano para curarlo de la gripe, de la espora (si todavía no es un zombi) o de las quemaduras · click derecho, Esc o C para guardarlo."
+
 func _ready() -> void:
-	armed = false
-	unlocked = false
 	z_index = 30   # Encima de los aldeanos
 	_sound = AudioStreamPlayer.new()
 	_sound.volume_db = -10.0
 	_sound.max_polyphony = 3
 	add_child(_sound)
 
-func set_armed(on: bool) -> void:
-	if on and not unlocked:
-		var hud := get_tree().get_first_node_in_group("hud") as HUD
-		if hud:
-			hud.popup_text("Desbloqueá curar en la tienda", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
-		return
-	if on == armed:
-		return
-	armed = on
+func _on_armed(_on: bool) -> void:
 	queue_redraw()   # Al guardarlo, que se borre la mira (guardado ya no se redibuja solo)
-	armed_changed.emit(on)
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_C:
-			set_armed(not armed)
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and armed:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
-
-	if not armed or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_heal(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+func _use(at: Vector2) -> void:
+	_heal(at)
 
 func _process(dt: float) -> void:
 	_t += dt

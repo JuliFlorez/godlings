@@ -1,4 +1,4 @@
-extends Node2D
+extends Power
 class_name Miracle
 ## Milagros: poderes buenos que se desbloquean en la tienda y que, cada vez que se usan, gastan
 ## devoción. Se sacan desde el HUD o con su tecla (Esc o click derecho los guardan), y cada click
@@ -18,13 +18,13 @@ class_name Miracle
 ## Mientras están afuera, la resurrección marca los cadáveres a los que todavía llega (con lo que
 ## les queda) y la vacuna, a los que ya están vacunados. World crea uno de cada tipo (kind).
 
-signal armed_changed(on: bool)
-
 enum Kind { RESURRECT, SHIELD, VACCINE }
-## Por tipo: su tecla, su precio (ofrendas, en la tienda), lo que gasta cada vez (devoción), su
-## color y lo que dicen el HUD (ver HUD.TOOLS) y la tienda.
+## Por tipo: su id, su nombre, su tecla, su precio (ofrendas, en la tienda), lo que gasta cada vez
+## (devoción), su color y lo que dicen la barra y la tienda (ver Power y kind).
 const KINDS := {
 	Kind.RESURRECT: {
+		"id": "resurrect",
+		"title": "Resurrección",
 		"key": KEY_L,
 		"price": 350,
 		"cost": 35.0,
@@ -39,6 +39,8 @@ const KINDS := {
 		"aim": "Apuntá a un cadáver",
 	},
 	Kind.SHIELD: {
+		"id": "shield",
+		"title": "Escudo",
 		"key": KEY_O,
 		"price": 150,
 		"cost": 8.0,
@@ -53,6 +55,8 @@ const KINDS := {
 		"aim": "Apuntá a un aldeano",
 	},
 	Kind.VACCINE: {
+		"id": "vaccine",
+		"title": "Vacuna",
 		"key": KEY_V,
 		"price": 200,
 		"cost": 25.0,
@@ -67,10 +71,6 @@ const KINDS := {
 		"aim": "Apuntá a un aldeano",
 	},
 }
-
-## Si están comprados, por tipo (se guardan con la partida, ver HUD.save_state).
-static var unlocked: Array[bool] = [false, false, false]
-static var _armed: Array[bool] = [false, false, false]
 
 const COOLDOWN := 0.5
 const REACH := 14.0              # El click a menos de esto del cuerpo (o del cadáver)
@@ -95,7 +95,24 @@ const C_GOLD := Color(1.0, 0.8, 0.32)
 const C_TEAL := Color(0.42, 0.9, 0.86)
 const C_STONE := Color(0.68, 0.7, 0.76)
 
-var kind := Kind.RESURRECT
+## Cuál es (World crea uno de cada uno con make). Al ponerlo, toma de KINDS cómo es.
+var kind := Kind.RESURRECT:
+	set(k):
+		kind = k
+		var info: Dictionary = KINDS[k]
+		id = info.id
+		title = info.title
+		key = info.key
+		accent = info.color
+		price = info.price
+		cost = info.cost
+		tooltip = info.tip
+		locked_tooltip = info.locked_tip
+		need = info.need
+		unlocked_text = info.unlocked
+		done = info.done
+		shop = info.shop
+		hint = info.hint
 var _cooldown := 0.0
 var _t := 0.0
 ## Lo que se está dibujando: {v (el aldeano), pos (en el piso, por si ya no está), t, burst}.
@@ -103,43 +120,19 @@ var _fx: Array[Dictionary] = []
 var _drawn := false              # Se dibujó algo el cuadro anterior (para borrarlo)
 static var _sounds := {}         # nombre -> AudioStreamWAV
 
+static func make(k: Kind) -> Miracle:
+	var miracle := Miracle.new()
+	miracle.kind = k
+	return miracle
+
+func _init() -> void:
+	good = true   # Los milagros son todos buenos: cuestan solo ofrendas
+
 func _ready() -> void:
-	_armed[kind] = false
-	unlocked[kind] = false
 	z_index = 30   # Encima de los aldeanos
 
-## Si hay alguno afuera (ver HUD.aiming).
-static func any_armed() -> bool:
-	return _armed.has(true)
-
-func set_armed(on: bool) -> void:
-	if on and not unlocked[kind]:
-		_popup_screen(KINDS[kind].need)
-		return
-	if on == _armed[kind]:
-		return
-	_armed[kind] = on
-	armed_changed.emit(on)   # Antes del cursor: al sacarlo se guarda otro, que lo deja en la flecha
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KINDS[kind].key:
-			set_armed(not _armed[kind])
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and _armed[kind]:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
-
-	if not _armed[kind] or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_cast(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+func _use(at: Vector2) -> void:
+	_cast(at)
 
 func _process(dt: float) -> void:
 	_t += dt
@@ -170,7 +163,7 @@ func _process(dt: float) -> void:
 					_sparkles(fx.pos + Vector2(0, 14), C_TEAL, 18, Vector2(10, 12))
 				if fx.t >= DROP_TIME + RING_TIME:
 					_fx.remove_at(i)
-	var drawing := _armed[kind] or not _fx.is_empty()
+	var drawing := armed or not _fx.is_empty()
 	if drawing or _drawn:
 		queue_redraw()
 	_drawn = drawing
@@ -301,12 +294,6 @@ func _popup(text: String, at: Vector2, color: Color) -> void:
 	if hud:
 		hud.popup_text(text, get_canvas_transform() * at + Vector2(0, -70), color)
 
-## Cartel en el medio de la pantalla.
-func _popup_screen(text: String) -> void:
-	var hud := get_tree().get_first_node_in_group("hud") as HUD
-	if hud:
-		hud.popup_text(text, get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
-
 # ---- Dibujo ----
 func _draw() -> void:
 	for fx in _fx:
@@ -317,7 +304,7 @@ func _draw() -> void:
 				_draw_beam(fx)
 			Kind.VACCINE:
 				_draw_drop(fx)
-	if _armed[kind]:
+	if armed:
 		_draw_marks()
 		_draw_aim()
 

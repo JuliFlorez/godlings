@@ -1,4 +1,4 @@
-extends Node2D
+extends Power
 class_name Spore
 ## Espora: un hongo zombi, como el cordyceps. Se desbloquea en la tienda y se saca desde el HUD
 ## o con la tecla Z (Esc o click derecho la guardan). Cada click suelta ahí una bocanada de
@@ -7,15 +7,6 @@ class_name Spore
 ## les nota, después les salen hongos y tosen esporas, después se hacen zombis que muerden a los
 ## sanos, y al final les brota un tallo de la cabeza y revientan en una nube de esporas (ver
 ## Cloud) que contagia a los que estén cerca. Curar los salva solo antes de que se hagan zombis.
-
-signal armed_changed(on: bool)
-
-## Mientras está afuera, los clicks sueltan esporas en vez de agarrar aldeanos.
-static var armed := false
-## Hay que comprarla en la tienda antes de poder sacarla.
-static var unlocked := false
-const PRICE := 300
-const SACRIFICES := 8   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 const COOLDOWN := 1.2
 const RADIUS := 34.0             # Aldeanos con el cuerpo a menos de esto del centro de la bocanada
@@ -36,46 +27,33 @@ var _puffs: Array[Vector3] = []   # x, y, edad
 var _sound: AudioStreamPlayer
 static var _wav: AudioStreamWAV
 
+func _init() -> void:
+	id = "spore"
+	title = "Espora"
+	key = KEY_Z
+	accent = HUD.C_SPORE
+	price = 300
+	sacrifices = 8
+	tooltip = "Sacar o guardar la espora [Z]"
+	locked_tooltip = "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)"
+	need = "Desbloqueá la espora en la tienda"
+	unlocked_text = "¡Espora desbloqueada! Sacala con Z"
+	done = "Desbloqueada"
+	shop = "Un hongo zombi, como el cordyceps: de a poco se adueña de ellos, los hace zombis que muerden a los sanos y al final les brota de la cabeza."
+	hint = "Click sobre los aldeanos para meterles la espora (al que ya la tiene, se la apura) · click derecho, Esc o Z para guardarla."
+
 func _ready() -> void:
-	armed = false
-	unlocked = false
 	z_index = 30   # Encima de los aldeanos
 	_sound = AudioStreamPlayer.new()
 	_sound.volume_db = -8.0
 	_sound.max_polyphony = 3
 	add_child(_sound)
 
-func set_armed(on: bool) -> void:
-	if on and not unlocked:
-		var hud := get_tree().get_first_node_in_group("hud") as HUD
-		if hud:
-			hud.popup_text("Desbloqueá la espora en la tienda", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
-		return
-	if on == armed:
-		return
-	armed = on
+func _on_armed(_on: bool) -> void:
 	queue_redraw()   # Al guardarla, que se borre la mira (guardada ya no se redibuja sola)
-	armed_changed.emit(on)
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_Z:
-			set_armed(not armed)
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and armed:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
-
-	if not armed or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_release(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+func _use(at: Vector2) -> void:
+	_release(at)
 
 func _process(dt: float) -> void:
 	_t += dt

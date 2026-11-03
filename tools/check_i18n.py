@@ -8,7 +8,8 @@ script lee todos los .gd y avisa:
 
 Cuenta como texto un literal entre comillas que tenga letras y además un espacio, una tilde, una
 ñ o ¡¿; o cualquier literal con letras que vaya a tr(), popup_text(), .text, .tooltip_text,
-make_label() o make_button(), o que sea el valor de "name", "tip", "hint"... en un diccionario.
+make_label() o make_button(), que sea el valor de "name", "tip", "hint"... en un diccionario, o uno
+de los textos de un poder (title = "...", hint = "...", ver Power).
 No mira los comentarios ni lo que va a print(), push_error() o push_warning().
 
 Uso: python3 tools/check_i18n.py (desde cualquier carpeta). Sale con 1 si encuentra algo.
@@ -40,7 +41,8 @@ SPANISH = re.compile(r"[ÁÉÍÓÚÑáéíóúñ¡¿]")
 ## Lo que viene justo antes de un literal que seguro se muestra
 SINK = re.compile(r"(\btr|\bpopup_text|\bmake_label|\bmake_button)\(\s*$"
                   r"|\.(text|tooltip_text|placeholder_text)\s*\+?=\s*$"
-                  r'|"(name|tip|hint|shop|unlocked|locked_tip|title|desc)"\s*:\s*$')
+                  r'|"(name|tip|hint|shop|unlocked|locked_tip|title|desc|need|done)"\s*:\s*$'
+                  r'|^\s*(title|tooltip|locked_tooltip|need|unlocked_text|done|shop|hint)\s*=\s*$')
 DEV_ONLY = re.compile(r"\b(print|printerr|push_error|push_warning|assert)\(")
 
 

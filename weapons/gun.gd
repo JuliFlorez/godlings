@@ -1,19 +1,10 @@
-extends Node2D
+extends Power
 class_name Gun
 ## Pistola: se desbloquea en la tienda y después se saca desde el HUD o con la tecla G
 ## (Esc o click derecho la guardan).
 ## Apunta desde la esquina inferior derecha hacia el mouse; cada click dispara.
 ## Los aldeanos alcanzados mueren y caen en ragdoll (ver Villager.shoot); los tiburones
 ## también se mueren y hay que volver a comprarlos (ver Shark.shoot).
-
-signal armed_changed(on: bool)
-
-## Mientras está activa, los clicks disparan en vez de agarrar aldeanos.
-static var armed := false
-## Hay que comprarla en la tienda antes de poder sacarla.
-static var unlocked := false
-const PRICE := 100
-const SACRIFICES := 2   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 const FIRE_COOLDOWN := 0.16
 const TRACER_TIME := 0.07
@@ -34,9 +25,21 @@ var _flash := 0.0
 var _tracers := []                      # {from, to, t} en coords globales
 var _sound: AudioStreamPlayer
 
+func _init() -> void:
+	id = "gun"
+	title = "Pistola"
+	key = KEY_G
+	accent = HUD.C_GUN
+	price = 100
+	sacrifices = 2
+	tooltip = "Sacar o guardar la pistola [G]"
+	locked_tooltip = "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)"
+	need = "Desbloqueá la pistola en la tienda"
+	unlocked_text = "¡Pistola desbloqueada! Sacala con G"
+	done = "Desbloqueada"
+	hint = "Click para disparar · click derecho, Esc o G para guardarla."
+
 func _ready() -> void:
-	armed = false
-	unlocked = false
 	visible = false
 	z_index = 50
 	_sound = AudioStreamPlayer.new()
@@ -45,37 +48,15 @@ func _ready() -> void:
 	_sound.max_polyphony = 4
 	add_child(_sound)
 
-func set_armed(on: bool) -> void:
-	if on and not unlocked:
-		var hud := get_tree().get_first_node_in_group("hud") as HUD
-		if hud:
-			hud.popup_text("Desbloqueá la pistola en la tienda", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
-		return
-	if on == armed:
-		return
-	armed = on
+func _on_armed(on: bool) -> void:
 	visible = on
-	armed_changed.emit(on)   # Antes del cursor: al sacarla se guarda el rayo, que lo deja en la flecha
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_G:
-			set_armed(not armed)
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and armed:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
+func _use(at: Vector2) -> void:
+	_shoot(at)
 
-	if not armed or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_shoot(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+## El cartel al comprarla, un poco más claro que su rojo.
+func unlock_color() -> Color:
+	return HUD.C_GUN.lightened(0.3)
 
 func _process(dt: float) -> void:
 	_cooldown -= dt

@@ -35,17 +35,8 @@ var _desc: Label
 var _tab_btns := {}           # Tab -> Button
 var _pages := {}              # Tab -> Control
 var _deco_buttons := {}       # kind -> Button
-var _gun_btn: Button
-var _lightning_btn: Button
-var _meteor_btn: Button
-var _tornado_btn: Button
-var _storm_btn: Button
-var _plague_btn: Button
-var _spore_btn: Button
-var _cure_btn: Button
+var _power_btns := {}         # Power -> Button
 var _moon_btn: Button
-var _charm_btns := {}         # Charm.Kind -> Button
-var _miracle_btns := {}       # Miracle.Kind -> Button
 var _sharks: Array[Dictionary] = []   # Por tarjeta: {btn, icon, price, status}
 
 func _ready() -> void:
@@ -136,51 +127,16 @@ func _build_island(page: Control) -> void:
 			hud.decoration_chosen.emit(kind))
 		_deco_buttons[kind] = b
 
-## Los poderes malos y los buenos (como las pestañas de la barra).
+## Los poderes malos y los buenos (como las pestañas de la barra, ver HUD.powers).
 func _build_powers(evil_page: Control, good_page: Control) -> void:
 	var rows := {false: _row(evil_page), true: _row(good_page)}   # bueno -> fila
-	for t in HUD.TOOLS:
-		if t[0] == "feed":
+	for power in hud.powers:
+		if power.always:
 			continue   # La comida no se compra: está desde el principio
-		var power_row: HBoxContainer = rows[t[5]]
 		var icon := CenterContainer.new()
-		icon.add_child(HUD.HudIcon.make(t[0], 40))
-		match t[0]:
-			"gun":
-				_gun_btn = _unlock_card(power_row, icon, t[1], Gun.PRICE, "", hud.unlock_gun, Gun.SACRIFICES)
-			"lightning":
-				_lightning_btn = _unlock_card(power_row, icon, t[1], Lightning.PRICE,
-						"Fulmina aldeanos y salta a los que están cerca. En el agua fríe a todos los que flotan.", hud.unlock_lightning, Lightning.SACRIFICES)
-			"meteor":
-				_meteor_btn = _unlock_card(power_row, icon, t[1], Meteor.PRICE,
-						"Explota y deja un cráter: mata a los que están cerca y hace volar a los demás.", hud.unlock_meteor, Meteor.SACRIFICES)
-			"tornado":
-				_tornado_btn = _unlock_card(power_row, icon, t[1], Tornado.PRICE,
-						"Mantené el click y llevalo con el mouse: levanta aldeanos, cocos y tiburones, los hace girar y los revolea.", hud.unlock_tornado, Tornado.SACRIFICES)
-			"rain":
-				_storm_btn = _unlock_card(power_row, icon, t[1], Storm.PRICE,
-						"Una tormenta que inunda la orilla: el agua se lleva a los que alcanza. La lluvia apaga el fuego.", hud.unlock_storm, Storm.SACRIFICES)
-			"plague":
-				_plague_btn = _unlock_card(power_row, icon, t[1], Plague.PRICE,
-						"Una nube de miasma que enferma de gripe a los que alcanza. Después se contagian solos.", hud.unlock_plague, Plague.SACRIFICES)
-			"spore":
-				_spore_btn = _unlock_card(power_row, icon, t[1], Spore.PRICE,
-						"Un hongo zombi, como el cordyceps: de a poco se adueña de ellos, los hace zombis que muerden a los sanos y al final les brota de la cabeza.", hud.unlock_spore, Spore.SACRIFICES)
-			"cure":
-				_cure_btn = _unlock_card(power_row, icon, t[1], Cure.PRICE,
-						"Un haz de luz que cura la gripe (y deja inmune un rato) y la espora (si todavía no son zombis), y apaga y sana a los que se queman.", hud.unlock_cure)
-			"cupid", "discord", "friendship":
-				var k: Charm.Kind = HUD.CHARM_ICONS[t[0]]
-				_charm_btns[k] = _unlock_card(power_row, icon, t[1], Charm.KINDS[k].price, Charm.KINDS[k].shop,
-						hud.unlock_charm.bind(k), Charm.KINDS[k].sacrifices)
-			"resurrect", "shield", "vaccine":
-				var k: Miracle.Kind = HUD.MIRACLE_ICONS[t[0]]
-				_miracle_btns[k] = _unlock_card(power_row, icon, t[1], Miracle.KINDS[k].price, Miracle.KINDS[k].shop,
-						hud.unlock_miracle.bind(k))
-			_:
-				icon.modulate = Color(1, 1, 1, 0.45)
-				var b := _card(power_row, icon, t[1], -1, "Próximamente")
-				b.disabled = true
+		icon.add_child(HUD.HudIcon.make(power.icon_kind(), 40))
+		_power_btns[power] = _unlock_card(rows[power.good], icon, power.title, power.price, power.shop,
+				hud.unlock_power.bind(power), power.sacrifices)
 
 ## El cielo (la Luna de Sangre y, próximamente, el Sol de Sangre) y los tiburones.
 func _build_sky(page: Control) -> void:
@@ -264,19 +220,9 @@ func _sync() -> void:
 	_sacrifice_balance.text = str(hud.sacrifices)
 	for kind: String in _deco_buttons:
 		_deco_buttons[kind].disabled = not hud.can_afford(Decoration.price_of(kind))
-	_sync_unlock(_gun_btn, Gun.unlocked, Gun.PRICE, "Desbloqueada", Gun.SACRIFICES)
-	_sync_unlock(_lightning_btn, Lightning.unlocked, Lightning.PRICE, "Desbloqueado", Lightning.SACRIFICES)
-	_sync_unlock(_meteor_btn, Meteor.unlocked, Meteor.PRICE, "Desbloqueado", Meteor.SACRIFICES)
-	_sync_unlock(_tornado_btn, Tornado.unlocked, Tornado.PRICE, "Desbloqueado", Tornado.SACRIFICES)
-	_sync_unlock(_storm_btn, Storm.unlocked, Storm.PRICE, "Desbloqueado", Storm.SACRIFICES)
-	_sync_unlock(_plague_btn, Plague.unlocked, Plague.PRICE, "Desbloqueada", Plague.SACRIFICES)
-	_sync_unlock(_spore_btn, Spore.unlocked, Spore.PRICE, "Desbloqueada", Spore.SACRIFICES)
-	_sync_unlock(_cure_btn, Cure.unlocked, Cure.PRICE, "Desbloqueado")
+	for power: Power in _power_btns:
+		_sync_unlock(_power_btns[power], power.unlocked, power.price, power.done, power.sacrifices)
 	_sync_unlock(_moon_btn, Moon.blood_unlocked, Moon.PRICE, "Desbloqueada", Moon.SACRIFICES)
-	for k: Charm.Kind in _charm_btns:
-		_sync_unlock(_charm_btns[k], Charm.unlocked[k], Charm.KINDS[k].price, Charm.KINDS[k].done, Charm.KINDS[k].sacrifices)
-	for k: Miracle.Kind in _miracle_btns:
-		_sync_unlock(_miracle_btns[k], Miracle.unlocked[k], Miracle.KINDS[k].price, Miracle.KINDS[k].done)
 	var next := hud.shark_owned.find(false)   # Se compran en orden: el primero que falta
 	for i in _sharks.size():
 		var s: Dictionary = _sharks[i]

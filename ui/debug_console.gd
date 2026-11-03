@@ -240,18 +240,8 @@ func _simulate_chats(n: int) -> Array:
 	return [n, count[Relations.Kind.FRIEND], count[Relations.Kind.ENEMY], count[Relations.Kind.COUPLE]]
 
 func _unlock_all() -> void:
-	Gun.unlocked = true
-	Lightning.unlocked = true
-	Meteor.unlocked = true
-	Tornado.unlocked = true
-	Storm.unlocked = true
-	Plague.unlocked = true
-	Spore.unlocked = true
-	Cure.unlocked = true
-	for k in Charm.unlocked.size():
-		Charm.unlocked[k] = true
-	for k in Miracle.unlocked.size():
-		Miracle.unlocked[k] = true
+	for power in hud.powers:
+		power.unlocked = true
 	Moon.blood_unlocked = true
 	for i in Shark.MAX:
 		if not hud.shark_owned[i]:

@@ -694,7 +694,7 @@ func _draw() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
 		return
-	if not active or state == State.HELD or HUD.aiming() or get_tree().paused:
+	if not active or state == State.HELD or Power.aiming() or get_tree().paused:
 		return
 	if get_viewport().gui_get_hovered_control() != null:
 		return

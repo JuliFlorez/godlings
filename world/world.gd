@@ -57,17 +57,6 @@ const DEVOTION_RATE := Vector2(0.25, 1.5)
 var island_level := 0
 var island_poly_global: PackedVector2Array
 var hud: HUD
-var gun: Gun
-var lightning: Lightning
-var meteor: Meteor
-var tornado: Tornado
-var storm: Storm
-var plague: Plague
-var spore: Spore
-var cure: Cure
-var feed: Feed
-var charms: Array[Charm] = []   # Cupido, la Discordia y la Amistad (por Charm.Kind)
-var miracles: Array[Miracle] = []   # La resurrección, el escudo y la vacuna (por Miracle.Kind)
 var placer: DecorPlacer
 var sharks: Array[Shark] = []
 ## Aldeanos y decoraciones, ordenados por Y para que el de adelante tape al de atrás.
@@ -205,65 +194,15 @@ func _ready() -> void:
 		hud.menu_requested.connect(_to_title)
 
 	# Últimos hijos: reciben los clicks antes que el sol/luna y los aldeanos
-	gun = Gun.new()
-	add_child(gun)
-	lightning = Lightning.new()
-	add_child(lightning)
-	meteor = Meteor.new()
-	add_child(meteor)
-	tornado = Tornado.new()
-	add_child(tornado)
-	storm = Storm.new()
-	add_child(storm)
-	plague = Plague.new()
-	add_child(plague)
-	spore = Spore.new()
-	add_child(spore)
-	cure = Cure.new()
-	add_child(cure)
-	feed = Feed.new()
-	add_child(feed)
-	for k: Charm.Kind in Charm.KINDS:
-		var c := Charm.new()
-		c.kind = k
-		add_child(c)
-		charms.append(c)
-	for k: Miracle.Kind in Miracle.KINDS:
-		var m := Miracle.new()
-		m.kind = k
-		add_child(m)
-		miracles.append(m)
+	for power in _create_powers():
+		add_child(power)
 	placer = DecorPlacer.new()
 	placer.hud = hud
 	placer.props = props
 	placer.island_poly = island_poly_global
 	add_child(placer)
 	if hud:
-		hud.gun_toggled.connect(gun.set_armed)
-		gun.armed_changed.connect(hud.set_gun_armed)
-		hud.lightning_toggled.connect(lightning.set_armed)
-		lightning.armed_changed.connect(hud.set_lightning_armed)
-		hud.meteor_toggled.connect(meteor.set_armed)
-		meteor.armed_changed.connect(hud.set_meteor_armed)
-		hud.tornado_toggled.connect(tornado.set_armed)
-		tornado.armed_changed.connect(hud.set_tornado_armed)
-		hud.plague_toggled.connect(plague.set_armed)
-		plague.armed_changed.connect(hud.set_plague_armed)
-		hud.spore_toggled.connect(spore.set_armed)
-		spore.armed_changed.connect(hud.set_spore_armed)
-		hud.cure_toggled.connect(cure.set_armed)
-		cure.armed_changed.connect(hud.set_cure_armed)
-		hud.feed_toggled.connect(feed.set_armed)
-		feed.armed_changed.connect(hud.set_feed_armed)
-		hud.charm_toggled.connect(func(k: Charm.Kind, on: bool): charms[k].set_armed(on))
-		for c in charms:
-			c.armed_changed.connect(hud.set_charm_armed.bind(c.kind))
-		hud.miracle_toggled.connect(func(k: Miracle.Kind, on: bool): miracles[k].set_armed(on))
-		for m in miracles:
-			m.armed_changed.connect(hud.set_miracle_armed.bind(m.kind))
-		# El diluvio no se apunta: no guarda las armas ni ellas a él
-		hud.storm_toggled.connect(storm.set_active)
-		storm.active_changed.connect(hud.set_raining)
+		hud.set_powers(Power.all())   # Sus slots en la barra
 		hud.decoration_chosen.connect(func(k: String):
 			_disarm()
 			placer.start(k))
@@ -275,12 +214,13 @@ func _ready() -> void:
 					_disarm()
 					if placer.is_active():
 						placer.stop())
-	# Sacar un arma o poder guarda los demás
-	for w in _weapons():
-		w.armed_changed.connect(func(on: bool):
-			if on:
-				_disarm(w)
-				placer.stop())
+	# Sacar un arma o poder guarda los demás (el diluvio no se apunta: ni los guarda ni lo guardan)
+	for power in Power.all():
+		if power.aims:
+			power.armed_changed.connect(func(on: bool):
+				if on:
+					_disarm(power)
+					placer.stop())
 
 	Villager.ids_issued = 0
 	play_time = 0.0
@@ -302,17 +242,21 @@ func _ready() -> void:
 	lift = INTRO_HEIGHT
 	title.open()
 
-func _weapons() -> Array[Node]:
-	var all: Array[Node] = [gun, lightning, meteor, tornado, plague, spore, cure, feed]
-	all.append_array(charms)
-	all.append_array(miracles)
-	return all
+## Los poderes, en el orden de la barra (ver HUD): primero los malos y después los buenos. Uno
+## nuevo va acá (ver Power).
+func _create_powers() -> Array[Power]:
+	var list: Array[Power] = [Gun.new(), Lightning.new(), Meteor.new(), Tornado.new(), Storm.new(),
+			Plague.new(), Spore.new(), Charm.make(Charm.Kind.DISCORD), Feed.new(), Cure.new(),
+			Miracle.make(Miracle.Kind.VACCINE), Miracle.make(Miracle.Kind.SHIELD),
+			Miracle.make(Miracle.Kind.RESURRECT), Charm.make(Charm.Kind.CUPID),
+			Charm.make(Charm.Kind.FRIENDSHIP)]
+	return list
 
-## Guarda las armas y poderes (menos keep).
-func _disarm(keep: Node = null) -> void:
-	for w in _weapons():
-		if w != keep:
-			w.set_armed(false)
+## Guarda los poderes que se apuntan (menos keep; el diluvio no, ver Power.aims).
+func _disarm(keep: Power = null) -> void:
+	for power in Power.all():
+		if power.aims and power != keep:
+			power.set_armed(false)
 
 func _start_music() -> void:
 	_music = _make_music_player(MUSIC, "Music")

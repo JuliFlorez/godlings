@@ -1950,7 +1950,7 @@ func _update_faith(dt: float) -> void:
 		pose = Pose.PRAY
 		if rig:
 			rig.set_facing_left(hand.x < global_position.x)
-	elif fear >= FEARS_AT and HUD.aiming() and not Feed.armed:   # Con la comida, no
+	elif fear >= FEARS_AT and Power.threat():   # Con un arma o poder afuera (con la comida, no)
 		pose = Pose.COWER
 
 ## El sol o la luna perturbados (o la Luna de Sangre) a la vista.
@@ -3855,7 +3855,7 @@ func _update_drag(dt: float) -> void:
 
 func _on_input_event(_viewport: Node, event: InputEvent, _shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed and not dragging and not eaten and _rising <= 0.0 and not HUD.aiming():
+		if event.pressed and not dragging and not eaten and _rising <= 0.0 and not Power.aiming():
 			# En modo seleccionar no se lo agarra: se abre su carnet. Editando la isla, nada
 			_ensure_hud()
 			if hud and hud.edit_mode:

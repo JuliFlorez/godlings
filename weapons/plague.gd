@@ -1,18 +1,9 @@
-extends Node2D
+extends Power
 class_name Plague
 ## Peste: se desbloquea en la tienda y se saca desde el HUD o con la tecla P (Esc o click
 ## derecho la guardan). Cada click suelta una nube verde de miasma ahí: los aldeanos que
 ## agarra se enferman de gripe al toque, sin incubarla y aunque estuvieran inmunes (ver
 ## Villager.infect). Después se contagian solos entre ellos. Ver también Cure.
-
-signal armed_changed(on: bool)
-
-## Mientras está afuera, los clicks sueltan la peste en vez de agarrar aldeanos.
-static var armed := false
-## Hay que comprarla en la tienda antes de poder sacarla.
-static var unlocked := false
-const PRICE := 200
-const SACRIFICES := 5   # Las cosas malas cuestan también sacrificios (ver HUD.buy)
 
 const COOLDOWN := 1.0
 const RADIUS := 44.0             # Aldeanos con el cuerpo a menos de esto del centro de la nube
@@ -30,46 +21,33 @@ var _clouds: Array[Vector3] = []   # x, y, edad
 var _sound: AudioStreamPlayer
 static var _wav: AudioStreamWAV
 
+func _init() -> void:
+	id = "plague"
+	title = "Peste"
+	key = KEY_P
+	accent = HUD.C_PLAGUE
+	price = 200
+	sacrifices = 5
+	tooltip = "Sacar o guardar la peste [P]"
+	locked_tooltip = "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)"
+	need = "Desbloqueá la peste en la tienda"
+	unlocked_text = "¡Peste desbloqueada! Sacala con P"
+	done = "Desbloqueada"
+	shop = "Una nube de miasma que enferma de gripe a los que alcanza. Después se contagian solos."
+	hint = "Click sobre los aldeanos para enfermarlos de gripe · click derecho, Esc o P para guardarla."
+
 func _ready() -> void:
-	armed = false
-	unlocked = false
 	z_index = 30   # Encima de los aldeanos
 	_sound = AudioStreamPlayer.new()
 	_sound.volume_db = -8.0
 	_sound.max_polyphony = 3
 	add_child(_sound)
 
-func set_armed(on: bool) -> void:
-	if on and not unlocked:
-		var hud := get_tree().get_first_node_in_group("hud") as HUD
-		if hud:
-			hud.popup_text("Desbloqueá la peste en la tienda", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
-		return
-	if on == armed:
-		return
-	armed = on
+func _on_armed(_on: bool) -> void:
 	queue_redraw()   # Al guardarla, que se borre la mira (guardada ya no se redibuja sola)
-	armed_changed.emit(on)
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_P:
-			set_armed(not armed)
-			get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_ESCAPE and armed:
-			set_armed(false)
-			get_viewport().set_input_as_handled()
-		return
-
-	if not armed or not (event is InputEventMouseButton) or not event.pressed:
-		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
-		_release(get_global_mouse_position())
-		get_viewport().set_input_as_handled()
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		set_armed(false)
-		get_viewport().set_input_as_handled()
+func _use(at: Vector2) -> void:
+	_release(at)
 
 func _process(dt: float) -> void:
 	_t += dt

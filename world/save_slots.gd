@@ -10,10 +10,13 @@ class_name SaveSlots
 ## la pisa con una partida nueva.
 
 const COUNT := 3
-## La versión del formato (meta/version, ver World.save_game). Las partidas de antes no la tienen
-## (cuenta como 0) y se cargan mirando qué claves tienen (ver World._load_game). Si cambia el
-## formato, subirla y seguir cargando las de antes.
-const VERSION := 1
+## La versión del formato (meta/version, ver World.save_game). Si cambia el formato, subirla y seguir
+## cargando las de antes:
+## - 0: las de antes de que tuviera versión; se cargan mirando qué claves tienen (ver World._load_game).
+## - 1: con versión.
+## - 2: los poderes comprados van juntos en game/hud/unlocked, {id: bool} (ver HUD.save_state y
+##   _old_unlocks, que lee los de antes).
+const VERSION := 2
 ## Donde se guardaba la única partida antes de que hubiera ranuras: pasa a ser la 1.
 const OLD_PATH := "user://save.cfg"
 
