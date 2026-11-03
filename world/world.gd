@@ -503,7 +503,7 @@ func debug_spore(n: int, zombie := false) -> int:
 	for i in n:
 		healthy[i].catch_spore()
 		if zombie:
-			healthy[i].spore = Villager.SPORE_ZOMBIE_AT
+			healthy[i].spore = VillagerSpore.SPORE_ZOMBIE_AT
 	return n
 
 ## Para la consola de trucos (y probar la resurrección): n aldeanos parados en la isla mueren de un

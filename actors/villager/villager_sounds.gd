@@ -89,7 +89,7 @@ static func _make_sneeze() -> AudioStreamWAV:
 ## "Uuurgh": una vocal grave y ronca que baja.
 static func _make_groan() -> AudioStreamWAV:
 	var rate := 22050
-	var n := int(rate * Villager.GROAN_TIME)
+	var n := int(rate * VillagerSpore.GROAN_TIME)
 	var buf := PackedFloat32Array()
 	buf.resize(n)
 	var ph := 0.0

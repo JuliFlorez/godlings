@@ -166,69 +166,14 @@ var _flu_tint := 0.0
 var _sneeze_t := 0.0
 var _exposure := 0.0
 
-# --- Espora zombi: un hongo como el cordyceps. Se agarra por la espora (el poder, ver Spore), por
-# la mordida de un zombi, por la tos de uno al que ya le salen hongos o por la nube que suelta un
-# zombi al brotar. Mientras más tiempo lo tiene, más se adueña de él (spore, de 0 a 1):
-# - Incubando: no se le nota nada, salvo algún tic (solo lo dice el carnet).
-# - Con hongos: le salen manchas de micelio que se extienden desde la cabeza hasta los pies, le
-#   crecen hongos en el pelo, tiembla, camina lento, no reza, anda triste y tose esporas (que
-#   contagian a los que tiene enfrente).
-# - Zombi: el hongo lo domina. Los ojos lechosos, la piel gris, tallos de cordyceps en la cabeza
-#   y los brazos estirados; ya no come, no duerme, no charla ni te reza: arrastra los pies y
-#   persigue a los sanos para morderlos (y contagiarlos). Los que lo ven cerca salen corriendo.
-# - Al final se queda duro, de rodillas, le brota de la cabeza un tallo enorme y revienta en una
-#   nube de esporas que contagia a los que están cerca (y queda flotando un rato), y se muere.
-# Curar lo salva solo antes de que se haga zombi. Se ve en el carnet y se guarda con la partida.
-enum Infection { NONE, INCUBATING, SPREADING, ZOMBIE }
-const SPORE_TIME := Vector2(130.0, 170.0)   # Segundos desde que se contagia hasta que brota
-const SPORE_START := 0.02          # Recién contagiado
-const SPORE_DOSE := 0.12           # Otra dosis (el poder) al que ya la tenía: lo apura
-const SPORE_SPREAD_AT := 0.22      # Desde acá se le nota...
-const SPORE_ZOMBIE_AT := 0.6       # ...desde acá es un zombi...
-const SPORE_BLOOM_TIME := 4.5      # ...y al llegar a 1 brota: lo que tarda en crecerle el tallo
-const SPORE_LOOK := 0.5            # Por segundo: lo que tardan en aparecer (o irse) las manchas
-const SPORE_SPEED := 0.75          # Veces speed, con hongos...
-const SPORE_REST := 0.6            # ...y se para más seguido
-const SPORE_COUGH_EVERY := Vector2(7.0, 13.0)
-const SPORE_COUGH_REACH := 40.0
-const SPORE_COUGH_CATCH := 0.3
-const ZOMBIE_SPEED := 0.55         # Arrastrando los pies (veces speed)...
-const ZOMBIE_CHASE := 1.0          # ...persiguiendo a alguien...
-const ZOMBIE_LUNGE := 2.0          # ...y ya encima, se le tira
-const ZOMBIE_LUNGE_AT := 55.0
-const ZOMBIE_SEEK := 240.0         # Hasta dónde busca a quién morder
-const ZOMBIE_SEEK_EVERY := 0.5
-const ZOMBIE_REST := 0.15
-const BITE_REACH := 20.0
-const BITE_COOLDOWN := 3.5
-const BITE_TIME := 0.7             # Quieto, mordiendo
-const BITE_SHOVE := 150.0
-const GROAN_EVERY := Vector2(4.0, 9.0)
-const GROAN_TIME := 1.1
-const ZOMBIE_DREAD := 85.0         # Un zombi así de cerca: los demás salen corriendo...
-const FEAR_ZOMBIE := 6.0           # ...y se asustan (por segundo)
-const DREAD_CHECK := 0.25
-const DREAD_FREEZE := 0.9          # Al verlo, a veces se queda duro del susto un ratito...
-const DREAD_FREEZE_CHANCE := 0.35  # ...(una vez cada vez que se le acerca uno)
-const BURST_RADIUS := 95.0         # La nube del brote alcanza a los que están a esto
-const MOOD_SPORE := -20.0          # Le crecen hongos
-const MOOD_BITTEN := -12.0
-const FAITH_BITTEN := 6.0          # ¿Y su dios dónde estaba?
-var spore := 0.0                   # 0 sano .. 1 brota (ver Infection)
-var _spore_rate := 1.0 / 150.0     # Por segundo (cada uno a su ritmo)
-var _spore_fx := 0.0               # Lo que se le ve (sigue a spore de a poco, ver SPORE_LOOK)
-var _spore_seen := Infection.NONE  # La etapa en la que estaba (para avisar cuando cambia)
-var _spore_burst := false          # Ya reventó el tallo
-var _bloom := 0.0                  # Brotando: 0..1 lo que creció el tallo
-var _cough_t := 0.0
-var _groan_t := 0.0
-var _groaning := 0.0               # Gimiendo: abre la boca
-var _bite_cool := 0.0
-var _bite_t := 0.0
-var _prey: Villager                # A quién persigue (zombi)
-var _prey_seek := 0.0
-var _dread_check := 0.0
-var _dread_seen := false           # Ya vio al zombi que tiene cerca (para no paralizarse otra vez)
+# --- Espora zombi (ver VillagerSpore): el hongo que lo va dominando hasta hacerlo zombi y brotar ---
+var _spore: VillagerSpore
+## Cuánto lo domina el hongo: 0 sano .. 1 brota.
+var spore: float:
+	get:
+		return _spore.spore
+	set(value):
+		_spore.spore = value
 
 # --- Escudo y vacuna (ver Miracle): el escudo es una bendición, un aura dorada (ver Miracle.Aura)
 # que lo protege un rato de los rayos, de las mordidas de zombi (ni lo persiguen, y con uno cerca ni
@@ -600,6 +545,9 @@ var _heading := Vector2.ZERO     # Hacia dónde va de verdad (sigue a dir de a p
 var _resting := false
 @onready var rig: VillagerRig = get_node_or_null("Rig")
 
+func _init() -> void:
+	_spore = VillagerSpore.new(self)
+
 func _ready() -> void:
 	randomize()
 	speed *= randf_range(PACE.x, PACE.y)
@@ -837,10 +785,10 @@ func _physics_process(dt: float) -> void:
 		food.release_eater()   # Prendido fuego no se queda comiendo
 	if is_zombie():
 		# El hongo lo domina: ni come, ni charla, ni duerme, ni va a su casa; persigue a los sanos
-		if _zombie_ai(dt):
+		if _spore.zombie_ai(dt):
 			return
 	else:
-		_avoid_zombies(dt)
+		_spore.avoid_zombies(dt)
 		if food != null and _food_ai(dt):
 			return
 		if chat_with != null and _chat_ai(dt):
@@ -867,9 +815,9 @@ func _physics_process(dt: float) -> void:
 	elif _scram > 0.0:
 		pace *= SCRAM_SPEED
 	elif is_zombie():
-		pace *= _zombie_pace()
+		pace *= _spore.zombie_pace()
 	elif spore_shows():
-		pace *= SPORE_SPEED
+		pace *= VillagerSpore.SPORE_SPEED
 	elif flu == Flu.SICK:
 		pace *= FLU_SPEED
 	elif starving():
@@ -919,9 +867,9 @@ func _physics_process(dt: float) -> void:
 		elif wander_timer <= 0.0:
 			var rest := FLU_REST_CHANCE if flu == Flu.SICK else (MOOD_SAD_REST if is_sad() else REST_CHANCE)
 			if is_zombie():
-				rest = ZOMBIE_REST   # Sigue arrastrando los pies (sin nadie a quien perseguir)
+				rest = VillagerSpore.ZOMBIE_REST   # Sigue arrastrando los pies (sin nadie a quien perseguir)
 			elif spore_shows():
-				rest = maxf(rest, SPORE_REST)
+				rest = maxf(rest, VillagerSpore.SPORE_REST)
 			if is_elder() and not is_zombie():
 				rest = maxf(rest, ELDER_REST)
 			if not _resting and randf() < rest:
@@ -1378,7 +1326,7 @@ func _mood_factors() -> Array:
 	if flu == Flu.SICK:
 		out.append(["Tiene gripe", MOOD_SICK])
 	if spore_shows():
-		out.append(["Le crecen hongos", MOOD_SPORE])
+		out.append(["Le crecen hongos", VillagerSpore.MOOD_SPORE])
 	if fear > MOOD_FEAR_FROM:
 		out.append(["Tiene miedo", (fear - MOOD_FEAR_FROM) * MOOD_FEAR])
 	if tiredness >= EXHAUSTED_AT:
@@ -2632,7 +2580,7 @@ func cure() -> bool:
 		said = true
 	var spore_cured := spore > 0.0 and not zombie
 	if spore_cured:
-		_clear_spore()
+		_spore.clear()
 		if not said:
 			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
 			said = true
@@ -2795,376 +2743,39 @@ func _spawn_droplets(at: Vector2, toward: Vector2) -> void:
 	p.emitting = true
 	p.finished.connect(p.queue_free)
 
-# --- ESPORA ---
-## En qué etapa de la espora está (ver Infection).
-func infection() -> Infection:
-	if spore <= 0.0:
-		return Infection.NONE
-	if spore < SPORE_SPREAD_AT:
-		return Infection.INCUBATING
-	if spore < SPORE_ZOMBIE_AT:
-		return Infection.SPREADING
-	return Infection.ZOMBIE
+# --- ESPORA (lo que el resto del juego le pregunta al aldeano; ver VillagerSpore) ---
+func infection() -> VillagerSpore.Infection:
+	return _spore.infection()
 
-## Ya se le nota la espora: le crecen hongos, tose y no reza (el zombi también).
 func spore_shows() -> bool:
-	return spore >= SPORE_SPREAD_AT and not dead
+	return _spore.spore_shows()
 
-## El hongo lo domina: es un zombi.
 func is_zombie() -> bool:
-	return spore >= SPORE_ZOMBIE_AT and not dead
+	return _spore.is_zombie()
 
-## Lo que se le ve de la espora, 0..1 (ver waterline.gdshader y VillagerRig.Fungus).
 func spore_look() -> float:
-	return _spore_fx
+	return _spore.spore_look()
 
-## Qué tan zombi se lo ve, 0..1: los brazos estirados y la cabeza caída (ver VillagerRig).
 func zombie_look() -> float:
-	if dead:
-		return 0.0
-	return smoothstep(SPORE_ZOMBIE_AT - 0.04, SPORE_ZOMBIE_AT + 0.02, _spore_fx)
+	return _spore.zombie_look()
 
-## Brotando: lo que ya le creció el tallo de la cabeza, 0..1.
 func bloom_amount() -> float:
-	return _bloom
+	return _spore.bloom_amount()
 
-## Ya le reventó el tallo (ver _burst).
 func bloom_burst() -> bool:
-	return _spore_burst
+	return _spore.bloom_burst()
 
-## La boca del zombi: entreabierta, y gimiendo se abre más (ver VillagerRig).
 func zombie_mouth() -> float:
-	if _groaning <= 0.0:
-		return 0.3
-	return 0.3 + 0.6 * sin((1.0 - _groaning / GROAN_TIME) * PI)
+	return _spore.zombie_mouth()
 
-## Se le metió la espora (el poder, una mordida, una tos o la nube de un brote). Al que ya la
-## tenía, dose lo apura. Adentro de su choza no le llega, ni con el escudo o vacunado.
 func catch_spore(dose := 0.0) -> void:
-	if not is_alive() or inside:
-		return
-	if protected_from_disease():
-		_ward_off()
-		return
-	if spore > 0.0:
-		spore = minf(1.0, spore + dose)
-		return
-	spore = SPORE_START
-	_spore_rate = 1.0 / randf_range(SPORE_TIME.x, SPORE_TIME.y)
-	_cough_t = randf_range(SPORE_COUGH_EVERY.x, SPORE_COUGH_EVERY.y)
+	_spore.catch_spore(dose)
 
-## Para cargar la partida: cuánto lo dominaba el hongo (se le ve tal cual, sin avisar nada).
 func set_spore(value: float) -> void:
-	_clear_spore()
-	if value <= 0.0:
-		return
-	catch_spore()
-	spore = minf(value, 1.0)
-	_spore_fx = spore
-	_spore_seen = infection()
-	_update_spore_look()
+	_spore.set_spore(value)
 
-## Ya no tiene la espora (lo curaste): las manchas y los hongos se le van de a poco.
-func _clear_spore() -> void:
-	spore = 0.0
-	_bloom = 0.0
-	_spore_burst = false
-	_spore_seen = Infection.NONE
-	_prey = null
-	_bite_t = 0.0
-
-## La espora avanza (también durmiendo o adentro de su choza). Con hongos tose; zombi gime, y al
-## final, parado en la isla, le brota el tallo de la cabeza y revienta.
-func _update_spore(dt: float) -> void:
-	_bite_cool = maxf(0.0, _bite_cool - dt)
-	if spore > 0.0 and is_alive():
-		spore = minf(1.0, spore + _spore_rate * dt)
-		var stage := infection()
-		if stage != _spore_seen:
-			_spore_turned(stage)
-		match stage:
-			Infection.SPREADING:
-				_cough_t -= dt
-				if _cough_t <= 0.0:
-					_cough_t = randf_range(SPORE_COUGH_EVERY.x, SPORE_COUGH_EVERY.y)
-					if is_idle() and not on_fire:
-						_cough()
-			Infection.ZOMBIE:
-				_groan_t -= dt
-				if _groan_t <= 0.0:
-					_groan_t = randf_range(GROAN_EVERY.x, GROAN_EVERY.y)
-					if visible:
-						_groan()
-				# Brota parado en la isla (no colgando del mouse, volando, flotando ni en el altar)
-				if spore >= 1.0 and is_idle() and not on_fire:
-					_bloom = minf(1.0, _bloom + dt / SPORE_BLOOM_TIME)
-					if _bloom >= 1.0:
-						_burst()
-	_update_spore_look(dt)
-
-## Las manchas de hongo (ver waterline.gdshader) siguen a la espora de a poco.
-func _update_spore_look(dt := 0.0) -> void:
-	if spore <= 0.0 and _spore_fx <= 0.0:
-		return
-	_spore_fx = move_toward(_spore_fx, spore, SPORE_LOOK * dt)
-	if _waterline:
-		_waterline.set_shader_parameter("spore", _spore_fx)
-
-## Pasó a otra etapa de la espora: se le empieza a notar (le salen hongos) o se hizo zombi.
-func _spore_turned(stage: Infection) -> void:
-	_spore_seen = stage
-	match stage:
-		Infection.SPREADING:
-			_cough_t = randf_range(SPORE_COUGH_EVERY.x, SPORE_COUGH_EVERY.y) * 0.5
-			if visible:
-				Game.say("¡Le salen hongos!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SPORE)
-		Infection.ZOMBIE:
-			# Deja todo lo que estaba haciendo (y si estaba adentro de su choza, sale)
-			wake_up()
-			if inside:
-				_leave_home()
-			if chat_with:
-				_end_chat()
-			if food:
-				food.release_eater()
-			_going_home = false
-			_resting = false
-			_prey = null
-			_groan_t = randf_range(0.2, 0.8)
-			Game.say("¡Se hizo zombi!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
-			# Los que lo ven se asustan y se quedan mirando
-			var at := body_center()
-			for node in get_tree().get_nodes_in_group("villager"):
-				var o := node as Villager
-				if o and o != self and o.is_alive() and not o.is_zombie():
-					var seen := o._witness(at)
-					if seen > 0.0:
-						o.add_fear(FEAR_DEATH * 0.6 * seen)
-						o.scare(WITNESS_STARE, at)
-
-## ¡Cof! Tose una nubecita de esporas para adelante: contagia a los que tiene enfrente.
-func _cough() -> void:
-	var facing := rig.facing() if rig else 1.0
-	var mouth := to_global(Vector2(7.0 * facing, -24.0))
-	if rig:
-		rig.hit(mouth, Vector2(facing, 0.6), 0.3)
-		rig.sneeze()
-	_spawn_spores(mouth, Vector2(facing, -0.1), 14, 0.6)
-	_play_sfx(VillagerSounds.cough(), VOICE_DB - 5.0, _voice_pitch * randf_range(0.9, 1.05))
-	Game.say("¡Cof!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SPORE)
-	for node in get_tree().get_nodes_in_group("villager"):
-		var o := node as Villager
-		if o == null or o == self or o.spore > 0.0 or not (o.is_idle() or o.asleep):
-			continue
-		var d := o.global_position - global_position
-		if d.length() < SPORE_COUGH_REACH and (d.length() < SEPARATION_RADIUS or d.normalized().x * facing > SNEEZE_CONE) \
-				and randf() < SPORE_COUGH_CATCH:
-			o.catch_spore()
-
-## "Uuurgh": el zombi gime (con la boca abierta, ver zombie_mouth).
-func _groan() -> void:
-	_play_sfx(VillagerSounds.groan(), VOICE_DB - 6.0, _voice_pitch * randf_range(0.85, 1.0))
-	_groaning = GROAN_TIME
-
-## Zombi: arrastrando los pies, busca al sano más cerca y lo persigue; ya encima se le tira y lo
-## muerde. Brotando se queda duro donde está. true si ya se encargó de moverlo (quieto); false si
-## camina para donde dice dir (ver _physics_process).
-func _zombie_ai(dt: float) -> bool:
-	if spore >= 1.0 or _bloom > 0.0:
-		_prey = null
-		_hold_still()
-		return true
-	if _bite_t > 0.0:
-		_bite_t -= dt
-		if _has_prey():
-			_stand_facing(_prey)
-		else:
-			_hold_still()
-		return true
-	_prey_seek -= dt
-	if not _has_prey():
-		_prey = null
-	if _prey_seek <= 0.0:
-		_prey_seek = ZOMBIE_SEEK_EVERY
-		_prey = _find_prey()
-	if _prey == null:
-		return false   # Nadie cerca: deambula
-	var to := _prey.global_position - global_position
-	if to.length() <= BITE_REACH:
-		if _bite_cool <= 0.0:
-			_bite(_prey)
-		else:
-			_stand_facing(_prey)
-		return true
-	dir = to.normalized()
-	_update_sprite_flip()
-	_resting = false
-	wander_timer = maxf(wander_timer, 1.0)   # Que el paseo no le cambie el rumbo
-	return false
-
-## Veces speed del zombi: arrastra los pies, persiguiendo a alguien va más rápido y ya encima se
-## le tira.
-func _zombie_pace() -> float:
-	if not _has_prey():
-		return ZOMBIE_SPEED
-	if _prey.global_position.distance_to(global_position) < ZOMBIE_LUNGE_AT:
-		return ZOMBIE_LUNGE
-	return ZOMBIE_CHASE
-
-## Si o es alguien a quien morder: vivo, sin la espora ni el escudo, en la isla (despierto o
-## durmiendo en el piso; no adentro de su choza) y no muy lejos.
-func _prey_ok(o: Villager) -> bool:
-	return is_instance_valid(o) and o != self and not o.is_queued_for_deletion() and o.spore <= 0.0 \
-			and not o.dead and not o.shielded() and (o.is_idle() or o.asleep) \
-			and o.global_position.distance_to(global_position) < ZOMBIE_SEEK * 1.3
-
-## Sigue teniendo a quién perseguir (no se lo comió el tiburón, no se curó...).
-func _has_prey() -> bool:
-	return is_instance_valid(_prey) and _prey_ok(_prey)
-
-## El más cerca para morder (o null).
-func _find_prey() -> Villager:
-	var best: Villager = null
-	var best_d := ZOMBIE_SEEK
-	for node in get_tree().get_nodes_in_group("villager"):
-		var o := node as Villager
-		if o == null or not _prey_ok(o):
-			continue
-		var d := o.global_position.distance_to(global_position)
-		if d < best_d:
-			best = o
-			best_d = d
-	return best
-
-## Se le tira encima y lo muerde.
-func _bite(o: Villager) -> void:
-	_bite_cool = BITE_COOLDOWN
-	_bite_t = BITE_TIME
-	if rig:
-		rig.set_facing_left(o.global_position.x < global_position.x)
-		rig.lunge()
-	_play_sfx(VillagerSounds.bite(), VOICE_DB - 2.0, randf_range(0.9, 1.1))
-	o.get_bitten(self)
-
-## Lo mordió un zombi: grita, sangra, sale empujado (capaz que se cae de la isla) y corriendo, y
-## se le metió la espora. Con el escudo no le pasa nada (y el zombi rebota).
 func get_bitten(z: Villager) -> void:
-	if shielded():
-		_ward_off(true)
-		z.get_shoved(Vector2.ZERO, Vector2(signf(z.global_position.x - global_position.x), 0.0) * BITE_SHOVE)
-		return
-	wake_up()
-	if chat_with:
-		_end_chat()
-	if food:
-		food.release_eater()
-	_going_home = false
-	var push := Vector2(1.0 if global_position.x >= z.global_position.x else -1.0, 0.0)
-	_spawn_blood(body_center() + Vector2(-push.x * 6.0, -14.0), push + Vector2.UP * 0.5, 12)
-	if rig:
-		rig.hit(body_center(), push, 0.9)
-	_voice.pitch_scale = _voice_pitch * randf_range(1.05, 1.2)
-	_voice.play()
-	get_shoved(Vector2.ZERO, push * BITE_SHOVE)
-	_scram = SCRAM_TIME * 2.0
-	dir = (push + (island_center - global_position).normalized() * 0.5).normalized()
-	_update_sprite_flip()
-	_resting = false
-	wander_timer = maxf(wander_timer, _scram)
-	add_fear(FEAR_THROW)
-	add_faith(-FAITH_BITTEN)
-	add_mood(MOOD_BITTEN, "La mordió un zombi" if gender == Gender.FEMALE else "Lo mordió un zombi")
-	Game.say("¡Mordida!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)
-	catch_spore()
-
-## Con un zombi cerca se asusta y sale corriendo para el otro lado (y un poco para el medio de la
-## isla, así no lo arrincona contra la orilla). A veces, al verlo, primero se queda duro del susto.
-func _avoid_zombies(dt: float) -> void:
-	if on_fire or shielded():
-		return   # (Con el escudo, ni se asusta: no lo pueden morder)
-	_dread_check -= dt
-	if _dread_check > 0.0:
-		return
-	_dread_check = DREAD_CHECK
-	var near: Villager = null
-	var best := ZOMBIE_DREAD
-	for node in get_tree().get_nodes_in_group("villager"):
-		var o := node as Villager
-		if o and o != self and o.is_zombie() and o.is_idle():
-			var d := o.global_position.distance_to(global_position)
-			if d < best:
-				best = d
-				near = o
-	if near == null:
-		_dread_seen = false
-		return
-	add_fear(FEAR_ZOMBIE * DREAD_CHECK)
-	if is_scared():
-		return   # Duro del susto, mirándolo con la boca abierta
-	if not _dread_seen:
-		_dread_seen = true
-		if randf() < DREAD_FREEZE_CHANCE:
-			scare(DREAD_FREEZE, near.body_center())
-			if food:
-				food.release_eater()
-			if chat_with:
-				_end_chat()
-			return
-	_scram = maxf(_scram, SCRAM_TIME)
-	var away := (global_position - near.global_position).normalized()
-	dir = (away + (island_center - global_position).normalized() * 0.35).normalized()
-	_update_sprite_flip()
-	_resting = false
-	wander_timer = maxf(wander_timer, SCRAM_TIME)
-	if food:
-		food.release_eater()
-	if chat_with:
-		_end_chat()
-
-## Le revienta el tallo de la cabeza: suelta una nube de esporas que contagia a los que están
-## cerca (y a los que ya la tenían los apura), la nube queda flotando un rato (ver Spore.Cloud) y
-## se muere.
-func _burst() -> void:
-	_spore_burst = true
-	var tip := rig.bloom_tip() if rig else body_center() + Vector2(0, -40)
-	var feet := ground_point()
-	_spawn_spores(tip, Vector2.UP, 70, 1.6)
-	_play_sfx(VillagerSounds.burst(), VOICE_DB, randf_range(0.9, 1.1))
-	for node in get_tree().get_nodes_in_group("villager"):
-		var o := node as Villager
-		if o and o != self and not o.dead and Spore.reaches(o, feet, BURST_RADIUS):
-			o.catch_spore(SPORE_DOSE * 0.5)
-	Spore.release_cloud(get_tree(), feet, BURST_RADIUS * 0.8)
-	Game.say("La consumió la espora" if gender == Gender.FEMALE else "Lo consumió la espora",
-			get_global_transform_with_canvas().origin + Vector2(0, -90), HUD.C_SPORE)
-	if food:
-		food.release_eater()
-	_die()
-	swing_vel = (1.0 if randf() < 0.5 else -1.0) * randf_range(2.0, 3.0)   # Se cae para un costado
-	corpse_vel = Vector2.ZERO
-
-## Esporas que salen de at para el lado de toward (la tos, el brote).
-func _spawn_spores(at: Vector2, toward: Vector2, amount: int, power: float) -> void:
-	var p := CPUParticles2D.new()
-	p.one_shot = true
-	p.explosiveness = 0.85
-	p.amount = amount
-	p.lifetime = 0.6 + 0.5 * power
-	p.direction = toward
-	p.spread = 30.0 if power < 1.0 else 80.0
-	p.initial_velocity_min = 30.0 * power
-	p.initial_velocity_max = 95.0 * power
-	p.damping_min = 25.0
-	p.damping_max = 50.0
-	p.gravity = Vector2(0, 12)
-	p.scale_amount_min = 1.4
-	p.scale_amount_max = 2.2 + 1.2 * power
-	p.color_ramp = _fade_ramp(Color(1.0, 0.76, 0.36, 0.95), Color(0.85, 0.58, 0.28, 0.0))
-	p.z_index = 15
-	get_parent().add_child(p)
-	p.global_position = at
-	p.emitting = true
-	p.finished.connect(p.queue_free)
+	_spore.get_bitten(z)
 
 ## Un sonido suelto (se borra solo al terminar).
 func _play_sfx(stream: AudioStream, db: float, pitch: float) -> void:
@@ -3314,8 +2925,8 @@ func _come_back() -> void:
 		flu = Flu.IMMUNE
 		flu_t = IMMUNE_TIME
 	_flu_tint = 0.0
-	_clear_spore()
-	_spore_fx = 0.0
+	_spore.clear()
+	_spore.spore_fx = 0.0
 	hunger = minf(hunger, RISEN_HUNGER)
 	_starve_t = 0.0
 	_soot = 0.0
@@ -3458,7 +3069,7 @@ func _process(dt: float) -> void:
 	_update_fire(dt)
 	_update_zap(dt)
 	_update_flu(dt)
-	_update_spore(dt)
+	_spore.update(dt)
 	_update_hunger(dt)
 	_update_family(dt)
 	_update_faith(dt)
@@ -3470,7 +3081,7 @@ func _process(dt: float) -> void:
 	_tornado_cool = maxf(0.0, _tornado_cool - dt)
 	_chat_cool = maxf(0.0, _chat_cool - dt)
 	_talking = maxf(0.0, _talking - dt)
-	_groaning = maxf(0.0, _groaning - dt)
+	_spore.groaning = maxf(0.0, _spore.groaning - dt)
 	bubble_t = maxf(0.0, bubble_t - dt)
 
 ## Flotando (o hundiéndose) lo que queda debajo de la superficie no se ve.
@@ -3545,7 +3156,7 @@ func _start_drag() -> void:
 	set_physics_process(false)
 	z_index = 10
 	if is_zombie():
-		_groan()   # No grita: gime
+		_spore.groan()   # No grita: gime
 	elif not dead:
 		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
 		_voice.play()

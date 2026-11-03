@@ -410,7 +410,7 @@ func facing() -> float:
 func sneeze() -> void:
 	_sneeze = 0.3
 
-## El zombi se tira a morder: estira los brazos de golpe y abre la boca (ver Villager._bite).
+## El zombi se tira a morder: estira los brazos de golpe y abre la boca (ver VillagerSpore._bite).
 func lunge() -> void:
 	_sneeze = 0.45
 	j_arm_l.vel += 7.0
@@ -596,8 +596,8 @@ func _twitch(dt: float, blooming: bool) -> void:
 	_twitch_t -= dt
 	if _twitch_t > 0.0:
 		return
-	_twitch_t = randf_range(0.6, 1.4) * lerpf(TWITCH_EVERY.x, TWITCH_EVERY.y, clampf(sp / Villager.SPORE_ZOMBIE_AT, 0.0, 1.0))
-	var kick := lerpf(TWITCH_KICK.x, TWITCH_KICK.y, clampf(sp / Villager.SPORE_ZOMBIE_AT, 0.0, 1.0))
+	_twitch_t = randf_range(0.6, 1.4) * lerpf(TWITCH_EVERY.x, TWITCH_EVERY.y, clampf(sp / VillagerSpore.SPORE_ZOMBIE_AT, 0.0, 1.0))
+	var kick := lerpf(TWITCH_KICK.x, TWITCH_KICK.y, clampf(sp / VillagerSpore.SPORE_ZOMBIE_AT, 0.0, 1.0))
 	j_head.vel += randf_range(-1.0, 1.0) * kick * 1.2
 	for j: Joint in [j_arm_l, j_arm_r]:
 		if randf() < 0.6:

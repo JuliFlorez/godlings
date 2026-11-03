@@ -80,7 +80,7 @@ func _release(p: Vector2) -> void:
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
 		if v and not v.dead and reaches(v, p, RADIUS):
-			v.catch_spore(Villager.SPORE_DOSE)
+			v.catch_spore(VillagerSpore.SPORE_DOSE)
 
 ## Si una nube de esporas en p, de ese radio (medido en el piso, como la mira), alcanza al aldeano.
 static func reaches(v: Villager, p: Vector2, radius: float) -> bool:
@@ -89,7 +89,7 @@ static func reaches(v: Villager, p: Vector2, radius: float) -> bool:
 	return d.length() < radius + Villager.BODY_HALF_W or v.body_distance(p) < radius * 0.5
 
 ## Deja una nube de esporas flotando en at (en el piso): la del zombi que reventó (ver
-## Villager._burst).
+## VillagerSpore._burst).
 static func release_cloud(tree: SceneTree, at: Vector2, radius: float) -> void:
 	var parent: Node = tree.current_scene
 	if parent == null:

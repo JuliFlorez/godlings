@@ -255,13 +255,13 @@ func _update_status() -> void:
 				col = HUD.C_DEVOTION
 		# La espora pesa más que la gripe
 		match v.infection():
-			Villager.Infection.INCUBATING:
+			VillagerSpore.Infection.INCUBATING:
 				text = "Incubando la espora"
 				col = HUD.C_SOON
-			Villager.Infection.SPREADING:
+			VillagerSpore.Infection.SPREADING:
 				text = "Le crecen hongos"
 				col = C_SPORE
-			Villager.Infection.ZOMBIE:
+			VillagerSpore.Infection.ZOMBIE:
 				text = "Zombi (brotando)" if v.bloom_amount() > 0.0 else "Zombi"
 				col = HUD.C_WARN
 	_status.text = tr(text)
