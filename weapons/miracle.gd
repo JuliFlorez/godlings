@@ -219,7 +219,7 @@ func _problem(v: Villager) -> String:
 		Kind.VACCINE:
 			if v.is_zombie():
 				return "Ya no tiene cura"
-			if v.flu == Villager.Flu.INCUBATING or v.flu == Villager.Flu.SICK or v.spore > 0.0:
+			if v.has_flu() or v.spore > 0.0:
 				return "Ya está enferma: curala primero" if female else "Ya está enfermo: curalo primero"
 			if v.vaccine_t > Villager.VACCINE_TIME * VACCINE_REFRESH:
 				return "Ya está vacunada" if female else "Ya está vacunado"

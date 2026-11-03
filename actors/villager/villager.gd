@@ -142,29 +142,16 @@ var flooded := false             # Flota en la isla inundada (no en el mar)
 var _flee := 0.0
 var _flee_bias := 0.0            # Cada uno se escapa para un lado un poco distinto
 
-# --- Gripe: se contagia. Primero la incuba sin que se note; después anda pálido y verdoso,
-# lento, se para a cada rato, estornuda (y el estornudo contagia a los que tiene adelante) y
-# no reza. Al final se cura (y queda inmune un tiempo) o se muere. Aparece sola cada tanto
-# (ver World) y la pueden agarrar los que se llevó el agua del diluvio. Se ve en el carnet.
-enum Flu { HEALTHY, INCUBATING, SICK, IMMUNE }
-const INCUBATION := Vector2(8.0, 14.0)
-const SICK_TIME := Vector2(35.0, 50.0)
-const IMMUNE_TIME := 600.0       # Más que lo que dura un brote: así se termina y no se la vuelven a pasar
-const FLU_DEATH_CHANCE := 0.3
-const FLU_SPEED := 0.55          # Veces speed, enfermo
-const FLU_REST_CHANCE := 0.7     # Enfermo se para mucho más seguido
-const FLU_TINT := 0.55           # Lo verdoso que se pone (ver waterline.gdshader)
-const SNEEZE_EVERY := Vector2(3.0, 7.0)
-const SNEEZE_REACH := 46.0       # Hasta dónde llega el estornudo, para adelante...
-const SNEEZE_CONE := 0.6         # ...en un cono de este coseno
-const SNEEZE_CATCH := 0.5        # Probabilidad de contagiar a cada uno que alcanza
-const CLOSE_CATCH := 4.0         # Segundos pegado a un enfermo hasta contagiarse
-const SOAKED_CATCH := 0.35       # Probabilidad de agarrársela si se lo llevó el agua del diluvio
-var flu := Flu.HEALTHY
-var flu_t := 0.0                 # Lo que le falta a la etapa de ahora
-var _flu_tint := 0.0
-var _sneeze_t := 0.0
-var _exposure := 0.0
+# --- Gripe (ver VillagerFlu): se contagia, la incuba, se enferma y se cura (queda inmune) o se muere ---
+var _flu: VillagerFlu
+## En qué etapa de la gripe está (ver VillagerFlu.Stage).
+var flu: VillagerFlu.Stage:
+	get:
+		return _flu.flu
+## Lo que le falta a la etapa de ahora (segundos; se guarda con la partida).
+var flu_t: float:
+	get:
+		return _flu.flu_t
 
 # --- Espora zombi (ver VillagerSpore): el hongo que lo va dominando hasta hacerlo zombi y brotar ---
 var _spore: VillagerSpore
@@ -546,6 +533,7 @@ var _resting := false
 @onready var rig: VillagerRig = get_node_or_null("Rig")
 
 func _init() -> void:
+	_flu = VillagerFlu.new(self)
 	_spore = VillagerSpore.new(self)
 
 func _ready() -> void:
@@ -818,8 +806,8 @@ func _physics_process(dt: float) -> void:
 		pace *= _spore.zombie_pace()
 	elif spore_shows():
 		pace *= VillagerSpore.SPORE_SPEED
-	elif flu == Flu.SICK:
-		pace *= FLU_SPEED
+	elif flu == VillagerFlu.Stage.SICK:
+		pace *= VillagerFlu.FLU_SPEED
 	elif starving():
 		pace *= STARVING_SPEED
 	elif is_sad():
@@ -865,7 +853,7 @@ func _physics_process(dt: float) -> void:
 					_update_sprite_flip()
 				wander_timer = randf_range(PANIC_TURN.x, PANIC_TURN.y)
 		elif wander_timer <= 0.0:
-			var rest := FLU_REST_CHANCE if flu == Flu.SICK else (MOOD_SAD_REST if is_sad() else REST_CHANCE)
+			var rest := VillagerFlu.FLU_REST_CHANCE if flu == VillagerFlu.Stage.SICK else (MOOD_SAD_REST if is_sad() else REST_CHANCE)
 			if is_zombie():
 				rest = VillagerSpore.ZOMBIE_REST   # Sigue arrastrando los pies (sin nadie a quien perseguir)
 			elif spore_shows():
@@ -997,6 +985,35 @@ func _food_ai(dt: float) -> bool:
 		if to.length() < 24.0:
 			_eat_t = 0.001
 	return true
+
+## Le sube el hambre; con hambre lo dice cada tanto, y con la panza vacía aguanta un rato
+## (parado en la isla, como con la gripe) y se muere.
+func _update_hunger(dt: float) -> void:
+	if not is_alive() or is_zombie():
+		return   # (El zombi no tiene hambre: lo alimenta el hongo)
+	hunger = minf(100.0, hunger + HUNGER_RATE * dt)
+	if hunger < 100.0:
+		_starve_t = 0.0
+	elif (is_idle() or asleep) and not on_fire:
+		_starve_t += dt
+		if _starve_t >= STARVE_TIME:
+			_die_of_hunger()
+			return
+	if hunger >= HUNGRY_AT and food == null:
+		_hungry_say -= dt * (2.0 if starving() else 1.0)
+		if _hungry_say <= 0.0:
+			_hungry_say = randf_range(HUNGRY_SAY_EVERY.x, HUNGRY_SAY_EVERY.y)
+			if chat_with == null and bubble_t <= 0.0 and is_idle():
+				say(Bubble.HUNGRY, 1.6, false)
+
+func _die_of_hunger() -> void:
+	Game.say("Murió de hambre", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
+	if food:
+		food.release_eater()
+	_gentle_death = true
+	_die()
+	swing_vel = (1.0 if randf() < 0.5 else -1.0) * randf_range(2.5, 4.0)   # Se cae para un costado
+	corpse_vel = Vector2.ZERO
 
 # --- CHARLAS ---
 ## Tranquilo en la isla: sin quemarse, asustarse, comer, escaparse del agua o de tu mano, ni
@@ -1323,7 +1340,7 @@ func _mood_factors() -> Array:
 		out.append(["Se muere de hambre", MOOD_STARVING])
 	elif hunger >= HUNGRY_AT:
 		out.append(["Tiene hambre", MOOD_HUNGRY])
-	if flu == Flu.SICK:
+	if flu == VillagerFlu.Stage.SICK:
 		out.append(["Tiene gripe", MOOD_SICK])
 	if spore_shows():
 		out.append(["Le crecen hongos", VillagerSpore.MOOD_SPORE])
@@ -2515,7 +2532,7 @@ func _swept_by_flood() -> void:
 	if not dead:
 		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
 		_voice.play()
-		if randf() < SOAKED_CATCH:
+		if randf() < VillagerFlu.SOAKED_CATCH:
 			catch_flu()   # Empapado se resfría (se le nota recién al rato)
 
 ## Bajó el agua: queda en tierra donde estaba (vivo sigue caminando).
@@ -2532,40 +2549,26 @@ func _flood_dry() -> void:
 		return
 	_land_on_island()
 
-# --- GRIPE ---
-## Se contagió: la incuba un rato sin que se note (solo lo dice el carnet). Los sanos nada más:
-## el que ya la tiene o se acaba de curar no.
+# --- GRIPE (lo que el resto del juego le pregunta al aldeano; ver VillagerFlu) ---
+func is_sick() -> bool:
+	return _flu.is_sick()
+
+func has_flu() -> bool:
+	return _flu.has_flu()
+
+func flu_look() -> float:
+	return _flu.flu_look()
+
 func catch_flu() -> void:
-	if flu != Flu.HEALTHY or not is_alive():
-		return
-	if protected_from_disease():
-		_exposure = 0.0
-		_ward_off()
-		return
-	flu = Flu.INCUBATING
-	flu_t = randf_range(INCUBATION.x, INCUBATION.y)
-	_exposure = 0.0
+	_flu.catch_flu()
 
-## Para cargar la partida: en qué etapa estaba y lo que le faltaba.
-func set_flu(state: Flu, time_left: float) -> void:
-	flu = state
-	flu_t = time_left
-	_flu_tint = FLU_TINT if flu == Flu.SICK else 0.0
-	_sneeze_t = randf_range(SNEEZE_EVERY.x, SNEEZE_EVERY.y)
+func set_flu(state: VillagerFlu.Stage, time_left: float) -> void:
+	_flu.set_flu(state, time_left)
 
-## La peste (ver Plague): se enferma ya, sin incubarla y aunque estuviera inmune (con el escudo o
-## vacunado, no).
 func infect() -> void:
-	if not is_alive() or inside or flu == Flu.SICK:
-		return
-	if protected_from_disease():
-		_ward_off()
-		return
-	flu = Flu.SICK
-	flu_t = randf_range(SICK_TIME.x, SICK_TIME.y)
-	_sneeze_t = randf_range(SNEEZE_EVERY.x, SNEEZE_EVERY.y) * 0.5
-	_exposure = 0.0
+	_flu.infect()
 
+# --- CURAR ---
 ## El poder de curar (ver Cure): se le va la gripe (queda inmune), la espora (si todavía no es
 ## un zombi: ahí ya no tiene cura) y, si se estaba quemando, se apaga y se le va el tizne. true
 ## si tenía algo que curar.
@@ -2574,9 +2577,9 @@ func cure() -> bool:
 		return false
 	var zombie := is_zombie()   # Al zombi ya no lo salva nada (si se quema, se apaga igual)
 	var said := false   # Ya dijo "¡Se curó!"
-	var flu_cured := not zombie and (flu == Flu.INCUBATING or flu == Flu.SICK)
+	var flu_cured := not zombie and has_flu()
 	if flu_cured:
-		_recover()   # Ya dice "¡Se curó!"
+		_flu.recover()   # Ya dice "¡Se curó!"
 		said = true
 	var spore_cured := spore > 0.0 and not zombie
 	if spore_cured:
@@ -2599,149 +2602,6 @@ func cure() -> bool:
 	if cured and not zombie:
 		_thank(FAITH_CURED, true)
 	return cured
-
-## Enfermo de verdad (con síntomas, contagia y no reza).
-func is_sick() -> bool:
-	return flu == Flu.SICK and not dead
-
-func _update_flu(dt: float) -> void:
-	if eaten or is_queued_for_deletion():
-		return
-	if not dead:
-		match flu:
-			Flu.HEALTHY:
-				_update_exposure(dt)
-			Flu.INCUBATING:
-				flu_t -= dt
-				if flu_t <= 0.0:
-					flu = Flu.SICK
-					flu_t = randf_range(SICK_TIME.x, SICK_TIME.y)
-					_sneeze_t = randf_range(SNEEZE_EVERY.x, SNEEZE_EVERY.y) * 0.5
-			Flu.SICK:
-				flu_t -= dt
-				if is_idle() and not on_fire:
-					_sneeze_t -= dt
-					if _sneeze_t <= 0.0:
-						_sneeze_t = randf_range(SNEEZE_EVERY.x, SNEEZE_EVERY.y)
-						_sneeze()
-					# Termina parado en la isla: no se muere colgando del mouse ni flotando
-					if flu_t <= 0.0:
-						if randf() < FLU_DEATH_CHANCE:
-							_die_of_flu()
-						else:
-							_recover()
-			Flu.IMMUNE:
-				flu_t -= dt
-				if flu_t <= 0.0:
-					flu = Flu.HEALTHY
-	# Se pone verdoso de a poco (y muerto de gripe se queda así)
-	var tint := FLU_TINT if flu == Flu.SICK else 0.0
-	if not dead or tint > 0.0:
-		_flu_tint = move_toward(_flu_tint, tint, dt * 0.15)
-	if _waterline:
-		_waterline.set_shader_parameter("sick", _flu_tint)
-
-## Sano y parado en la isla: si se queda pegado a un enfermo, al rato se contagia.
-func _update_exposure(dt: float) -> void:
-	var near := false
-	if is_idle():
-		for node in get_tree().get_nodes_in_group("villager"):
-			var o := node as Villager
-			if o and o != self and o.is_sick() and o.is_idle() \
-					and o.global_position.distance_to(global_position) < SEPARATION_RADIUS * 1.4:
-				near = true
-				break
-	_exposure = _exposure + dt if near else maxf(0.0, _exposure - dt * 0.5)
-	if _exposure >= CLOSE_CATCH:
-		catch_flu()
-
-## ¡Achís! Se sacude, le salen gotitas para adelante y contagia a los que tiene enfrente.
-func _sneeze() -> void:
-	var facing := rig.facing() if rig else 1.0
-	var mouth := to_global(Vector2(7.0 * facing, -24.0))
-	if rig:
-		rig.hit(mouth, Vector2(facing, 0.6), 0.35)
-		rig.sneeze()
-	_spawn_droplets(mouth, Vector2(facing, 0.15))
-	var p := AudioStreamPlayer.new()
-	p.stream = VillagerSounds.sneeze()
-	p.volume_db = VOICE_DB - 4.0
-	p.pitch_scale = _voice_pitch * randf_range(0.92, 1.05)
-	add_child(p)
-	p.play()
-	p.finished.connect(p.queue_free)
-	Game.say("¡Achís!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
-	for node in get_tree().get_nodes_in_group("villager"):
-		var o := node as Villager
-		if o == null or o == self or o.flu != Flu.HEALTHY or not o.is_idle():
-			continue
-		var d := o.global_position - global_position
-		if d.length() < SNEEZE_REACH and (d.length() < SEPARATION_RADIUS or d.normalized().x * facing > SNEEZE_CONE) \
-				and randf() < SNEEZE_CATCH:
-			o.catch_flu()
-
-func _recover() -> void:
-	flu = Flu.IMMUNE
-	flu_t = IMMUNE_TIME
-	Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
-
-## Le sube el hambre; con hambre lo dice cada tanto, y con la panza vacía aguanta un rato
-## (parado en la isla, como con la gripe) y se muere.
-func _update_hunger(dt: float) -> void:
-	if not is_alive() or is_zombie():
-		return   # (El zombi no tiene hambre: lo alimenta el hongo)
-	hunger = minf(100.0, hunger + HUNGER_RATE * dt)
-	if hunger < 100.0:
-		_starve_t = 0.0
-	elif (is_idle() or asleep) and not on_fire:
-		_starve_t += dt
-		if _starve_t >= STARVE_TIME:
-			_die_of_hunger()
-			return
-	if hunger >= HUNGRY_AT and food == null:
-		_hungry_say -= dt * (2.0 if starving() else 1.0)
-		if _hungry_say <= 0.0:
-			_hungry_say = randf_range(HUNGRY_SAY_EVERY.x, HUNGRY_SAY_EVERY.y)
-			if chat_with == null and bubble_t <= 0.0 and is_idle():
-				say(Bubble.HUNGRY, 1.6, false)
-
-func _die_of_hunger() -> void:
-	Game.say("Murió de hambre", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
-	if food:
-		food.release_eater()
-	_gentle_death = true
-	_die()
-	swing_vel = (1.0 if randf() < 0.5 else -1.0) * randf_range(2.5, 4.0)   # Se cae para un costado
-	corpse_vel = Vector2.ZERO
-
-## No aguantó: se desploma donde está (cuenta como sacrificio, como cualquier muerte).
-func _die_of_flu() -> void:
-	Game.say("Murió de gripe", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
-	if food:
-		food.release_eater()
-	_gentle_death = true
-	_die()
-	swing_vel = (1.0 if randf() < 0.5 else -1.0) * randf_range(2.5, 4.0)   # Se cae para un costado
-	corpse_vel = Vector2.ZERO
-
-func _spawn_droplets(at: Vector2, toward: Vector2) -> void:
-	var p := CPUParticles2D.new()
-	p.one_shot = true
-	p.explosiveness = 0.95
-	p.amount = 16
-	p.lifetime = 0.5
-	p.direction = toward
-	p.spread = 22.0
-	p.initial_velocity_min = 70.0
-	p.initial_velocity_max = 150.0
-	p.gravity = Vector2(0, 260)
-	p.scale_amount_min = 1.2
-	p.scale_amount_max = 2.4
-	p.color_ramp = _fade_ramp(Color(0.8, 0.95, 0.7, 0.85), Color(0.75, 0.9, 0.65, 0.0))
-	get_parent().add_child(p)
-	p.global_position = at
-	p.emitting = true
-	p.finished.connect(p.queue_free)
 
 # --- ESPORA (lo que el resto del juego le pregunta al aldeano; ver VillagerSpore) ---
 func infection() -> VillagerSpore.Infection:
@@ -2921,10 +2781,7 @@ func _come_back() -> void:
 	shove_timer = 0.0
 	global_position.y = floor_y - FEET_DROP
 	# Sano: sin gripe, sin espora, con la panza casi llena y sin quemaduras
-	if flu == Flu.INCUBATING or flu == Flu.SICK:
-		flu = Flu.IMMUNE
-		flu_t = IMMUNE_TIME
-	_flu_tint = 0.0
+	_flu.heal()
 	_spore.clear()
 	_spore.spore_fx = 0.0
 	hunger = minf(hunger, RISEN_HUNGER)
@@ -3068,7 +2925,7 @@ func _process(dt: float) -> void:
 		_update_drag(dt)
 	_update_fire(dt)
 	_update_zap(dt)
-	_update_flu(dt)
+	_flu.update(dt)
 	_spore.update(dt)
 	_update_hunger(dt)
 	_update_family(dt)

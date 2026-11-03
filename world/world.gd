@@ -68,7 +68,7 @@ var _tribute := 0.0   # Lo que va quedando de ofrendas sueltas (cada rezo suma f
 ## Cada tanto le avisa al HUD cuánto están dejando entre todos (abajo de las ofrendas).
 const TRIBUTE_SHOW_EVERY := 0.5
 var _tribute_show_t := 0.0
-## Brotes de gripe (ver Villager.catch_flu): cada tanto (entre 10 y 20 minutos, unos 2 o 3 días),
+## Brotes de gripe (ver VillagerFlu.catch_flu): cada tanto (entre 10 y 20 minutos, unos 2 o 3 días),
 ## si hay suficientes aldeanos.
 const OUTBREAK_EVERY := Vector2(600.0, 1200.0)
 const OUTBREAK_MIN := 3
@@ -483,9 +483,9 @@ func _update_outbreak(dt: float) -> void:
 		var v := node as Villager
 		if v == null or not v.is_alive():
 			continue
-		if v.flu == Villager.Flu.INCUBATING or v.flu == Villager.Flu.SICK:
+		if v.has_flu():
 			return
-		if v.flu == Villager.Flu.HEALTHY and v.is_idle() and not v.protected_from_disease():
+		if v.flu == VillagerFlu.Stage.HEALTHY and v.is_idle() and not v.protected_from_disease():
 			healthy.append(v)
 	if healthy.size() >= OUTBREAK_MIN:
 		healthy.pick_random().catch_flu()
@@ -527,12 +527,12 @@ func debug_infect(n: int) -> int:
 	var healthy: Array[Villager] = []
 	for node in get_tree().get_nodes_in_group("villager"):
 		var v := node as Villager
-		if v and v.flu == Villager.Flu.HEALTHY and v.is_alive():
+		if v and v.flu == VillagerFlu.Stage.HEALTHY and v.is_alive():
 			healthy.append(v)
 	healthy.shuffle()
 	n = mini(n, healthy.size())
 	for i in n:
-		healthy[i].set_flu(Villager.Flu.SICK, randf_range(Villager.SICK_TIME.x, Villager.SICK_TIME.y))
+		healthy[i].set_flu(VillagerFlu.Stage.SICK, randf_range(VillagerFlu.SICK_TIME.x, VillagerFlu.SICK_TIME.y))
 	return n
 
 func _spawn_villagers(n: int) -> void:
@@ -796,7 +796,7 @@ func _load_game() -> bool:
 		v.first_name = d.get("first_name", "")
 		v.last_name = d.get("last_name", "")
 		v.gender = d.get("gender", Villager.Gender.MALE)
-		v.set_flu(d.get("flu", Villager.Flu.HEALTHY) as Villager.Flu, d.get("flu_t", 0.0))
+		v.set_flu(d.get("flu", VillagerFlu.Stage.HEALTHY) as VillagerFlu.Stage, d.get("flu_t", 0.0))
 		v.set_spore(d.get("spore", 0.0))
 		# Después de la espora (si no, el escudo no la dejaría volver a meterse)
 		if d.get("shield", 0.0) > 0.0:

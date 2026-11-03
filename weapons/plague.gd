@@ -3,7 +3,7 @@ class_name Plague
 ## Peste: se desbloquea en la tienda y se saca desde el HUD o con la tecla P (Esc o click
 ## derecho la guardan). Cada click suelta una nube verde de miasma ahí: los aldeanos que
 ## agarra se enferman de gripe al toque, sin incubarla y aunque estuvieran inmunes (ver
-## Villager.infect). Después se contagian solos entre ellos. Ver también Cure.
+## VillagerFlu.infect). Después se contagian solos entre ellos. Ver también Cure.
 
 const COOLDOWN := 1.0
 const RADIUS := 44.0             # Aldeanos con el cuerpo a menos de esto del centro de la nube

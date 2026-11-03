@@ -233,7 +233,7 @@ func _cough() -> void:
 		if o == null or o == v or o.spore > 0.0 or not (o.is_idle() or o.asleep):
 			continue
 		var d := o.global_position - v.global_position
-		if d.length() < SPORE_COUGH_REACH and (d.length() < Villager.SEPARATION_RADIUS or d.normalized().x * facing > Villager.SNEEZE_CONE) \
+		if d.length() < SPORE_COUGH_REACH and (d.length() < Villager.SEPARATION_RADIUS or d.normalized().x * facing > VillagerFlu.SNEEZE_CONE) \
 				and randf() < SPORE_COUGH_CATCH:
 			o.catch_spore()
 

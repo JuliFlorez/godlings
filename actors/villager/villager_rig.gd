@@ -406,7 +406,7 @@ func set_facing_left(left: bool) -> void:
 func facing() -> float:
 	return _facing
 
-## ¡Achís! Abre la boca un instante (ver Villager._sneeze).
+## ¡Achís! Abre la boca un instante (ver VillagerFlu._sneeze).
 func sneeze() -> void:
 	_sneeze = 0.3
 

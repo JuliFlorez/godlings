@@ -244,13 +244,13 @@ func _update_status() -> void:
 		col = HUD.C_MUTED
 	else:
 		match v.flu:
-			Villager.Flu.INCUBATING:
+			VillagerFlu.Stage.INCUBATING:
 				text = "Incubando gripe"
 				col = HUD.C_SOON
-			Villager.Flu.SICK:
+			VillagerFlu.Stage.SICK:
 				text = "Enfermo de gripe"
 				col = HUD.C_WARN
-			Villager.Flu.IMMUNE:
+			VillagerFlu.Stage.IMMUNE:
 				text = "Curado (inmune)"
 				col = HUD.C_DEVOTION
 		# La espora pesa más que la gripe
@@ -284,7 +284,7 @@ func _update_status() -> void:
 		_age.text = tr("1 día") if days == 1 else tr("%d días") % days
 	(_photo_rig.material as ShaderMaterial).set_shader_parameter("grey", v.greyness())
 	(_photo_rig.material as ShaderMaterial).set_shader_parameter("spore", v.spore_look())
-	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v._flu_tint / Villager.FLU_TINT * 0.7)
+	_photo_rig.modulate = Color.WHITE.lerp(Color(0.8, 0.97, 0.68), v.flu_look() * 0.7)
 
 ## "45 s" o, con un minuto o más, "4 min".
 func _time_left(seconds: float) -> String:
