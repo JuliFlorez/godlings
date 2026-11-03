@@ -215,7 +215,7 @@ static func current_at(p: Vector2) -> Vector2:
 		return Vector2.ZERO
 	return (p - _shore_center).normalized() * CURRENT
 
-## Llueve fuerte: apaga el fuego (ver Villager._update_fire y Decoration).
+## Llueve fuerte: apaga el fuego (ver VillagerBurn._update_fire y Decoration).
 static func wet() -> bool:
 	return rain > 0.4
 

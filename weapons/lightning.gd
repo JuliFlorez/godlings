@@ -3,7 +3,7 @@ class_name Lightning
 ## Rayo: se desbloquea en la tienda y después se saca desde el HUD o con la tecla R
 ## (Esc o click derecho lo guardan). Mientras está afuera, una nube de tormenta sigue al
 ## mouse por arriba y cada click descarga un rayo justo ahí.
-## Los aldeanos alcanzados se electrocutan (ver Villager.zap): se les ve el esqueleto,
+## Los aldeanos alcanzados se electrocutan (ver VillagerBurn.zap): se les ve el esqueleto,
 ## quedan carbonizados y se hacen cenizas. El rayo salta a los que están cerca y, si cae
 ## en el agua, la descarga se esparce y fríe a todos los que flotan alrededor (tiburones
 ## incluidos, ver Shark.zap). Si cae en una choza la hace pedazos (ver Decoration.smash); los
@@ -151,7 +151,7 @@ func _strike(at: Vector2) -> void:
 	for v in _targets():
 		if v.body_distance(at) <= HIT_RADIUS and not sheltered.has(v):
 			if v.shielded():
-				v.zap()   # El escudo lo para (ver Villager.zap): no le pasa nada ni salta a otros
+				v.zap()   # El escudo lo para (ver VillagerBurn.zap): no le pasa nada ni salta a otros
 				_sparks(v.body_center(), 14)
 			else:
 				direct.append(v)

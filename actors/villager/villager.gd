@@ -72,6 +72,8 @@ const SHOT_FORCE := 300.0     # Empuje horizontal del balazo
 const SHOT_HOP := 240.0       # Saltito hacia arriba al recibir el tiro
 const HEAD_Y := 0.0           # Impactos por encima de esto (local) son tiros a la cabeza
 const FEET_DROP := 16.0       # Tirado en el piso, el centro queda más abajo que de pie
+const HEAD_TOP := -44.0       # Coronilla y planta de los pies (local)
+const FEET := 32.0
 const CORPSE_TIME := 12.0     # Segundos tirado antes de desvanecerse
 var dead := false
 var corpse_grounded := false
@@ -80,53 +82,19 @@ var floor_y := 0.0            # Altura del "piso" donde cae el cadáver
 var corpse_timer := 0.0
 var fall_vx := 0.0            # Deriva horizontal al caer (cadáver empujado fuera de la isla)
 
-# --- Muerte por rayo (ver Lightning): se electrocuta (tieso, temblando y con el esqueleto a
-# la vista), queda carbonizado y humeando, y se desarma en cenizas de la cabeza a los pies.
-# Si le cayó en la isla se queda ahí; volando sigue cayendo y se deshace cuando queda tirado,
-# y en el agua se hunde.
-enum Zap { NONE, SHOCK, CHARRED, ASHES }
-const SHOCK_TIME := 1.1
-const CHAR_TIME := 0.8        # Carbonizado, todavía entero, antes de deshacerse
-const ASH_TIME := 1.2         # Lo que tarda en deshacerse
-const XRAY_HZ := 11.0         # Cuadros de rayos X por segundo
-const HEAD_TOP := -44.0       # Coronilla y planta de los pies (local)
-const FEET := 32.0
-const CRUMBLE_EDGE := 8.0     # Lo que sobresale el borde desgranado (ver waterline.gdshader)
-var zap_state := Zap.NONE
-var _zap_t := 0.0
-var _zap_pinned := false      # Le cayó en la isla: no se mueve de ahí
-var _xray_mat: ShaderMaterial # El esqueleto: con el recorte del agua, pero sin oscurecerse
-var _arcs: ZapArcs
-var _smoke: CPUParticles2D
-var _pile: AshPile
+# --- Fuego y rayo (ver VillagerBurn): se prende fuego o lo parte un rayo, queda carbonizado y se hace cenizas ---
+var _burn: VillagerBurn
+## Prendido fuego: corre desesperado, grita y contagia a los que toca.
+var on_fire: bool:
+	get:
+		return _burn.on_fire
+## Electrocutándose, carbonizado o haciéndose cenizas (ver VillagerBurn.Zap).
+var zap_state: VillagerBurn.Zap:
+	get:
+		return _burn.zap_state
 
 # --- Meteorito (ver Meteor): lo mira venir con la boca abierta y la explosión lo hace volar ---
 var _scared := 0.0
-
-# --- Fuego: agarrado (o cayendo) arriba de la llama de una antorcha se calienta y se prende.
-# Prendido fuego grita y corre desesperado por la isla, y contagia a los que toca. Tirándolo al
-# agua se apaga (queda tiznado un rato); si no, se va tostando y muere carbonizado, y se hace
-# cenizas como con el rayo. Un cadáver también se quema, y más rápido.
-const IGNITE_TIME := 0.5         # Segundos en el fuego hasta prenderse
-const HEAT_COOL := 1.5           # Lo que se enfría por segundo lejos del fuego
-const BURN_TIME := 5.0           # Prendido fuego, hasta morir carbonizado
-const CORPSE_BURN_TIME := 2.0
-const BURN_SOOT := 0.6           # Lo tostado que llega a quedar antes de morir (ver waterline.gdshader)
-const SOOT_FADE := 0.04          # Apagado, lo que se le va el tizne por segundo
-const SPREAD_DIST := 16.0        # Distancia (entre centros) a la que contagia el fuego
-const PANIC_SPEED := 2.6         # Veces speed corriendo prendido fuego
-const PANIC_TURN := Vector2(0.25, 0.6)   # Segundos entre volantazos
-const PANIC_SWERVE := 1.1        # Cuánto dobla en cada volantazo (rad)
-const SCREAM_EVERY := Vector2(0.6, 1.0)
-const FIRE_LIGHT_ENERGY := 0.8   # De noche ilumina alrededor, como una antorcha
-var on_fire := false
-var _heat := 0.0
-var _burn_t := 0.0
-var _soot := 0.0
-var _scream_t := 0.0
-var _flames: Flames
-var _sparks: CPUParticles2D
-var _fire_light: PointLight2D
 
 # --- Tornado (ver Tornado): lo chupa, lo hace girar alrededor del embudo y al rato lo revolea ---
 const TORNADO_COOL := 1.2        # Recién revoleado, un ratito sin que lo vuelva a chupar
@@ -533,6 +501,7 @@ var _resting := false
 @onready var rig: VillagerRig = get_node_or_null("Rig")
 
 func _init() -> void:
+	_burn = VillagerBurn.new(self)
 	_flu = VillagerFlu.new(self)
 	_spore = VillagerSpore.new(self)
 
@@ -584,6 +553,11 @@ func _ready() -> void:
 	_ensure_hud()
 	if hud:
 		hud.add_name_tag(self)
+
+func _exit_tree() -> void:
+	Relations.forget(self)   # También el que se cayó al vacío
+	# Si se va a mitad de hacerse cenizas (se lo comió el tiburón), el montoncito igual se apaga
+	_burn.finish_ashes()
 
 func _ensure_hud() -> void:
 	if hud == null:
@@ -797,7 +771,7 @@ func _physics_process(dt: float) -> void:
 	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * (2.0 if hurry else 1.0) * dt))
 	var pace := speed
 	if on_fire:
-		pace *= PANIC_SPEED
+		pace *= VillagerBurn.PANIC_SPEED
 	elif _flee > 0.0:
 		pace *= FLOOD_FLEE_SPEED
 	elif _scram > 0.0:
@@ -844,14 +818,14 @@ func _physics_process(dt: float) -> void:
 		wander_timer -= dt
 		if on_fire:
 			# Corre para cualquier lado, en zigzag (casi sin darse vuelta del todo)
-			if wander_timer <= 0.0 or wander_timer > PANIC_TURN.y:
+			if wander_timer <= 0.0 or wander_timer > VillagerBurn.PANIC_TURN.y:
 				_resting = false
 				if dir == Vector2.ZERO:
 					_pick_dir()
 				else:
-					dir = dir.rotated(randf_range(-PANIC_SWERVE, PANIC_SWERVE))
+					dir = dir.rotated(randf_range(-VillagerBurn.PANIC_SWERVE, VillagerBurn.PANIC_SWERVE))
 					_update_sprite_flip()
-				wander_timer = randf_range(PANIC_TURN.x, PANIC_TURN.y)
+				wander_timer = randf_range(VillagerBurn.PANIC_TURN.x, VillagerBurn.PANIC_TURN.y)
 		elif wander_timer <= 0.0:
 			var rest := VillagerFlu.FLU_REST_CHANCE if flu == VillagerFlu.Stage.SICK else (MOOD_SAD_REST if is_sad() else REST_CHANCE)
 			if is_zombie():
@@ -1911,6 +1885,26 @@ func _body_segment() -> PackedVector2Array:
 		to_global(Vector2(0.0, BODY_BOTTOM - BODY_HALF_W)),
 	])
 
+## Distancia de p a la superficie del cuerpo (la cápsula): <= 0 si cae adentro.
+func body_distance(p: Vector2) -> float:
+	var seg := _body_segment()
+	return p.distance_to(Geometry2D.get_closest_point_to_segment(p, seg[0], seg[1])) - BODY_HALF_W
+
+## El centro del cuerpo (más o menos el de masa), en coordenadas globales.
+func body_center() -> Vector2:
+	return to_global(BODY_COM)
+
+## Punto del piso debajo de él (para la inundación y el tornado): sus pies, o la superficie
+## del mar si está flotando ahí.
+func ground_point() -> Vector2:
+	if in_water and not flooded:
+		return global_position + Vector2(0, WATERLINE_DEPTH)
+	if dead and corpse_grounded and not in_water:
+		return global_position + Vector2(0, (FEET - 2.0 - FEET_DROP) * scale.y)   # Acostado
+	if asleep:
+		return global_position + Vector2(0, (FEET - 2.0) * scale.y - _sleep_drop)   # Acostándose a dormir
+	return global_position + Vector2(0, (FEET - 2.0) * scale.y)   # (Los chicos son más bajos)
+
 ## Llamado mientras está agarrado: aparta a los aldeanos que toca.
 func _shove_others() -> void:
 	var mine := _body_segment()
@@ -2101,12 +2095,12 @@ func _corpse_physics(dt: float) -> void:
 				corpse_grounded = true
 				corpse_vel.y = 0.0
 				swing_vel = 0.0
-				if zap_state == Zap.NONE:   # Carbonizado ya no sangra
+				if zap_state == VillagerBurn.Zap.NONE:   # Carbonizado ya no sangra
 					_spawn_blood_pool()
 		return
 
 	# Tirado donde llega el agua de la inundación: se lo lleva flotando
-	if zap_state == Zap.NONE and Storm.flooded_at(ground_point()):
+	if zap_state == VillagerBurn.Zap.NONE and Storm.flooded_at(ground_point()):
 		_swept_by_flood()
 		return
 
@@ -2136,149 +2130,24 @@ func _spawn_blood_pool() -> void:
 		get_parent().move_child(pool, get_index())  # Debajo del cuerpo
 	pool.global_position = Vector2(global_position.x, floor_y + 7.0)
 
-# --- RAYO ---
-## Si le puede caer un rayo (vivo o cadáver; no si ya se está friendo).
+# --- FUEGO Y RAYO (lo que el resto del juego le pregunta al aldeano; ver VillagerBurn) ---
 func can_zap() -> bool:
-	return can_blast() and modulate.a > 0.2
+	return _burn.can_zap()
 
-## Le cayó un rayo (ver Lightning): se electrocuta y muere. Con el escudo, el rayo rebota.
 func zap() -> void:
-	if not can_zap():
-		return
-	if shielded():
-		_ward_off(true)
-		return
-	_put_out()   # El rayo se encarga de carbonizarlo
-	zap_state = Zap.SHOCK
-	_zap_t = 0.0
-	_zap_pinned = not (dragging or falling or in_water) and (not dead or corpse_grounded)
-	_die()
-	_xray_mat = ShaderMaterial.new()
-	_xray_mat.shader = WATERLINE_SHADER
-	_arcs = ZapArcs.new()
-	add_child(_arcs)
+	_burn.zap()
 
-## Electrocutado o carbonizado en la isla: se queda quieto donde le cayó.
 func zap_pinned() -> bool:
-	return zap_state != Zap.NONE and _zap_pinned
+	return _burn.zap_pinned()
 
-## 0..1: cuánto ya se hizo cenizas.
 func ashes() -> float:
-	return clampf(_zap_t / ASH_TIME, 0.0, 1.0) if zap_state == Zap.ASHES else 0.0
-
-## Distancia de p a la superficie del cuerpo (la cápsula): <= 0 si cae adentro.
-func body_distance(p: Vector2) -> float:
-	var seg := _body_segment()
-	return p.distance_to(Geometry2D.get_closest_point_to_segment(p, seg[0], seg[1])) - BODY_HALF_W
-
-func body_center() -> Vector2:
-	return to_global(BODY_COM)
-
-func _update_zap(dt: float) -> void:
-	if zap_state == Zap.NONE or eaten:
-		return
-	_zap_t += dt
-	match zap_state:
-		Zap.SHOCK:
-			if _zap_t >= SHOCK_TIME:
-				zap_state = Zap.CHARRED
-				_zap_t = 0.0
-				_arcs.queue_free()
-				_start_smoke()
-		Zap.CHARRED:
-			if in_water and not dragging:
-				drowning = true   # Carbonizado no flota: se hunde
-			elif _zap_t >= CHAR_TIME and not (dragging or falling) \
-					and (_zap_pinned or (corpse_grounded and corpse_timer > 0.4)):
-				_start_ashes()
-		Zap.ASHES:
-			_pile.amount = ashes()
-			if _zap_t >= ASH_TIME:
-				_pile.finish()
-				queue_free()
-	if _smoke:
-		_smoke.global_rotation = 0.0   # El humo sube aunque esté tirado
-		_smoke.emitting = zap_state == Zap.CHARRED and not in_water
-	_update_zap_fx()
-
-## Rayos X, carbonizado y desarmarse (ver waterline.gdshader).
-func _update_zap_fx() -> void:
-	if _waterline == null:
-		return
-	var xray := zap_state == Zap.SHOCK and fmod(_zap_t * XRAY_HZ, 1.0) < 0.5
-	_waterline.set_shader_parameter("xray", xray)
-	rig.set_xray(xray, _xray_mat)
-	var burnt := 1.0
-	var embers := 0.3
-	match zap_state:
-		Zap.SHOCK:
-			burnt = 0.6 * _zap_t / SHOCK_TIME   # Se va tostando mientras se electrocuta
-			embers = 0.0
-		Zap.CHARRED:
-			burnt = lerpf(0.6, 1.0, minf(1.0, _zap_t / 0.15))
-			embers = lerpf(1.0, 0.3, minf(1.0, _zap_t / CHAR_TIME))
-	_waterline.set_shader_parameter("burnt", burnt)
-	_waterline.set_shader_parameter("embers", embers)
-	if zap_state == Zap.ASHES:
-		var from := to_global(Vector2(0, HEAD_TOP))
-		var axis := (to_global(Vector2(0, FEET)) - from).normalized()
-		var reach := ashes() * (FEET - HEAD_TOP + CRUMBLE_EDGE)
-		_waterline.set_shader_parameter("crumble", reach)
-		_waterline.set_shader_parameter("crumble_from", from)
-		_waterline.set_shader_parameter("crumble_axis", axis)
-		# El polvo se desprende de donde se está deshaciendo (hasta que ya casi no queda nada)
-		_pile.dust.global_position = from + axis * minf(reach, FEET - HEAD_TOP)
-		_pile.dust.global_rotation = rotation
-		_pile.dust.emitting = ashes() < 0.85
-
-func _start_smoke() -> void:
-	_smoke = CPUParticles2D.new()
-	_smoke.amount = 14
-	_smoke.lifetime = 1.1
-	_smoke.local_coords = false
-	_smoke.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
-	_smoke.emission_rect_extents = Vector2(8, 20)
-	_smoke.direction = Vector2.UP
-	_smoke.spread = 20.0
-	_smoke.gravity = Vector2(0, -30)
-	_smoke.initial_velocity_min = 12.0
-	_smoke.initial_velocity_max = 30.0
-	_smoke.scale_amount_min = 2.5
-	_smoke.scale_amount_max = 5.0
-	_smoke.color_ramp = _fade_ramp(Color(0.22, 0.21, 0.21, 0.6), Color(0.5, 0.5, 0.5, 0.0))
-	_smoke.position = Vector2(0, -6)
-	add_child(_smoke)
-
-func _start_ashes() -> void:
-	zap_state = Zap.ASHES
-	_zap_t = 0.0
-	_zap_pinned = true
-	_pile = AshPile.new()
-	var lying := absf(sin(rotation))
-	_pile.width = lerpf(14.0, 24.0, lying)
-	var layer := get_tree().get_first_node_in_group("ground_layer")
-	(layer if layer else get_parent()).add_child(_pile)
-	# Al pie si está parado; tirado, debajo del cuerpo
-	var a := to_global(Vector2(0, HEAD_TOP))
-	var b := to_global(Vector2(0, FEET))
-	_pile.global_position = Vector2((a.x + b.x) * 0.5, maxf(a.y, b.y) + lying * 9.0 - 1.0)
-
-func _exit_tree() -> void:
-	Relations.forget(self)   # También el que se cayó al vacío
-	# Si se va a mitad de hacerse cenizas (se lo comió el tiburón), el montoncito igual se apaga
-	if is_instance_valid(_pile) and _pile.is_inside_tree():
-		_pile.finish()
-
-static func _fade_ramp(from: Color, to: Color) -> Gradient:
-	var g := Gradient.new()
-	g.colors = PackedColorArray([from, to])
-	return g
+	return _burn.ashes()
 
 # --- METEORITO ---
 ## Si lo puede alcanzar una explosión (vivo o cadáver; no si se está friendo por un rayo ni si
 ## está volviendo a la vida).
 func can_blast() -> bool:
-	return not eaten and not inside and altar == null and zap_state == Zap.NONE and _rising <= 0.0 \
+	return not eaten and not inside and altar == null and zap_state == VillagerBurn.Zap.NONE and _rising <= 0.0 \
 			and not is_queued_for_deletion()
 
 ## Ve venir un meteorito desde from: lo mira, con la boca abierta, durante time segundos.
@@ -2313,174 +2182,6 @@ func blast(push: Vector2, lethal: bool) -> void:
 		return
 	_launch(push, island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly))
 	swing_vel = clampf(swing_vel + randf_range(-6.0, 6.0), -12.0, 12.0)   # Que dé vueltas en el aire
-
-# --- FUEGO ---
-func _update_fire(dt: float) -> void:
-	if eaten or zap_state != Zap.NONE or _rising > 0.0 or is_queued_for_deletion():
-		return
-	if on_fire:
-		if in_water or Storm.wet():   # El agua (o la lluvia del diluvio) lo apaga
-			_put_out(true)
-			return
-		_burn_t += dt
-		var burn_time := CORPSE_BURN_TIME if dead else BURN_TIME
-		_soot = maxf(_soot, BURN_SOOT * minf(1.0, _burn_t / burn_time))
-		_waterline.set_shader_parameter("burnt", _soot)
-		_waterline.set_shader_parameter("embers", 0.5 + 0.3 * sin(_burn_t * 9.0))
-		_sparks.global_rotation = 0.0   # Suben aunque esté tirado o colgando
-		_smoke.global_rotation = 0.0
-		_update_fire_light()
-		if not dead:
-			_scream_t -= dt
-			if _scream_t <= 0.0:
-				_scream_t = randf_range(SCREAM_EVERY.x, SCREAM_EVERY.y)
-				_voice.pitch_scale = _voice_pitch * randf_range(1.05, 1.2)
-				_voice.play()
-		if _burn_t >= burn_time:
-			_burn_out()
-		return
-
-	# Apagado: el tizne se le va de a poco
-	if _soot > 0.0 and not dead:
-		_soot = maxf(0.0, _soot - SOOT_FADE * dt)
-		_waterline.set_shader_parameter("burnt", _soot)
-		_waterline.set_shader_parameter("embers", 0.0)
-
-	if _touching_fire():
-		_heat += dt
-		if _heat >= IGNITE_TIME:
-			ignite()
-	else:
-		_heat = maxf(0.0, _heat - HEAT_COOL * dt)
-
-## En la llama de una antorcha (solo agarrado o volando: caminando pasa por delante o por
-## detrás), o pegado a otro aldeano que se está quemando. Con la lluvia no se prende.
-func _touching_fire() -> bool:
-	if in_water or modulate.a < 0.2 or Storm.wet():
-		return false
-	if dragging or falling:
-		for t in get_tree().get_nodes_in_group("torch"):
-			if (t as Decoration).burns(self):
-				return true
-	for node in get_tree().get_nodes_in_group("villager"):
-		var o := node as Villager
-		if o and o != self and o.on_fire and o.global_position.distance_to(global_position) < SPREAD_DIST:
-			return true
-	return false
-
-## Se prende fuego.
-func ignite() -> void:
-	if on_fire or eaten or zap_state != Zap.NONE:
-		return
-	on_fire = true
-	_burn_t = 0.0
-	_scream_t = 0.0
-	_resting = false
-	wander_timer = 0.0
-	if _flames == null:
-		_flames = Flames.new()
-		add_child(_flames)   # Después del Rig: las llamas van por delante del cuerpo
-		_sparks = _make_sparks()
-		add_child(_sparks)
-	_flames.on = true
-	_sparks.emitting = true
-	if _smoke == null:
-		_start_smoke()
-	_smoke.emitting = true
-	if _fire_light == null:
-		_fire_light = PointLight2D.new()
-		_fire_light.texture = Decoration._torch_light_texture()
-		_fire_light.color = Decoration.TORCH_LIGHT_COLOR
-		_fire_light.enabled = false
-		add_child(_fire_light)
-	if not dead:
-		Game.say("¡Se prendió fuego!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)
-
-## Se apaga. steam: cayó al agua (sale vapor).
-func _put_out(steam := false) -> void:
-	if not on_fire:
-		return
-	on_fire = false
-	add_mood(MOOD_BURNED, "Se prendió fuego")
-	_heat = 0.0
-	_flames.on = false
-	_sparks.emitting = false
-	_smoke.emitting = false
-	_fire_light.enabled = false
-	_waterline.set_shader_parameter("embers", 0.0)
-	if steam:
-		_spawn_steam()
-		if not dead:
-			Game.say("¡Fiuuu!", get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_TEXT)
-
-## Se terminó de quemar: muere carbonizado y después se hace cenizas (ver _update_zap).
-func _burn_out() -> void:
-	var pinned := not (dragging or falling or in_water) and (not dead or corpse_grounded)
-	_put_out()
-	_die()
-	zap_state = Zap.CHARRED
-	_zap_t = 0.0
-	_zap_pinned = pinned
-	_soot = 1.0
-
-func _update_fire_light() -> void:
-	var sky := get_tree().get_first_node_in_group("sky")
-	var night: float = sky.night if sky else 0.0
-	var dark := smoothstep(0.55, 0.95, night)
-	_fire_light.enabled = dark > 0.01
-	_fire_light.energy = FIRE_LIGHT_ENERGY * dark * (1.0 + sin(_burn_t * 19.0) * 0.08 + sin(_burn_t * 31.0) * 0.05)
-
-## Chispas que se desprenden y suben (en coords del mundo: si lo mueven, dejan estela).
-func _make_sparks() -> CPUParticles2D:
-	var p := CPUParticles2D.new()
-	p.amount = 18
-	p.lifetime = 0.8
-	p.local_coords = false
-	p.position = Vector2(0, -6)
-	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
-	p.emission_rect_extents = Vector2(9, 22)
-	p.direction = Vector2.UP
-	p.spread = 35.0
-	p.gravity = Vector2(0, -70)
-	p.initial_velocity_min = 20.0
-	p.initial_velocity_max = 55.0
-	p.scale_amount_min = 1.5
-	p.scale_amount_max = 2.5
-	p.color_ramp = _fade_ramp(Color(1.0, 0.85, 0.35), Color(0.9, 0.25, 0.05, 0.0))
-	return p
-
-## Bocanada de vapor al apagarse en el agua.
-func _spawn_steam() -> void:
-	var p := CPUParticles2D.new()
-	p.one_shot = true
-	p.explosiveness = 0.8
-	p.amount = 24
-	p.lifetime = 1.0
-	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
-	p.emission_rect_extents = Vector2(10, 6)
-	p.direction = Vector2.UP
-	p.spread = 30.0
-	p.gravity = Vector2(0, -60)
-	p.initial_velocity_min = 25.0
-	p.initial_velocity_max = 60.0
-	p.scale_amount_min = 3.0
-	p.scale_amount_max = 6.0
-	p.color_ramp = _fade_ramp(Color(0.95, 0.97, 1.0, 0.8), Color(0.85, 0.9, 0.95, 0.0))
-	get_parent().add_child(p)
-	p.global_position = global_position + Vector2(0, -10)
-	p.emitting = true
-	p.finished.connect(p.queue_free)
-
-## Punto del piso debajo de él (para la inundación y el tornado): sus pies, o la superficie
-## del mar si está flotando ahí.
-func ground_point() -> Vector2:
-	if in_water and not flooded:
-		return global_position + Vector2(0, WATERLINE_DEPTH)
-	if dead and corpse_grounded and not in_water:
-		return global_position + Vector2(0, (FEET - 2.0 - FEET_DROP) * scale.y)   # Acostado
-	if asleep:
-		return global_position + Vector2(0, (FEET - 2.0) * scale.y - _sleep_drop)   # Acostándose a dormir
-	return global_position + Vector2(0, (FEET - 2.0) * scale.y)   # (Los chicos son más bajos)
 
 # --- TORNADO ---
 ## Si un tornado lo puede chupar (vivo o cadáver; no si se está friendo por un rayo, ni
@@ -2573,7 +2274,7 @@ func infect() -> void:
 ## un zombi: ahí ya no tiene cura) y, si se estaba quemando, se apaga y se le va el tizne. true
 ## si tenía algo que curar.
 func cure() -> bool:
-	if not is_alive() or inside or zap_state != Zap.NONE:
+	if not is_alive() or inside or zap_state != VillagerBurn.Zap.NONE:
 		return false
 	var zombie := is_zombie()   # Al zombi ya no lo salva nada (si se quema, se apaga igual)
 	var said := false   # Ya dijo "¡Se curó!"
@@ -2589,13 +2290,9 @@ func cure() -> bool:
 			said = true
 	elif zombie:
 		Game.say("Ya no tiene cura", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_MUTED)
-	var burns := on_fire or _soot > 0.0
+	var burns := _burn.has_burns()
 	if burns:
-		_put_out()
-		_soot = 0.0
-		_heat = 0.0
-		if _waterline:
-			_waterline.set_shader_parameter("burnt", 0.0)
+		_burn.heal()
 		if not said and not zombie:
 			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
 	var cured := flu_cured or spore_cured or burns
@@ -2646,6 +2343,12 @@ func _play_sfx(stream: AudioStream, db: float, pitch: float) -> void:
 	add_child(p)
 	p.play()
 	p.finished.connect(p.queue_free)
+
+## Un degradé de from a to, para las partículas que se desvanecen (lo usan los componentes).
+static func _fade_ramp(from: Color, to: Color) -> Gradient:
+	var g := Gradient.new()
+	g.colors = PackedColorArray([from, to])
+	return g
 
 # --- ESCUDO Y VACUNA ---
 ## Tiene el escudo (ver Miracle).
@@ -2722,7 +2425,7 @@ func is_rising() -> bool:
 
 ## Por qué no puede volver a la vida ("" si puede; ver Miracle).
 func revive_problem() -> String:
-	if zap_state != Zap.NONE:
+	if zap_state != VillagerBurn.Zap.NONE:
 		return "No quedó nada para resucitar"
 	if _old_age_death:
 		return "Ya le había llegado la hora"
@@ -2746,7 +2449,7 @@ func resurrect() -> void:
 	swing_vel = 0.0
 	modulate.a = 1.0
 	if on_fire:
-		_put_out()
+		_burn.put_out()
 	var at := Vector2(global_position.x, floor_y)
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
@@ -2786,8 +2489,7 @@ func _come_back() -> void:
 	_spore.spore_fx = 0.0
 	hunger = minf(hunger, RISEN_HUNGER)
 	_starve_t = 0.0
-	_soot = 0.0
-	_heat = 0.0
+	_burn.heal()
 	if _waterline:
 		for param: String in ["burnt", "embers", "sick", "spore"]:
 			_waterline.set_shader_parameter(param, 0.0)
@@ -2923,8 +2625,7 @@ func _update_sprite_flip() -> void:
 func _process(dt: float) -> void:
 	if dragging:
 		_update_drag(dt)
-	_update_fire(dt)
-	_update_zap(dt)
+	_burn.update(dt)
 	_flu.update(dt)
 	_spore.update(dt)
 	_update_hunger(dt)
@@ -2946,7 +2647,7 @@ func _update_waterline() -> void:
 	if _waterline == null:
 		return
 	var cut := in_water and not dragging
-	for m: ShaderMaterial in [_waterline, _xray_mat]:
+	for m: ShaderMaterial in [_waterline, _burn.xray_mat]:
 		if m == null:
 			continue
 		m.set_shader_parameter("cut", cut)
@@ -3009,7 +2710,7 @@ func _start_drag() -> void:
 	_throw_vel = Vector2.ZERO
 	swing_vel = 0.0
 	fall_vx = 0.0
-	_zap_pinned = false   # Carbonizado también se lo puede levantar: se deshace al volver a quedar tirado
+	_burn.unpin()   # Carbonizado también se lo puede levantar: se deshace al volver a quedar tirado
 	set_physics_process(false)
 	z_index = 10
 	if is_zombie():

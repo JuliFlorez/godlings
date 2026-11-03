@@ -8,7 +8,7 @@ shader_type canvas_item;
 // en los costados, hasta que queda todo el pelo blanco. Las pupilas no (son tan negras como el
 // pelo, pero se nota mucho).
 // Aldeano flotando: lo que queda debajo de la línea del agua (coords globales) no se ve.
-// También la muerte por rayo (ver Villager.zap): los cuadros de rayos X (el cuerpo se vuelve
+// También la muerte por rayo (ver VillagerBurn.zap): los cuadros de rayos X (el cuerpo se vuelve
 // una silueta oscura y encima se ve el esqueleto, que dibuja VillagerRig.XRay), el cuerpo
 // carbonizado con brasas y el desarmarse en cenizas de la cabeza a los pies.
 // Con la espora zombi (ver Villager.spore): manchas de micelio (cremas con el borde anaranjado)
@@ -51,7 +51,7 @@ const vec2 HEAD_CENTER = vec2(515.0, 400.0);   // De donde salen las vetas de la
 const float HEAD_HALF = 330.0;                 // ...y lo que hay hasta los costados del pelo
 const vec2 SPORE_FROM = vec2(515.0, 230.0);    // De donde se extiende el hongo (la coronilla)...
 const float SPORE_REACH = 720.0;               // ...y lo que hay hasta los pies
-const float SPORE_ZOMBIE = 0.6;                // Desde acá es un zombi (ver Villager.SPORE_ZOMBIE_AT)
+const float SPORE_ZOMBIE = 0.6;                // Desde acá es un zombi (ver VillagerSpore.SPORE_ZOMBIE_AT)
 
 varying vec2 world_pos;
 

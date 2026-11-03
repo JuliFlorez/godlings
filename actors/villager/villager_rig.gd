@@ -12,7 +12,7 @@ class_name VillagerRig
 ##   amortiguado que responde a la gravedad y a la aceleración del cuerpo.
 ## - Parpadea cada tantos segundos y los balazos dejan una marca en la parte alcanzada.
 ## - Electrocutado por un rayo: tieso con brazos y piernas abiertos, temblando, y en los
-##   cuadros de rayos X se le ve el esqueleto (ver Villager.zap).
+##   cuadros de rayos X se le ve el esqueleto (ver VillagerBurn.zap).
 ## - Rezándote: de rodillas (el cuerpo baja y tapa las piernas) con los brazos en alto,
 ##   meciéndolos. Agachado de miedo: más abajo, abrazándose y con la boca abierta. Si te
 ##   teme, tiembla (ver Villager.pose).
@@ -633,9 +633,9 @@ func _rest_walk_pose() -> void:
 ## Electrocutándose: tieso con brazos y piernas abiertos, temblando y gritando. Carbonizado
 ## en la isla se queda duro así hasta hacerse cenizas. true si ya se encargó de los huesos.
 func _zap_pose() -> bool:
-	if villager.zap_state == Villager.Zap.NONE:
+	if villager.zap_state == VillagerBurn.Zap.NONE:
 		return false
-	if villager.zap_state != Villager.Zap.SHOCK:
+	if villager.zap_state != VillagerBurn.Zap.SHOCK:
 		return villager.zap_pinned()
 	_mouth.target = randf_range(0.7, 1.0)
 	_rest_walk_pose()
