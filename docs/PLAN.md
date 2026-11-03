@@ -1,6 +1,6 @@
 # Revisión de estructura y plan de mejoras
 
-*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 a 3 hechas.*
+*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 a 3 hechas; la 4, empezada.*
 
 **Cómo la hice**: leí la arquitectura (las dos escenas, `World`, `HUD`, las armas, el guardado, la
 i18n), recorrí `Villager` por secciones, medí tamaños y acoplamiento con scripts, pasé `gdlint`
@@ -256,13 +256,24 @@ leer o guardar.
       dibujan el rayo, el meteorito, el tornado y el altar, el destello, las etiquetas, los modos).
 - Cambio que se ve: la devoción ya no se recarga mientras baja la cámara (son unos segundos).
 
-### Fase 4 · Partir `Villager` (varias sesiones, un sistema por vez)
+### Fase 4 · Partir `Villager` (en curso, un sistema por sesión)
 
-- [ ] Lo mecánico: las clases de efectos y los sonidos a sus archivos.
-- [ ] `enum Body` para los estados excluyentes.
-- [ ] Sacar los sistemas, de los más sueltos a los más enredados: espora y zombis → gripe → fuego
-      y rayo → necesidades (hambre, sueño, ánimo) → social (charlas, fe, miedo) → casa y familia.
-      Cada uno con su `to_dict()` / `from_dict()`.
+- [x] Lo mecánico: las clases de efectos (`BloodPool`, `ZapArcs`, `AshPile`, `Flames`) y los sonidos
+      (`VillagerSounds`) a sus archivos. Sin cambios en el juego.
+- [x] Espora y zombis → `VillagerSpore`. Al medir el acoplamiento resultó que no era lo más suelto
+      (usa 47 cosas del resto del aldeano y 13 partes suyas se usan desde otros archivos), así que
+      quedó como componente: un `RefCounted` con `v` (el aldeano), y el aldeano reenvía la API de
+      afuera para que no cambien los que llaman. El pase se hizo con un script que prefija lo del
+      aldeano (`v.dir`, `Villager.VOICE_DB`, `self` → `v`) y otro que chequea que no quede nada
+      suelto; conviene repetir lo mismo con los que siguen.
+- [ ] `enum Body` para los estados excluyentes: cambia el corazón de `_physics_process`, mejor
+      después de probar en el juego lo de las fases 2 a 4.
+- [ ] Los demás sistemas, uno por vez: gripe → fuego y rayo → necesidades (hambre, sueño, ánimo) →
+      social (charlas, fe, miedo) → casa y familia.
+- [ ] Que cada uno se guarde solo (`to_dict()` / `from_dict()`): por ahora `World` sigue guardando
+      los campos del aldeano (la espora, por la propiedad `spore` y `set_spore`).
+
+`villager.gd` va de 4.001 a 3.270 líneas.
 
 ### Fase 5 · Interfaz (cuando haga falta)
 
