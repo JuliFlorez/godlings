@@ -31,7 +31,8 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 | `actors/villager/relations.gd`, `genealogy.gd`, `names.gd` | Estáticos: afinidad y vínculos por número de carnet, con el historial; los que ya no están, para el árbol; nombres al azar. |
 | `actors/shark.gd` | El tiburón (en `World` se duplica hasta `Shark.MAX`). |
 | `weapons/` | Un nodo por poder, todos hijos de `Power` (`power.gd`: lo común, y `Power.all()` / `aiming()`): `Gun`, `Lightning`, `Meteor`, `Tornado`, `Storm` (diluvio, no se apunta), `Plague`, `Spore`, `Cure`, `Feed`. `Charm` (Cupido, Discordia, Amistad) y `Miracle` (Resurrección, Escudo, Vacuna) van por `Kind`. `World._create_powers` los crea en el orden de la barra. |
-| `ui/hud.gd` (`HUD`, grupo `"hud"`) | Arma toda la interfaz por código (la barra de poderes, con `set_powers`) **y además guarda la economía**: ofrendas, sacrificios, XP, devoción, puntos de expansión, tiburones y qué poderes se compraron (`save_state` / `load_state`). |
+| `world/game.gd` (`Game`) | La partida, en estáticos: ofrendas, sacrificios, devoción, XP y puntos de expansión, la Luna de Sangre y los tiburones comprados, las compras (`buy`, `unlock_power`...) y su guardado (`save_state` / `load_state`). `Game.reset()` borra todo lo de la partida; `Game.events` avisa lo que cambia; `Game.say` / `announce` muestran un cartel flotante. |
+| `ui/hud.gd` (`HUD`, grupo `"hud"`) | Arma toda la interfaz por código (la barra de poderes, con `set_powers`) y **muestra** la partida: escucha `Game.events`. No guarda nada. |
 | `ui/` (el resto) | `shop`, `villager_card` (el carnet), `hut_card`, `family_tree`, `history_panel`, `title_menu`, `pause_menu`, `settings` y `settings_panel`, `i18n`, `debug_console` (F1, solo en debug). |
 | `world/` (el resto) | `decoration` (todas, por `kind`; la choza tiene vecinos y nacimientos), `decor_placer`, `altar`, `food` / `coconut` / `manna`, `sea` y `water.gdshader`, `water_area`, `hut_debris`, `expand_marker`, `save_slots`. |
 | `sky/` | `sky.gd` (reloj, día y noche, Luna de Sangre), `sun` y `moon` (`Celestial`), nubes, estrellas y gaviotas. |
@@ -41,14 +42,18 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 
 - **Todo se crea por código** (`X.new()` y `add_child`); las únicas escenas son `world.tscn` y
   `villager.tscn`. La interfaz usa `HUD.make_label`, `make_button` y `make_box`.
-- **No hay autoloads: el estado global son `static var`.** De la partida: `Storm.rain` (y la
-  orilla del agua), `Moon.blood_unlocked`, `Relations`, `Genealogy`, `Villager.ids_issued`,
-  `World.play_time`. Las opciones (`Settings`) persisten a propósito. "Menú principal" recarga la
-  escena y los estáticos **sobreviven**: `Storm` y `Moon` resetean los suyos en su `_ready()`, y
-  `World._ready()` resetea `Relations`, `Genealogy`, `ids_issued` y `play_time`. Un `static var`
-  nuevo con estado de la partida se tiene que resetear ahí, o pasa de una partida a otra. (Si
-  está afuera y si se compró cada poder ya no es estático: es de cada nodo, `armed` y `unlocked`.)
-- Al HUD se llega con `get_tree().get_first_node_in_group("hud")`; a los aldeanos, con el grupo
+- **No hay autoloads: el estado global son `static var`.** De la partida: todo `Game`, y además
+  `Villager.ids_issued`, `World.play_time`, `Relations`, `Genealogy` y el agua del diluvio
+  (`Storm.rain`...). "Menú principal" recarga la escena y los estáticos **sobreviven**: los borra
+  `Game.reset()`, lo primero de `World._ready()`. Un `static var` nuevo con algo de la partida se
+  borra ahí, o pasa de una partida a otra. Las opciones (`Settings`) persisten a propósito. (Si
+  está afuera y si se compró cada poder no es estático: es de cada nodo, `armed` y `unlocked`.)
+- **Para cobrar, pagar o sumar**, `Game` (`Game.buy`, `Game.spend_devotion`, `Game.add_offerings`...),
+  nunca el HUD. **Para un cartel flotante**, `Game.say(texto, posición en la pantalla, color)`, o
+  `Game.announce(texto, color)` en el medio de la pantalla: no hace falta buscar el HUD.
+- Al HUD (para lo que es de la interfaz: el `overlay` donde dibujan el rayo y el meteorito, el
+  destello, las etiquetas, los modos del click) se llega con
+  `get_tree().get_first_node_in_group("hud")`; a los aldeanos, con el grupo
   `"villager"`; a los poderes, con `Power.all()` (grupo `"power"`), y si hay uno apuntando (el
   click es para él), `Power.aiming()`. Para saber si un aldeano está vivo, `Villager.is_alive()`
   (el que se está ahogando cuenta como vivo: se lo puede rescatar); no lo escribas a mano.
@@ -80,6 +85,6 @@ sacrificios), su `locked_tooltip` es "Desbloquealo en la tienda (%d ofrendas y %
 
 ## Archivos grandes
 
-`villager.gd` (~4.000 líneas), `hud.gd` (~1.450), `shark.gd` (~1.200) y `villager_rig.gd`
+`villager.gd` (~4.000 líneas), `hud.gd` (~1.250), `shark.gd` (~1.200) y `villager_rig.gd`
 (~1.150). Antes de sumarle otro sistema a `villager.gd`, ponelo en su propio archivo (fase 4 del
 plan).

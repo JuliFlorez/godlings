@@ -1,6 +1,6 @@
 # Revisión de estructura y plan de mejoras
 
-*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 a 2 hechas.*
+*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 a 3 hechas.*
 
 **Cómo la hice**: leí la arquitectura (las dos escenas, `World`, `HUD`, las armas, el guardado, la
 i18n), recorrí `Villager` por secciones, medí tamaños y acoplamiento con scripts, pasé `gdlint`
@@ -241,12 +241,20 @@ leer o guardar.
   demás. Un poder nuevo ahora es un archivo, una línea en `World._create_powers`, su ícono y sus
   textos.
 
-### Fase 3 · El estado de la partida fuera del HUD (1 o 2 sesiones)
+### Fase 3 · El estado de la partida fuera del HUD ✅ (falta probarla en el juego)
 
-- [ ] `GameState` con las monedas, la XP, la devoción, los desbloqueos y los tiburones, con
-      señales. El HUD solo muestra.
-- [ ] Un `Game.reset()` único para todos los estáticos de la partida.
-- [ ] Carteles flotantes por señal; se van los `if hud`.
+- [x] `Game` (`world/game.gd`) con las monedas, la devoción, la XP y los puntos, la Luna de Sangre
+      (ya no es un estático de `Moon`) y los tiburones, las compras y su guardado. Quedó como clase
+      con estáticos, como `Settings`, y no como autoload, así no hay que tocar `project.godot`; las
+      señales van en `Game.events` (`changed`, `loaded`, `offerings_gained`, `point_earned`,
+      `shark_changed`...). El HUD solo muestra. El guardado no cambió de formato (sigue en
+      `game/hud`).
+- [x] Un `Game.reset()` único, lo primero de `World._ready()`: la economía, los números de carnet,
+      el tiempo jugado, las relaciones, el árbol y el agua del diluvio (`Storm.clear`).
+- [x] Carteles flotantes por señal: `Game.say` y `Game.announce`. Las búsquedas del HUD bajaron de
+      28 a 10 y los `if hud` de 86 a 28; lo que queda es interfaz de verdad (el `overlay` donde
+      dibujan el rayo, el meteorito, el tornado y el altar, el destello, las etiquetas, los modos).
+- Cambio que se ve: la devoción ya no se recarga mientras baja la cámara (son unos segundos).
 
 ### Fase 4 · Partir `Villager` (varias sesiones, un sistema por vez)
 
