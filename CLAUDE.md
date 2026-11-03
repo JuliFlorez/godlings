@@ -30,8 +30,8 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 | `actors/villager/villager_rig.gd` | El esqueleto 2D y lo que se dibuja encima (cara, pelo, ojos, hongos, rayos X). |
 | `actors/villager/relations.gd`, `genealogy.gd`, `names.gd` | Estáticos: afinidad y vínculos por número de carnet, con el historial; los que ya no están, para el árbol; nombres al azar. |
 | `actors/shark.gd` | El tiburón (en `World` se duplica hasta `Shark.MAX`). |
-| `weapons/` | Un nodo por poder: `Gun`, `Lightning`, `Meteor`, `Tornado`, `Storm` (diluvio), `Plague`, `Spore`, `Cure`, `Feed`. `Charm` (Cupido, Discordia, Amistad) y `Miracle` (Resurrección, Escudo, Vacuna) van por `Kind`. |
-| `ui/hud.gd` (`HUD`, grupo `"hud"`) | Arma toda la interfaz por código **y además guarda la economía**: ofrendas, sacrificios, XP, devoción, puntos de expansión, tiburones y desbloqueos (`save_state` / `load_state`). |
+| `weapons/` | Un nodo por poder, todos hijos de `Power` (`power.gd`: lo común, y `Power.all()` / `aiming()`): `Gun`, `Lightning`, `Meteor`, `Tornado`, `Storm` (diluvio, no se apunta), `Plague`, `Spore`, `Cure`, `Feed`. `Charm` (Cupido, Discordia, Amistad) y `Miracle` (Resurrección, Escudo, Vacuna) van por `Kind`. `World._create_powers` los crea en el orden de la barra. |
+| `ui/hud.gd` (`HUD`, grupo `"hud"`) | Arma toda la interfaz por código (la barra de poderes, con `set_powers`) **y además guarda la economía**: ofrendas, sacrificios, XP, devoción, puntos de expansión, tiburones y qué poderes se compraron (`save_state` / `load_state`). |
 | `ui/` (el resto) | `shop`, `villager_card` (el carnet), `hut_card`, `family_tree`, `history_panel`, `title_menu`, `pause_menu`, `settings` y `settings_panel`, `i18n`, `debug_console` (F1, solo en debug). |
 | `world/` (el resto) | `decoration` (todas, por `kind`; la choza tiene vecinos y nacimientos), `decor_placer`, `altar`, `food` / `coconut` / `manna`, `sea` y `water.gdshader`, `water_area`, `hut_debris`, `expand_marker`, `save_slots`. |
 | `sky/` | `sky.gd` (reloj, día y noche, Luna de Sangre), `sun` y `moon` (`Celestial`), nubes, estrellas y gaviotas. |
@@ -41,16 +41,17 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 
 - **Todo se crea por código** (`X.new()` y `add_child`); las únicas escenas son `world.tscn` y
   `villager.tscn`. La interfaz usa `HUD.make_label`, `make_button` y `make_box`.
-- **No hay autoloads: el estado global son `static var`.** De la partida: `Gun.unlocked` /
-  `armed` (y los de cada poder), `Storm.rain`, `Moon.blood_unlocked`, `Relations`, `Genealogy`,
-  `Villager.ids_issued`, `World.play_time`. Las opciones (`Settings`) persisten a propósito.
-  "Menú principal" recarga la escena y los estáticos **sobreviven**: cada poder resetea los suyos
-  en su `_ready()`, y `World._ready()` resetea `Relations`, `Genealogy`, `ids_issued` y
-  `play_time`. Un `static var` nuevo con estado de la partida se tiene que resetear ahí, o pasa de
-  una partida a otra.
+- **No hay autoloads: el estado global son `static var`.** De la partida: `Storm.rain` (y la
+  orilla del agua), `Moon.blood_unlocked`, `Relations`, `Genealogy`, `Villager.ids_issued`,
+  `World.play_time`. Las opciones (`Settings`) persisten a propósito. "Menú principal" recarga la
+  escena y los estáticos **sobreviven**: `Storm` y `Moon` resetean los suyos en su `_ready()`, y
+  `World._ready()` resetea `Relations`, `Genealogy`, `ids_issued` y `play_time`. Un `static var`
+  nuevo con estado de la partida se tiene que resetear ahí, o pasa de una partida a otra. (Si
+  está afuera y si se compró cada poder ya no es estático: es de cada nodo, `armed` y `unlocked`.)
 - Al HUD se llega con `get_tree().get_first_node_in_group("hud")`; a los aldeanos, con el grupo
-  `"villager"`. Para saber si un aldeano está vivo, `Villager.is_alive()` (el que se está
-  ahogando cuenta como vivo: se lo puede rescatar); no lo escribas a mano.
+  `"villager"`; a los poderes, con `Power.all()` (grupo `"power"`), y si hay uno apuntando (el
+  click es para él), `Power.aiming()`. Para saber si un aldeano está vivo, `Villager.is_alive()`
+  (el que se está ahogando cuenta como vivo: se lo puede rescatar); no lo escribas a mano.
 - **Traducciones**: el texto en español es la clave. Todo texto visible nuevo va a `I18n.EN` con
   su traducción, y si sacás o cambiás un texto, sacá su clave vieja (`tools/check_i18n.py` avisa
   las dos cosas). `Label` y `Button` se traducen solos; los textos con formato usan
@@ -60,24 +61,25 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
   la partida no se puede leer. Tiene versión (`meta/version`, `SaveSlots.VERSION`); las partidas
   de antes no la tienen y se migran mirando qué claves tienen. Si cambiás el formato, subí la
   versión y seguí cargando las de antes.
-- **Teclas**: cada poder mira la suya en `_unhandled_input` (no hay InputMap). Ocupadas: G R M T D
+- **Teclas**: la de cada poder es su `key` (la atiende `Power`); las demás, cada uno en su
+  `_unhandled_input` (no hay InputMap). Ocupadas: G R M T D
   P Z E F C V O L A B; S (seleccionar), H (historial), I (editar la isla), F1 o la tecla a la
   izquierda del 1 (consola), flechas, + − 0 (zoom) y Esc. Antes de usar una, fijate que esté
   libre.
 
-## Agregar un poder (como está hoy)
+## Agregar un poder
 
-Hay que tocar: el script en `weapons/`; `World._ready()` (crearlo, conectar `armed_changed` y
-`X_toggled`, sumarlo a `_weapons()`); el `HUD` (señal `X_toggled`, `set_X_armed`, `unlock_X`,
-`save_state` / `load_state`, `aiming()`, `_refresh()` con su tooltip y su pista, `_build_toolbar`
-y `TOOLS`); `Shop`; `I18n`; `DebugConsole` (desbloquear todo) y el README. Si es malo (cuesta
-sacrificios), su tooltip de bloqueado es la clave "Desbloquealo en la tienda (%d ofrendas y %d
-sacrificios)" (o "Desbloqueala"). Si tiene variantes,
-seguí el patrón de `Charm` / `Miracle` (`Kind` y `KINDS`). La fase 2 de `docs/PLAN.md` propone
-unificar todo esto.
+Una clase hija de `Power` en `weapons/` que en `_init()` dice cómo es (id, nombre, tecla, si es
+bueno, color, precio y sacrificios, sus textos: ver los comentarios de `Power`) y hace lo suyo en
+`_use(at)` (el click), `_on_armed(on)` y, si hace falta, `_can_arm()` o `recharge()`. Se agrega en
+`World._create_powers`, en su lugar de la barra, con su ícono en `HUD.HudIcon` y sus textos en
+`I18n.EN`; la barra, la tienda, el guardado y la consola lo toman solos. Si es malo (cuesta
+sacrificios), su `locked_tooltip` es "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)" (o
+"Desbloqueala"). Si tiene variantes, seguí el patrón de `Charm` / `Miracle` (`Kind`, `KINDS` y
+`make`). Sumale su sección al README.
 
 ## Archivos grandes
 
-`villager.gd` (~4.000 líneas), `hud.gd` (~1.700), `shark.gd` (~1.200) y `villager_rig.gd`
+`villager.gd` (~4.000 líneas), `hud.gd` (~1.450), `shark.gd` (~1.200) y `villager_rig.gd`
 (~1.150). Antes de sumarle otro sistema a `villager.gd`, ponelo en su propio archivo (fase 4 del
 plan).

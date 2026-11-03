@@ -1,10 +1,10 @@
 # Revisión de estructura y plan de mejoras
 
-*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 y 1 hechas el mismo día.*
+*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 a 2 hechas.*
 
 **Cómo la hice**: leí la arquitectura (las dos escenas, `World`, `HUD`, las armas, el guardado, la
 i18n), recorrí `Villager` por secciones, medí tamaños y acoplamiento con scripts, pasé `gdlint`
-(gdtoolkit 4.5) por los 57 scripts e hice un chequeo propio de traducciones. **No pude correr
+(gdtoolkit 4.5) por los 53 scripts e hice un chequeo propio de traducciones. **No pude correr
 Godot** en el contenedor (no hay salida a las descargas), así que nada de esto está probado en el
 juego: todo sale de leer el código.
 
@@ -37,7 +37,7 @@ archivos enormes y cada feature nueva toca 14 archivos. Conviene ordenarlo ahora
 
 | | |
 |---|---|
-| GDScript | ~21.300 líneas en 57 scripts (más 4 shaders) |
+| GDScript | ~21.300 líneas en 53 scripts (más 4 shaders) |
 | `villager.gd` | 4.001 líneas: 264 constantes, 160 variables, 205 funciones, 8 enums. El 16/10 tenía 760 |
 | Otros archivos de más de 1.000 líneas | `hud.gd` 1.704 · `shark.gd` 1.222 · `villager_rig.gd` 1.150 |
 | Archivos que tocó cada feature | Espora zombi: 14 (≈+650 líneas en `villager.gd`). Resurrección, escudo y vacuna: 14 (≈+300) |
@@ -223,14 +223,23 @@ leer o guardar.
 - [x] Guardado: `meta/version`, escritura a `.tmp`, copia `.bak` que se usa si la partida no se
       puede leer, tarjeta "Dañada" que solo deja borrar, y aviso si no se pudo guardar.
 
-### Fase 2 · Un solo modelo de poder (2 o 3 sesiones)
+### Fase 2 · Un solo modelo de poder ✅ (falta probarla en el juego)
 
-- [ ] Clase base `Power` y registro de poderes.
-- [ ] Pasar la pistola (la más simple) y probarla; después el resto, de a uno. `Charm` y
-      `Miracle` quedan como `Power` con `Kind`.
-- [ ] `HUD`, `World`, `Shop`, el guardado y la consola recorren el registro: se van, de a una, las
-      señales, los `set_X_armed` y los `unlock_X`. Los desbloqueos se guardan como
-      `{"gun": true, ...}`, leyendo también las claves de antes.
+- [x] Clase base `Power` (`weapons/power.gd`) y registro: cada poder entra solo al grupo `"power"`,
+      y `Power.all()`, `aiming()` y `threat()` reemplazan a `HUD.aiming()` y a `Feed.armed`. La
+      lista en el orden de la barra quedó en `World._create_powers`, así la base no conoce a sus
+      hijos.
+- [x] Todos los poderes de una vez, no de a uno: la cáscara era idéntica en los 11, así que pasar
+      solo la pistola habría dejado dos mecanismos conviviendo sin probar menos riesgo. `Charm` y
+      `Miracle` son `Power` con `Kind` (y `make`). `armed` y `unlocked` son de cada nodo: se terminó
+      lo de resetear estáticos en `_ready()` para los poderes.
+- [x] `HUD`, `World`, `Shop`, el guardado y la consola recorren la lista: se fueron 11 señales, 11
+      `set_X_armed`, 10 `unlock_X` y `TOOLS`. Los desbloqueos se guardan como `{"gun": true, ...}`
+      (formato 2), leyendo también las claves de antes.
+- Cambios que se ven: el slot de cualquier poder afuera se resalta con la misma intensidad (antes
+  variaba entre 30 y 38 %), y al desatar el diluvio con D la barra pasa a su pestaña, como con los
+  demás. Un poder nuevo ahora es un archivo, una línea en `World._create_powers`, su ícono y sus
+  textos.
 
 ### Fase 3 · El estado de la partida fuera del HUD (1 o 2 sesiones)
 
