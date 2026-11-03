@@ -236,46 +236,54 @@ func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 		head.add_child(spacer)
 		head.add_child(HUD.make_label("Última jugada", 11, HUD.C_XP))
 
+	# Dañada: hay algo guardado pero no se puede leer (ver SaveSlots.summary); solo se puede borrar
+	var damaged: bool = info.get("damaged", false)
 	var preview := SlotPreview.new()
 	preview.world = world
-	preview.info = info
+	preview.info = {} if damaged else info   # Dañada: solo el cielo y el mar
 	preview.custom_minimum_size = PREVIEW_SIZE
 	preview.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	col.add_child(preview)
 
 	if info.is_empty():
-		var empty := HUD.make_label("Vacía", 16, HUD.C_TEXT)
-		empty.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		empty.add_theme_color_override("font_outline_color", C_OUTLINE)
-		empty.add_theme_constant_override("outline_size", 5)
-		preview.add_child(empty)
+		_preview_label(preview, "Vacía")
 		col.add_child(_filler())
 		var start := _play_button("Nueva partida")
 		start.pressed.connect(_choose.bind(slot))
 		col.add_child(start)
 		return card
 
-	var stats := HBoxContainer.new()
-	stats.add_theme_constant_override("separation", 6)
-	col.add_child(stats)
-	_chip(stats, "villager", str(info.villagers), "Aldeanos")
-	_chip(stats, "island", "%d / %d" % [info.level + 1, World.ISLAND_LEVELS.size()], "Isla")
-	_chip(stats, "coin", str(info.offerings), "Ofrendas")
-	var last_played := HUD.make_label(_last_played(info), 12, HUD.C_MUTED)
-	last_played.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Ya viene traducido
-	col.add_child(last_played)
+	if damaged:
+		_preview_label(preview, "Dañada")
+		var why := HUD.make_label("No se pudo leer esta partida.", 13, HUD.C_WARN)
+		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		why.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		why.custom_minimum_size = Vector2(CARD_W - 24.0, 0)
+		col.add_child(why)
+	else:
+		var stats := HBoxContainer.new()
+		stats.add_theme_constant_override("separation", 6)
+		col.add_child(stats)
+		_chip(stats, "villager", str(info.villagers), "Aldeanos")
+		_chip(stats, "island", "%d / %d" % [info.level + 1, World.ISLAND_LEVELS.size()], "Isla")
+		_chip(stats, "coin", str(info.offerings), "Ofrendas")
+		var last_played := HUD.make_label(_last_played(info), 12, HUD.C_MUTED)
+		last_played.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Ya viene traducido
+		col.add_child(last_played)
 	col.add_child(_filler())
 
 	var actions := HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 8)
 	col.add_child(actions)
-	var play := _play_button("Jugar")
-	play.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	play.pressed.connect(_choose.bind(slot))
-	actions.add_child(play)
+	if not damaged:
+		var play := _play_button("Jugar")
+		play.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		play.pressed.connect(_choose.bind(slot))
+		actions.add_child(play)
 	var delete_btn := HUD.make_button("Borrar", C_QUIT)
 	delete_btn.custom_minimum_size = Vector2(74, 38)
+	if damaged:
+		delete_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL   # Sola, ocupa todo el ancho
 	actions.add_child(delete_btn)
 
 	# Antes de borrar, pregunta (en la misma tarjeta)
@@ -308,6 +316,15 @@ func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 		SaveSlots.delete(slot)
 		_fill_cards())
 	return card
+
+## El cartel encima de la miniatura ("Vacía", "Dañada").
+func _preview_label(preview: Control, text: String) -> void:
+	var label := HUD.make_label(text, 16, HUD.C_TEXT)
+	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_outline_color", C_OUTLINE)
+	label.add_theme_constant_override("outline_size", 5)
+	preview.add_child(label)
 
 ## Ícono y número (aldeanos, tamaño de la isla, ofrendas).
 func _chip(parent: Control, icon: String, value: String, tip: String) -> void:

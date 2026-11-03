@@ -96,6 +96,7 @@ var _markers: Array[ExpandMarker] = []
 ## Se guarda sola cada tanto, al salir y al volver al menú.
 const AUTOSAVE_INTERVAL := 20.0
 var _autosave_t := 0.0
+var _save_failed := false   # El último guardado falló (el aviso sale una vez, hasta que vuelva a andar)
 ## La partida que se está jugando (1..SaveSlots.COUNT); 0 = ninguna todavía (menú de inicio).
 var slot := 0
 ## Ya llegó la cámara a la isla: corren los rezos, el tiempo de juego y el guardado.
@@ -821,15 +822,27 @@ func save_game() -> void:
 	cfg.set_value("sky", "sun_creepy", sky.sun.creepy)
 	cfg.set_value("sky", "moon_creepy", sky.moon.creepy)
 	cfg.set_value("sky", "moon_fed", sky.moon.feed_level)
+	cfg.set_value("meta", "version", SaveSlots.VERSION)
 	cfg.set_value("meta", "saved_at", Time.get_unix_time_from_system())   # Para el menú de inicio
 	cfg.set_value("meta", "play_time", play_time)
-	cfg.save(SaveSlots.path(slot))
+	var err := SaveSlots.write(slot, cfg)
+	if err != OK:
+		push_error("No se pudo guardar la partida %d: %s" % [slot, error_string(err)])
+		if not _save_failed:
+			hud.popup_text("No se pudo guardar la partida", get_viewport_rect().size * Vector2(0.5, 0.42), HUD.C_WARN)
+	_save_failed = err != OK
 
-## Sigue la partida guardada en la ranura. false si estaba vacía (arranca una nueva).
+## Sigue la partida guardada en la ranura. false si estaba vacía (arranca una nueva). Si el archivo
+## está roto, sigue desde la copia (ver SaveSlots.read); el menú no deja elegir una ranura dañada.
 func _load_game() -> bool:
-	var cfg := ConfigFile.new()
-	if hud == null or cfg.load(SaveSlots.path(slot)) != OK:
+	if hud == null:
 		return false
+	var cfg := SaveSlots.read(slot)
+	if cfg == null:
+		return false
+	var version: int = cfg.get_value("meta", "version", 0)   # 0: de antes de que tuviera versión
+	if version > SaveSlots.VERSION:
+		push_warning("La partida %d es de una versión más nueva del juego (formato %d)" % [slot, version])
 	play_time = cfg.get_value("meta", "play_time", 0.0)
 	hud.load_state(cfg.get_value("game", "hud", {}))
 	set_island_level(cfg.get_value("island", "level", island_level))
