@@ -270,15 +270,20 @@ leer o guardar.
       y 11 partes suyas se usan desde 5 archivos. Las comparaciones repetidas pasaron a `has_flu()`
       (la está incubando o está enfermo) y el carnet ya no lee un campo privado (`flu_look()`). El
       hambre, que estaba metida entre las funciones de la gripe, quedó con la comida.
+- [x] Fuego y rayo → `VillagerBurn`, juntos: quemarse del todo termina igual que el rayo
+      (carbonizado, con el mismo humo, y hecho cenizas). Usa 35 cosas del aldeano (10 son del
+      nodo) y 7 partes suyas se usan desde 6 archivos. `HEAD_TOP` y `FEET` quedaron en el aldeano
+      (son medidas del cuerpo), igual que `body_center`, `body_distance` y `ground_point`, que se
+      juntaron con `_body_segment`.
 - [ ] `enum Body` para los estados excluyentes: cambia el corazón de `_physics_process`, mejor
       después de probar en el juego lo de las fases 2 a 4.
-- [ ] Los demás sistemas, uno por vez: fuego y rayo → necesidades (hambre, sueño, ánimo) →
-      social (charlas, fe, miedo) → casa y familia.
+- [ ] Los demás sistemas, uno por vez: necesidades (hambre, sueño, ánimo) → social (charlas, fe,
+      miedo) → casa y familia.
 - [ ] Que cada uno se guarde solo (`to_dict()` / `from_dict()`): por ahora `World` sigue guardando
       los campos del aldeano (la gripe, por `flu`, `flu_t` y `set_flu`; la espora, por `spore` y
       `set_spore`).
 
-`villager.gd` va de 4.001 a 3.127 líneas.
+`villager.gd` va de 4.001 a 2.828 líneas.
 
 ### Fase 5 · Interfaz (cuando haga falta)
 
