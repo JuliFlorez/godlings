@@ -278,7 +278,7 @@ leer o guardar.
       los campos del aldeano (la gripe, por `flu`, `flu_t` y `set_flu`; la espora, por `spore` y
       `set_spore`).
 
-`villager.gd` va de 4.001 a 3.128 líneas.
+`villager.gd` va de 4.001 a 3.127 líneas.
 
 ### Fase 5 · Interfaz (cuando haga falta)
 
