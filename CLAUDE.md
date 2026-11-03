@@ -26,7 +26,8 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 | Dónde | Qué |
 |---|---|
 | `world/world.gd` (`World`) | La raíz: capas (`Ground`, y `Props` con y-sort), crea los poderes y los conecta con el HUD, población y capacidad, rezos → ofrendas, brotes de gripe, zoom y paneo, menú de inicio y bajada de la cámara, **guardado y carga** (`save_game`, `_load_game`). |
-| `actors/villager/villager.gd` (`Villager`) | El aldeano: física (arrastre, caída, agua, ahogo), IA (paseo, comida, charlas, casa, sueño), estados (gripe, fuego, rayo, escudo, vacuna, resurrección), fe, miedo, ánimo y edad. Se está partiendo en componentes (ver Archivos grandes). |
+| `actors/villager/villager.gd` (`Villager`) | El aldeano: física (arrastre, caída, agua, ahogo), IA (paseo, comida, charlas, casa, sueño), estados (fuego, rayo, escudo, vacuna, resurrección), fe, miedo, ánimo y edad. Se está partiendo en componentes (ver Archivos grandes). |
+| `actors/villager/villager_flu.gd` (`VillagerFlu`) | Un componente del aldeano: la gripe (la incuba, se enferma, estornuda y contagia, y se cura o se muere). |
 | `actors/villager/villager_spore.gd` (`VillagerSpore`) | Un componente del aldeano: la espora zombi (contagio, hongos, el zombi que persigue y muerde, el brote) y el miedo de los sanos a los zombis. |
 | `actors/villager/villager_sounds.gd`, `blood_pool.gd`, `zap_arcs.gd`, `ash_pile.gd`, `flames.gd` | Los sonidos sintetizados del aldeano y sus efectos (el charco de sangre, los chispazos del rayo, las cenizas, las llamas). |
 | `actors/villager/villager_rig.gd` | El esqueleto 2D y lo que se dibuja encima (cara, pelo, ojos, hongos, rayos X). |
@@ -87,10 +88,10 @@ sacrificios), su `locked_tooltip` es "Desbloquealo en la tienda (%d ofrendas y %
 
 ## Archivos grandes
 
-`villager.gd` (~3.270 líneas), `hud.gd` (~1.250), `shark.gd` (~1.200) y `villager_rig.gd`
+`villager.gd` (~3.130 líneas), `hud.gd` (~1.250), `shark.gd` (~1.200) y `villager_rig.gd`
 (~1.150). Un sistema nuevo del aldeano (o uno que se saca, fase 4 del plan) va en su propio
-componente, como `VillagerSpore`: un `RefCounted` con `v` (el aldeano), que el aldeano crea en
-`_init()` y llama desde su loop. Lo que se usa desde afuera, el aldeano lo reenvía (`is_zombie()`,
-la propiedad `spore`...), así no cambian los que llaman. Adentro del componente, lo del aldeano va
-con `v.` (`v.dir`, `v.add_mood()`, `v.global_position`) y sus constantes con `Villager.`; `self`
-es el componente, el aldeano es `v`.
+componente, como `VillagerFlu` y `VillagerSpore`: un `RefCounted` con `v` (el aldeano), que el
+aldeano crea en `_init()` y llama desde su loop. Lo que se usa desde afuera, el aldeano lo reenvía
+(`is_zombie()`, la propiedad `spore`...), así no cambian los que llaman. Adentro del componente, lo
+del aldeano va con `v.` (`v.dir`, `v.add_mood()`, `v.global_position`) y sus constantes con
+`Villager.`; `self` es el componente, el aldeano es `v`.

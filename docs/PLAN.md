@@ -1,6 +1,6 @@
 # Revisión de estructura y plan de mejoras
 
-*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 a 3 hechas; la 4, empezada.*
+*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 a 3 hechas; la 4, en curso.*
 
 **Cómo la hice**: leí la arquitectura (las dos escenas, `World`, `HUD`, las armas, el guardado, la
 i18n), recorrí `Villager` por secciones, medí tamaños y acoplamiento con scripts, pasé `gdlint`
@@ -266,14 +266,19 @@ leer o guardar.
       afuera para que no cambien los que llaman. El pase se hizo con un script que prefija lo del
       aldeano (`v.dir`, `Villager.VOICE_DB`, `self` → `v`) y otro que chequea que no quede nada
       suelto; conviene repetir lo mismo con los que siguen.
+- [x] Gripe → `VillagerFlu`, con los mismos dos scripts. Usa 26 cosas del aldeano (6 son del nodo)
+      y 11 partes suyas se usan desde 5 archivos. Las comparaciones repetidas pasaron a `has_flu()`
+      (la está incubando o está enfermo) y el carnet ya no lee un campo privado (`flu_look()`). El
+      hambre, que estaba metida entre las funciones de la gripe, quedó con la comida.
 - [ ] `enum Body` para los estados excluyentes: cambia el corazón de `_physics_process`, mejor
       después de probar en el juego lo de las fases 2 a 4.
-- [ ] Los demás sistemas, uno por vez: gripe → fuego y rayo → necesidades (hambre, sueño, ánimo) →
+- [ ] Los demás sistemas, uno por vez: fuego y rayo → necesidades (hambre, sueño, ánimo) →
       social (charlas, fe, miedo) → casa y familia.
 - [ ] Que cada uno se guarde solo (`to_dict()` / `from_dict()`): por ahora `World` sigue guardando
-      los campos del aldeano (la espora, por la propiedad `spore` y `set_spore`).
+      los campos del aldeano (la gripe, por `flu`, `flu_t` y `set_flu`; la espora, por `spore` y
+      `set_spore`).
 
-`villager.gd` va de 4.001 a 3.270 líneas.
+`villager.gd` va de 4.001 a 3.128 líneas.
 
 ### Fase 5 · Interfaz (cuando haga falta)
 
