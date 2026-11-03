@@ -136,9 +136,7 @@ func _target(p: Vector2) -> Vector2:
 func _drop(p: Vector2) -> void:
 	var to := _target(p)
 	if not to.is_finite():
-		var hud := get_tree().get_first_node_in_group("hud") as HUD
-		if hud:
-			hud.popup_text("Apuntá a la isla o al agua", get_canvas_transform() * p, HUD.C_WARN)
+		Game.say("Apuntá a la isla o al agua", get_canvas_transform() * p, HUD.C_WARN)
 		return
 	if _cooldown > 0.0:
 		return

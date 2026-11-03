@@ -786,9 +786,7 @@ func _birth(world: World, a: Villager, b: Villager) -> void:
 	for p: Villager in [a, b]:
 		p.baby_cool = Villager.BABY_COOLDOWN
 	Relations.note_birth(a, b)
-	var hud := get_tree().get_first_node_in_group("hud") as HUD
-	if hud:
-		hud.popup_text("¡Nació un bebé!", get_global_transform_with_canvas().origin + Vector2(0, HUT_TOP * HUT_SCALE), Relations.color(Relations.Kind.COUPLE))
+	Game.say("¡Nació un bebé!", get_global_transform_with_canvas().origin + Vector2(0, HUT_TOP * HUT_SCALE), Relations.color(Relations.Kind.COUPLE))
 	for i in 4:
 		var h := Coconut.Heart.new()
 		get_parent().add_child(h)

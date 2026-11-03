@@ -63,7 +63,7 @@ func _notification(what: int) -> void:
 ## Lo saca (si está comprado y se puede) o lo guarda.
 func set_armed(on: bool) -> void:
 	if on and not unlocked:
-		say(need, HUD.C_WARN)
+		Game.announce(need, HUD.C_WARN)
 		return
 	if on == armed or (on and not _can_arm()):
 		return
@@ -107,12 +107,6 @@ func recharge() -> float:
 ## El color del cartel al desbloquearlo.
 func unlock_color() -> Color:
 	return accent
-
-## Un cartel en el medio de la pantalla.
-func say(text: String, tint: Color) -> void:
-	var hud := get_tree().get_first_node_in_group("hud") as HUD
-	if hud:
-		hud.popup_text(text, get_viewport_rect().size * Vector2(0.5, 0.42), tint)
 
 # ---- Lo de cada poder ----
 ## Click izquierdo con el poder afuera, en at (en el mundo).

@@ -289,9 +289,7 @@ func _particles(amount: int, lifetime: float, color: Color) -> CPUParticles2D:
 
 ## Cartel que sale arriba de at (coordenadas del mundo).
 func _popup(text: String, at: Vector2, color: Color) -> void:
-	var hud := get_tree().get_first_node_in_group("hud") as HUD
-	if hud:
-		hud.popup_text(text, get_canvas_transform() * at + Vector2(0, -70), color)
+	Game.say(text, get_canvas_transform() * at + Vector2(0, -70), color)
 
 # ---- Dibujo ----
 func _draw() -> void:

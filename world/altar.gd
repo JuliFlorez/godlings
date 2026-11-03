@@ -63,15 +63,12 @@ func flames(lit: float) -> float:
 func takes(v: Villager, p: Vector2) -> bool:
 	if not deco.is_in_group("altar") or deco.moving or not deco.hit_test(p) or v.dead:
 		return false
-	var hud := get_tree().get_first_node_in_group("hud") as HUD
 	var screen := get_viewport().get_canvas_transform() * deco.altar_top() + Vector2(0, -50)
 	if v.is_child():
-		if hud:
-			hud.popup_text("Es muy chico para eso", screen, HUD.C_WARN)
+		Game.say("Es muy chico para eso", screen, HUD.C_WARN)
 		return false
 	if victim or _cooldown > 0.0:
-		if hud:
-			hud.popup_text("Los braseros todavía no se prendieron", screen, HUD.C_WARN)
+		Game.say("Los braseros todavía no se prendieron", screen, HUD.C_WARN)
 		return false
 	_start(v)
 	return true
@@ -148,11 +145,11 @@ func _finish() -> void:
 			moon.feed()   # Con la Luna de Sangre, se lo come ella
 	deco.stains += 1
 	deco.queue_redraw()
+	Game.say(tr("+%d sacrificios") % gained if gained > 1 else tr("+1 sacrificio"),
+			get_viewport().get_canvas_transform() * at + Vector2(0, -95), C_SACRIFICE)
 	var hud := get_tree().get_first_node_in_group("hud") as HUD
 	if hud:
 		hud.flash_screen(0.25)
-		hud.popup_text(tr("+%d sacrificios") % gained if gained > 1 else tr("+1 sacrificio"),
-				get_viewport().get_canvas_transform() * at + Vector2(0, -95), C_SACRIFICE)
 		_beam(hud)
 	if sky:
 		sky.flash(0.35)

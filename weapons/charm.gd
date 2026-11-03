@@ -404,9 +404,7 @@ func _aim_angle() -> float:
 
 ## Cartel que sube desde arriba de la cabeza de alguien parado en at (coords del mundo).
 func _popup(text: String, at: Vector2, color: Color) -> void:
-	var hud := get_tree().get_first_node_in_group("hud") as HUD
-	if hud:
-		hud.popup_text(text, get_canvas_transform() * at + Vector2(0, -100), color)
+	Game.say(text, get_canvas_transform() * at + Vector2(0, -100), color)
 
 ## Corazoncitos que suben desde at y se desvanecen.
 func _float_hearts(at: Vector2, n: int) -> void:

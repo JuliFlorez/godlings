@@ -1011,9 +1011,7 @@ func stop_eating() -> void:
 func bonk(at: Vector2) -> void:
 	if rig:
 		rig.hit(at, Vector2.DOWN, 0.6)
-	_ensure_hud()
-	if hud:
-		hud.popup_text("¡Bonk!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
+	Game.say("¡Bonk!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
 	add_mood(MOOD_BONKED, "Le cayó un coco en la cabeza")
 
 ## Camina hasta su comida y se la come. false si ya no tiene.
@@ -1236,10 +1234,9 @@ func _finish_chat(o: Villager) -> void:
 		if news == "":
 			news = "¡Pelea!"
 			color = HUD.C_WARN
-	_ensure_hud()
-	if hud and news != "":
+	if news != "":
 		var mid := (get_global_transform_with_canvas().origin + o.get_global_transform_with_canvas().origin) * 0.5
-		hud.popup_text(news, mid + Vector2(0, -100), color)
+		Game.say(news, mid + Vector2(0, -100), color)
 	_end_chat()
 	_wander_off()
 	o._wander_off()
@@ -1294,7 +1291,6 @@ func talk_mouth() -> float:
 ## amigos y su familia lloran un rato, pierden fe y se ponen tristes, y sus enemigos se alegran.
 ## Y deja de contar para los demás.
 func _mourn() -> void:
-	_ensure_hud()
 	var at := body_center()
 	var scary := FEAR_DEATH * (FEAR_DEATH_GENTLE if _gentle_death else 1.0)
 	for node in get_tree().get_nodes_in_group("villager"):
@@ -1312,8 +1308,7 @@ func _mourn() -> void:
 				o.say(Bubble.TEAR, MOURN_TIME, false)
 				o.add_faith(-FAITH_LOST_PARTNER)
 				o.add_mood(MOOD_LOST_PARTNER, "Se le murió la pareja")
-				if hud:
-					hud.popup_text("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), HUD.C_MUTED)
+				Game.say("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), HUD.C_MUTED)
 			Relations.Kind.FRIEND:
 				o.say(Bubble.TEAR, MOURN_TIME * 0.6, false)
 				o.add_faith(-FAITH_LOST_FRIEND)
@@ -1594,10 +1589,8 @@ func set_age(a: float) -> void:
 
 ## Le llegó la hora: se muere tranquilo donde está (si estaba durmiendo, ni se despierta).
 func _die_of_old_age() -> void:
-	_ensure_hud()
-	if hud:
-		hud.popup_text("Murió de vieja" if gender == Gender.FEMALE else "Murió de viejo",
-				get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_MUTED)
+	Game.say("Murió de vieja" if gender == Gender.FEMALE else "Murió de viejo",
+			get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_MUTED)
 	if food:
 		food.release_eater()
 	_gentle_death = true
@@ -1668,9 +1661,8 @@ func _update_family(dt: float) -> void:
 	if sky and sky.passed > 0.0:
 		set_age(age + sky.passed)
 	if was_child and not is_child():
-		_ensure_hud()
-		if hud and visible:
-			hud.popup_text("¡Ya es grande!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SHOP)
+		if visible:
+			Game.say("¡Ya es grande!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SHOP)
 	# Termina parado en la isla (o durmiendo): no se muere colgando del mouse, flotando ni adentro
 	if age >= lifespan and (is_idle() or asleep) and not on_fire:
 		_die_of_old_age()
@@ -2585,9 +2577,8 @@ func ignite() -> void:
 		_fire_light.color = Decoration.TORCH_LIGHT_COLOR
 		_fire_light.enabled = false
 		add_child(_fire_light)
-	_ensure_hud()
-	if hud and not dead:
-		hud.popup_text("¡Se prendió fuego!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)
+	if not dead:
+		Game.say("¡Se prendió fuego!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)
 
 ## Se apaga. steam: cayó al agua (sale vapor).
 func _put_out(steam := false) -> void:
@@ -2603,9 +2594,8 @@ func _put_out(steam := false) -> void:
 	_waterline.set_shader_parameter("embers", 0.0)
 	if steam:
 		_spawn_steam()
-		_ensure_hud()
-		if hud and not dead:
-			hud.popup_text("¡Fiuuu!", get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_TEXT)
+		if not dead:
+			Game.say("¡Fiuuu!", get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_TEXT)
 
 ## Se terminó de quemar: muere carbonizado y después se hace cenizas (ver _update_zap).
 func _burn_out() -> void:
@@ -2836,7 +2826,6 @@ func infect() -> void:
 func cure() -> bool:
 	if not is_alive() or inside or zap_state != Zap.NONE:
 		return false
-	_ensure_hud()
 	var zombie := is_zombie()   # Al zombi ya no lo salva nada (si se quema, se apaga igual)
 	var said := false   # Ya dijo "¡Se curó!"
 	var flu_cured := not zombie and (flu == Flu.INCUBATING or flu == Flu.SICK)
@@ -2846,11 +2835,11 @@ func cure() -> bool:
 	var spore_cured := spore > 0.0 and not zombie
 	if spore_cured:
 		_clear_spore()
-		if hud and not said:
-			hud.popup_text("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
+		if not said:
+			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
 			said = true
-	elif zombie and hud:
-		hud.popup_text("Ya no tiene cura", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_MUTED)
+	elif zombie:
+		Game.say("Ya no tiene cura", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_MUTED)
 	var burns := on_fire or _soot > 0.0
 	if burns:
 		_put_out()
@@ -2858,8 +2847,8 @@ func cure() -> bool:
 		_heat = 0.0
 		if _waterline:
 			_waterline.set_shader_parameter("burnt", 0.0)
-		if hud and not said and not zombie:
-			hud.popup_text("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
+		if not said and not zombie:
+			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
 	var cured := flu_cured or spore_cured or burns
 	if cured and not zombie:
 		_thank(FAITH_CURED, true)
@@ -2937,9 +2926,7 @@ func _sneeze() -> void:
 	add_child(p)
 	p.play()
 	p.finished.connect(p.queue_free)
-	_ensure_hud()
-	if hud:
-		hud.popup_text("¡Achís!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
+	Game.say("¡Achís!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
 		if o == null or o == self or o.flu != Flu.HEALTHY or not o.is_idle():
@@ -2952,9 +2939,7 @@ func _sneeze() -> void:
 func _recover() -> void:
 	flu = Flu.IMMUNE
 	flu_t = IMMUNE_TIME
-	_ensure_hud()
-	if hud:
-		hud.popup_text("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
+	Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
 
 ## Le sube el hambre; con hambre lo dice cada tanto, y con la panza vacía aguanta un rato
 ## (parado en la isla, como con la gripe) y se muere.
@@ -2977,9 +2962,7 @@ func _update_hunger(dt: float) -> void:
 				say(Bubble.HUNGRY, 1.6, false)
 
 func _die_of_hunger() -> void:
-	_ensure_hud()
-	if hud:
-		hud.popup_text("Murió de hambre", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
+	Game.say("Murió de hambre", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
 	if food:
 		food.release_eater()
 	_gentle_death = true
@@ -2989,9 +2972,7 @@ func _die_of_hunger() -> void:
 
 ## No aguantó: se desploma donde está (cuenta como sacrificio, como cualquier muerte).
 func _die_of_flu() -> void:
-	_ensure_hud()
-	if hud:
-		hud.popup_text("Murió de gripe", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
+	Game.say("Murió de gripe", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
 	if food:
 		food.release_eater()
 	_gentle_death = true
@@ -3160,12 +3141,11 @@ func _update_spore_look(dt := 0.0) -> void:
 ## Pasó a otra etapa de la espora: se le empieza a notar (le salen hongos) o se hizo zombi.
 func _spore_turned(stage: Infection) -> void:
 	_spore_seen = stage
-	_ensure_hud()
 	match stage:
 		Infection.SPREADING:
 			_cough_t = randf_range(SPORE_COUGH_EVERY.x, SPORE_COUGH_EVERY.y) * 0.5
-			if hud and visible:
-				hud.popup_text("¡Le salen hongos!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SPORE)
+			if visible:
+				Game.say("¡Le salen hongos!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SPORE)
 		Infection.ZOMBIE:
 			# Deja todo lo que estaba haciendo (y si estaba adentro de su choza, sale)
 			wake_up()
@@ -3179,8 +3159,7 @@ func _spore_turned(stage: Infection) -> void:
 			_resting = false
 			_prey = null
 			_groan_t = randf_range(0.2, 0.8)
-			if hud:
-				hud.popup_text("¡Se hizo zombi!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
+			Game.say("¡Se hizo zombi!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
 			# Los que lo ven se asustan y se quedan mirando
 			var at := body_center()
 			for node in get_tree().get_nodes_in_group("villager"):
@@ -3202,9 +3181,7 @@ func _cough() -> void:
 	if _cough_sound == null:
 		_cough_sound = _make_cough()
 	_play_sfx(_cough_sound, VOICE_DB - 5.0, _voice_pitch * randf_range(0.9, 1.05))
-	_ensure_hud()
-	if hud:
-		hud.popup_text("¡Cof!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SPORE)
+	Game.say("¡Cof!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SPORE)
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
 		if o == null or o == self or o.spore > 0.0 or not (o.is_idle() or o.asleep):
@@ -3331,9 +3308,7 @@ func get_bitten(z: Villager) -> void:
 	add_fear(FEAR_THROW)
 	add_faith(-FAITH_BITTEN)
 	add_mood(MOOD_BITTEN, "La mordió un zombi" if gender == Gender.FEMALE else "Lo mordió un zombi")
-	_ensure_hud()
-	if hud:
-		hud.popup_text("¡Mordida!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)
+	Game.say("¡Mordida!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)
 	catch_spore()
 
 ## Con un zombi cerca se asusta y sale corriendo para el otro lado (y un poco para el medio de la
@@ -3396,10 +3371,8 @@ func _burst() -> void:
 		if o and o != self and not o.dead and Spore.reaches(o, feet, BURST_RADIUS):
 			o.catch_spore(SPORE_DOSE * 0.5)
 	Spore.release_cloud(get_tree(), feet, BURST_RADIUS * 0.8)
-	_ensure_hud()
-	if hud:
-		hud.popup_text("La consumió la espora" if gender == Gender.FEMALE else "Lo consumió la espora",
-				get_global_transform_with_canvas().origin + Vector2(0, -90), HUD.C_SPORE)
+	Game.say("La consumió la espora" if gender == Gender.FEMALE else "Lo consumió la espora",
+			get_global_transform_with_canvas().origin + Vector2(0, -90), HUD.C_SPORE)
 	if food:
 		food.release_eater()
 	_die()
@@ -3534,10 +3507,8 @@ func give_shield(time := SHIELD_TIME, thank := true) -> void:
 		_aura.villager = self
 		add_child(_aura)   # Después del Rig: va por delante del cuerpo
 	if thank:
-		_ensure_hud()
-		if hud:
-			hud.popup_text("¡Bendecida!" if gender == Gender.FEMALE else "¡Bendecido!",
-					get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_HOLY)
+		Game.say("¡Bendecida!" if gender == Gender.FEMALE else "¡Bendecido!",
+				get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_HOLY)
 		_thank(FAITH_SHIELDED, false)
 
 ## Lo vacunaste (ver Miracle): no se contagia de gripe ni de espora por un tiempo (time, en
@@ -3545,10 +3516,8 @@ func give_shield(time := SHIELD_TIME, thank := true) -> void:
 func vaccinate(time := VACCINE_TIME, thank := true) -> void:
 	vaccine_t = maxf(vaccine_t, time)
 	if thank:
-		_ensure_hud()
-		if hud:
-			hud.popup_text("¡Vacunada!" if gender == Gender.FEMALE else "¡Vacunado!",
-					get_global_transform_with_canvas().origin + Vector2(0, -80), Miracle.C_TEAL)
+		Game.say("¡Vacunada!" if gender == Gender.FEMALE else "¡Vacunado!",
+				get_global_transform_with_canvas().origin + Vector2(0, -80), Miracle.C_TEAL)
 		_thank(FAITH_VACCINATED, false)
 
 ## El escudo paró algo (un contagio, un rayo o una mordida): brilla. loud: además suena y lo dice
@@ -3560,10 +3529,8 @@ func _ward_off(loud := false) -> void:
 		_aura.flash = 1.0
 	if loud:
 		_play_sfx(Miracle.sound_for("block"), VOICE_DB - 4.0, randf_range(0.95, 1.08))
-		_ensure_hud()
-		if hud:
-			hud.popup_text("¡Protegida!" if gender == Gender.FEMALE else "¡Protegido!",
-					get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_HOLY)
+		Game.say("¡Protegida!" if gender == Gender.FEMALE else "¡Protegido!",
+				get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_HOLY)
 
 ## El escudo y la vacuna se van gastando.
 func _update_wards(dt: float) -> void:
@@ -3693,9 +3660,7 @@ func _come_back() -> void:
 ## los que lo vieron te creen más y a los herejes les da miedo (más si lo vieron). bonds: lo que
 ## tenía con los demás al morirse; alive: los vivos, por carnet.
 func _celebrate(bonds: Array, alive: Dictionary) -> void:
-	_ensure_hud()
-	if hud:
-		hud.popup_text("¡Volvió a la vida!", get_global_transform_with_canvas().origin + Vector2(0, -90), HUD.C_HOLY)
+	Game.say("¡Volvió a la vida!", get_global_transform_with_canvas().origin + Vector2(0, -90), HUD.C_HOLY)
 	add_faith(FAITH_RISEN)
 	add_mood(MOOD_RISEN, "Volvió de la muerte")
 	say(Bubble.HEART, THANKS_TIME, false)
