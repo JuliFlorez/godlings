@@ -79,9 +79,10 @@ def main() -> int:
     missing = {}   # texto -> [archivo:línea]
     seen = set()   # todos los literales del código
     for f in sorted(ROOT.rglob("*.gd")):
-        if f == I18N or ".godot" in f.parts:
-            continue
         rel = f.relative_to(ROOT).as_posix()
+        # Las herramientas de la CI y los tests no los ve el jugador (ver tools/ci y tests)
+        if f == I18N or ".godot" in f.parts or rel.startswith(("tools/", "tests/")):
+            continue
         for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
             if DEV_ONLY.search(line):
                 continue

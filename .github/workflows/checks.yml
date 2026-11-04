@@ -1,5 +1,9 @@
-# Chequeos que no necesitan Godot: la sintaxis de todos los scripts (gdlint, ver gdlintrc) y que
-# las traducciones estén al día (tools/check_i18n.py). Corre en cada push, en cualquier rama.
+# Chequeos en cada push, en cualquier rama:
+# - checks: lo que no necesita Godot: la sintaxis de todos los scripts (gdlint, ver gdlintrc) y que
+#   las traducciones estén al día (tools/check_i18n.py).
+# - godot: con Godot de verdad (sin pantalla): compila todos los scripts (tools/ci/check_scripts.gd),
+#   corre los tests (tools/ci/run_tests.gd y tests/) y juega una partida sola un rato
+#   (tools/ci/smoke.gd). Falla si Godot escribe algún error de script.
 name: Chequeos
 
 on:
@@ -17,3 +21,42 @@ jobs:
 
       - name: Traducciones
         run: python3 tools/check_i18n.py
+
+  godot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GODOT_VERSION: 4.7.2-stable
+      # Lo que cuenta como error: los de los scripts (compilar o al correr) y no poder cargar uno
+      ERRORS: "SCRIPT ERROR|Parse Error|Compile Error|Failed to load script"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Bajar Godot
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/godot.zip" \
+            "https://github.com/godotengine/godot-builds/releases/download/$GODOT_VERSION/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          mv "$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}_linux.x86_64" "$RUNNER_TEMP/godot/godot"
+          echo "GODOT=$RUNNER_TEMP/godot/godot" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/godot/godot" --version
+
+      # Arma .godot (lo importado y la lista de clases): sin eso no se encuentran los class_name
+      - name: Importar el proyecto
+        run: |
+          "$GODOT" --headless --path . --import 2>&1 | tee import.log || true
+
+      - name: Compilar todos los scripts
+        run: |
+          "$GODOT" --headless --path . --script res://tools/ci/check_scripts.gd 2>&1 | tee check.log
+          ! grep -E "$ERRORS" check.log
+
+      - name: Tests
+        run: |
+          "$GODOT" --headless --path . --script res://tools/ci/run_tests.gd 2>&1 | tee tests.log
+          ! grep -E "$ERRORS" tests.log
+
+      - name: Prueba de humo (una partida que se juega sola)
+        run: |
+          "$GODOT" --headless --path . --fixed-fps 60 --script res://tools/ci/smoke.gd 2>&1 | tee smoke.log
+          ! grep -E "$ERRORS" smoke.log
