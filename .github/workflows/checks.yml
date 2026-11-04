@@ -13,6 +13,11 @@ name: Chequeos
 on:
   push:
   workflow_dispatch:
+    inputs:
+      antes:
+        description: "Commit con el que comparar las capturas (si no, el de antes del push o el anterior)"
+        required: false
+        default: ""
 
 jobs:
   checks:
@@ -111,7 +116,7 @@ jobs:
       - name: Capturas de antes
         continue-on-error: true
         run: |
-          BASE="${{ github.event.before }}"
+          BASE="${{ inputs.antes || github.event.before }}"
           if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-parse HEAD~1); fi
           echo "Antes: $(git log --oneline -1 "$BASE")"
           git worktree add -q "$RUNNER_TEMP/antes" "$BASE"
