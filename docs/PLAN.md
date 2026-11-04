@@ -340,8 +340,9 @@ de Sangre). Lo último de la fase:
       corridas salgan iguales hizo falta una semilla fija, que las animaciones que se dibujan usen
       un reloj que avanza con cada cuadro (`World.anim_time`) en vez del de la compu, sacar un
       `randomize()` que tenía cada aldeano y que las pruebas jueguen en la ranura 9 (que además ya
-      no pisan una partida de verdad si se corren en la compu). Cada paso de esta fase se comparó
-      así con el anterior: todos dieron 18 de 18 iguales. La comparación encontró un error al
+      no pisan una partida de verdad si se corren en la compu). Desde ahí, cada paso de esta fase se
+      comparó así con el anterior y dio 18 de 18 iguales (la mudanza de `HudIcon` y `Painter` fue
+      antes: esa la cubren la compilación y la prueba de humo). La comparación encontró un error al
       partir el HUD que leyendo el código no se veía (las barras nuevas no ocupaban la pantalla y
       el + de invocar, las monedas y la barra de poderes quedaban corridos) y se arregló antes de
       seguir.
