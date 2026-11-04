@@ -286,14 +286,24 @@ leer o guardar.
       propiedades de solo lectura. Lo que arrancaba al azar en `_ready` (el ánimo, el cansancio y
       el hambre del principio) ahora arranca en el componente; las partidas y los bebés lo pisan
       después, igual que antes.
+- [x] Social → dos componentes: `VillagerChat` (las charlas) y `VillagerFaith` (la fe y el miedo),
+      un commit cada uno. Cada uno usa 29 cosas del aldeano; a las charlas las usan 7 archivos y a
+      la fe, 10. Charlar es de a dos: lo que hay que hacer del lado del otro (sumarlo a la charla,
+      cortársela) va por lo que reenvía su aldeano (`join_chat`, `leave_chat`) en vez de tocarle
+      los campos. Se quedaron en el aldeano, porque los usan todos: los globitos (`say`), el
+      duelo (`_mourn`), quedarse quieto y los empujones (`get_pushed_by`, ahora público porque lo
+      usa la Discordia), y salir corriendo (`_scram`, que también usan la espora y el altar).
+      `witness()` también es público ahora (lo usan el altar y la espora). El script ahora también
+      prefija los tipos de las firmas (`-> Bubble` → `-> Villager.Bubble`), que el chequeo
+      tampoco revisaba.
 - [ ] `enum Body` para los estados excluyentes: cambia el corazón de `_physics_process`, mejor
       después de probar en el juego lo de las fases 2 a 4.
-- [ ] Los demás sistemas, uno por vez: social (charlas, fe, miedo) → casa y familia.
+- [ ] El que falta: casa y familia (y la edad).
 - [ ] Que cada uno se guarde solo (`to_dict()` / `from_dict()`): por ahora `World` sigue guardando
       los campos del aldeano (la gripe, por `flu`, `flu_t` y `set_flu`; la espora, por `spore` y
-      `set_spore`; el hambre, el ánimo y el sueño, por sus propiedades).
+      `set_spore`; el hambre, el ánimo, el sueño, la fe y el miedo, por sus propiedades).
 
-`villager.gd` va de 4.001 a 2.430 líneas.
+`villager.gd` va de 4.001 a 2.148 líneas.
 
 ### Fase 5 · Interfaz (cuando haga falta)
 
