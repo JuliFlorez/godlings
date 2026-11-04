@@ -27,11 +27,13 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 | Dónde | Qué |
 |---|---|
 | `world/world.gd` (`World`) | La raíz: capas (`Ground`, y `Props` con y-sort), crea los poderes y los conecta con el HUD, población y capacidad, rezos → ofrendas, brotes de gripe, zoom y paneo, menú de inicio y bajada de la cámara, **guardado y carga** (`save_game`, `_load_game`). |
-| `actors/villager/villager.gd` (`Villager`) | El aldeano: física (arrastre, caída, agua, ahogo, empujones), el paseo y la casa, la edad, el escudo, la vacuna y la resurrección, los globitos (`say`) y el duelo. Lo demás está en sus componentes (ver Archivos grandes). |
+| `actors/villager/villager.gd` (`Villager`) | El aldeano: el cuerpo y su física (arrastre, caída, agua, ahogo, empujones), el paseo, cómo es y su carnet, el escudo, la vacuna y la resurrección, los globitos (`say`) y el duelo. Cada sistema está en su componente (ver Archivos grandes). |
+| `actors/villager/villager_age.gd` (`VillagerAge`) | Un componente del aldeano: la edad (crece, le salen canas, envejece, se muere de viejo) y si puede tener un bebé. |
 | `actors/villager/villager_burn.gd` (`VillagerBurn`) | Un componente del aldeano: el fuego y el rayo (se prende o lo electrocuta, queda carbonizado y se hace cenizas). |
 | `actors/villager/villager_chat.gd` (`VillagerChat`) | Un componente del aldeano: las charlas (con quién, ir hasta el otro, hablar por turnos, cómo les fue, las peleas). |
 | `actors/villager/villager_faith.gd` (`VillagerFaith`) | Un componente del aldeano: la fe y el miedo (devoto, fanático, hereje o aterrado), los rezos y las ofrendas, y cómo reacciona a tu mano. |
 | `actors/villager/villager_flu.gd` (`VillagerFlu`) | Un componente del aldeano: la gripe (la incuba, se enferma, estornuda y contagia, y se cura o se muere). |
+| `actors/villager/villager_home.gd` (`VillagerHome`) | Un componente del aldeano: la casa (en qué choza vive, ir a dormir o a descansar, entrar y salir). |
 | `actors/villager/villager_hunger.gd` (`VillagerHunger`) | Un componente del aldeano: el hambre y la comida (busca qué comer, va, mastica, se muere de hambre). |
 | `actors/villager/villager_mood.gd` (`VillagerMood`) | Un componente del aldeano: el ánimo (lo que le toca por cómo está su vida, lo que le pasa, por qué está así) y los pesos `MOOD_*`. |
 | `actors/villager/villager_sleep.gd` (`VillagerSleep`) | Un componente del aldeano: el sueño (el cansancio, dormir de noche y la siesta, acostarse y despertarse). |
@@ -95,7 +97,7 @@ sacrificios), su `locked_tooltip` es "Desbloquealo en la tienda (%d ofrendas y %
 
 ## Archivos grandes
 
-`villager.gd` (~2.150 líneas), `hud.gd` (~1.250), `shark.gd` (~1.200) y `villager_rig.gd`
+`villager.gd` (~1.950 líneas), `hud.gd` (~1.250), `shark.gd` (~1.200) y `villager_rig.gd`
 (~1.150). Un sistema nuevo del aldeano (o uno que se saca, fase 4 del plan) va en su propio
 componente, como `VillagerFlu` o `VillagerMood` (están en el Mapa): un `RefCounted` con `v` (el
 aldeano), que el aldeano crea en `_init()` y llama desde su loop. Lo que se usa desde afuera, el

@@ -296,14 +296,27 @@ leer o guardar.
       `witness()` también es público ahora (lo usan el altar y la espora). El script ahora también
       prefija los tipos de las firmas (`-> Bubble` → `-> Villager.Bubble`), que el chequeo
       tampoco revisaba.
+- [x] Casa y familia → `VillagerHome` (la casa) y `VillagerAge` (la edad, con si puede tener un
+      bebé), un commit cada uno. Antes, `_update_family` se partió en dos (pasar los días y fijarse
+      dónde vivir), en el mismo orden y con los mismos casos. La casa usa 35 cosas del aldeano y la
+      usan 8 archivos; la edad, 23 y 10. Estar adentro de la choza (`inside`) se quedó en el aldeano
+      porque es un estado del cuerpo que miran todos, y los padres pasaron al carnet. El carnet, el
+      guardado y los otros componentes llaman ahora a `has_home()`, `can_go_home()`, `going_home`...
+      en vez de los nombres privados de antes. El script ahora busca al final nombres viejos que
+      hayan quedado en cualquier archivo (como `p._home_ok()` en la pareja).
+
+Con esto todos los sistemas del aldeano son componentes. En `villager.gd` queda el cuerpo (los 12
+estados y `_physics_process`), el paseo, cómo es y su carnet, los globitos y el duelo, y lo que le
+hacen directo los poderes (escudo, vacuna, resurrección, meteorito, tornado, diluvio, tiburón, Luna de
+Sangre). Lo que sigue de esta fase son las dos de abajo:
+
 - [ ] `enum Body` para los estados excluyentes: cambia el corazón de `_physics_process`, mejor
       después de probar en el juego lo de las fases 2 a 4.
-- [ ] El que falta: casa y familia (y la edad).
 - [ ] Que cada uno se guarde solo (`to_dict()` / `from_dict()`): por ahora `World` sigue guardando
       los campos del aldeano (la gripe, por `flu`, `flu_t` y `set_flu`; la espora, por `spore` y
-      `set_spore`; el hambre, el ánimo, el sueño, la fe y el miedo, por sus propiedades).
+      `set_spore`; lo demás, por sus propiedades).
 
-`villager.gd` va de 4.001 a 2.148 líneas.
+`villager.gd` va de 4.001 a 1.946 líneas.
 
 ### Fase 5 · Interfaz (cuando haga falta)
 

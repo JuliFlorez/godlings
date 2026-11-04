@@ -9,6 +9,7 @@ disable:
   - max-line-length
   # Los return tempranos son el estilo del proyecto
   - max-returns
-  # Villager y HUD se pasan; se vuelven a prender al partirlos (ver docs/PLAN.md, fases 2 a 4)
+  # Villager (~1.950), HUD, el tiburón y el rig todavía pasan de 1.000 líneas, y el aldeano tiene
+  # muchos métodos públicos porque reenvía lo de sus componentes (ver docs/PLAN.md, fase 4)
   - max-file-lines
   - max-public-methods
