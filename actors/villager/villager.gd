@@ -377,7 +377,6 @@ func _init() -> void:
 	_spore = VillagerSpore.new(self)
 
 func _ready() -> void:
-	randomize()
 	speed *= randf_range(PACE.x, PACE.y)
 	_pick_dir()
 	wander_timer = randf_range(1.5, 4.0)
