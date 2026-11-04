@@ -5,8 +5,9 @@
 #   corre los tests (tools/ci/run_tests.gd y tests/) y juega una partida sola un rato
 #   (tools/ci/smoke.gd). Falla si Godot escribe algún error de script.
 # - screens: con Godot dibujando de verdad (en una pantalla virtual) saca capturas de la interfaz
-#   (tools/ci/screenshots.gd) y las deja en el artefacto "capturas" de cada corrida, para verla sin
-#   abrir el juego y comparar antes y después de tocarla.
+#   (tools/ci/screenshots.gd), saca las mismas en el commit de antes del push y dice en el log qué
+#   cambió y dónde (tools/ci/compare_screens.py). Deja todo en el artefacto "capturas" de cada
+#   corrida (con diff_*.png: lo que cambió, en magenta), para ver la interfaz sin abrir el juego.
 name: Chequeos
 
 on:
@@ -72,6 +73,8 @@ jobs:
       ERRORS: "SCRIPT ERROR|Parse Error|Compile Error|Failed to load script"
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # Para sacar también las capturas de antes del push
 
       - name: Bajar Godot
         run: |
@@ -81,11 +84,14 @@ jobs:
           mv "$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}_linux.x86_64" "$RUNNER_TEMP/godot/godot"
           echo "GODOT=$RUNNER_TEMP/godot/godot" >> "$GITHUB_ENV"
 
-      # Una pantalla virtual (xvfb) con OpenGL por software (Mesa), para dibujar sin placa de video
+      # Una pantalla virtual (xvfb) con OpenGL por software (Mesa), para dibujar sin placa de video,
+      # y Pillow para comparar las capturas
       - name: Pantalla virtual
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q xvfb libgl1-mesa-dri libglx-mesa0
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install -q pillow
 
       - name: Importar el proyecto
         run: |
@@ -98,10 +104,33 @@ jobs:
           ! grep -E "$ERRORS" screens.log
           ls capturas
 
+      # Las mismas capturas en el commit de antes del push (o el anterior), con el script de ahora
+      - name: Capturas de antes
+        continue-on-error: true
+        run: |
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then BASE=$(git rev-parse HEAD~1); fi
+          echo "Antes: $(git log --oneline -1 "$BASE")"
+          git worktree add -q "$RUNNER_TEMP/antes" "$BASE"
+          mkdir -p "$RUNNER_TEMP/antes/tools/ci"
+          cp tools/ci/screenshots.gd "$RUNNER_TEMP/antes/tools/ci/"
+          "$GODOT" --headless --path "$RUNNER_TEMP/antes" --import > /dev/null 2>&1 || true
+          xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path "$RUNNER_TEMP/antes" --fixed-fps 60 \
+            --audio-driver Dummy --rendering-driver opengl3 --script res://tools/ci/screenshots.gd \
+            -- --out="$PWD/capturas_antes" > screens_antes.log 2>&1
+          grep "Capturas" screens_antes.log
+
+      - name: Comparar con las de antes
+        if: always()
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" tools/ci/compare_screens.py capturas_antes capturas capturas
+
       - name: Subir las capturas
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: capturas
-          path: capturas/
+          path: |
+            capturas/
+            capturas_antes/
           retention-days: 14
