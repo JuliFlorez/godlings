@@ -143,6 +143,6 @@ func sleep_ai(dt: float) -> void:
 ## (muerto de sueño, aunque tenga hambre; muerto de hambre, nunca).
 func _can_sleep() -> bool:
 	return v.is_idle() and v.chat_with == null and v.food == null and not v.on_fire and v._flee <= 0.0 \
-			and v._scram <= 0.0 and not v.is_scared() and v.pose == Villager.Pose.NONE and not v.starving() \
+			and v._scram <= 0.0 and not v.is_scared() and v.pose == VillagerFaith.Pose.NONE and not v.starving() \
 			and (v.hunger < VillagerHunger.HUNGRY_AT or tiredness >= EXHAUSTED_AT) and not v.is_zombie() \
 			and not v._going_home and not Storm.water_near(v.ground_point(), Villager.FLOOD_FLEE)

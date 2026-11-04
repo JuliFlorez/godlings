@@ -16,6 +16,7 @@ var island_poly: PackedVector2Array:
 
 var dragging := false
 var grab_local := Vector2.ZERO   # Punto del cuerpo (local) por donde se agarró
+var _from_water := false                # Lo agarraste del agua: si lo dejás en la isla, lo rescataste
 
 # --- Ragdoll al arrastrar: el cuerpo cuelga como péndulo del punto de agarre ---
 const BODY_COM := Vector2(0, 5)  # Centro de masa aproximado (local)
@@ -66,6 +67,8 @@ var drown_elapsed := 0.0
 
 # Comido por el tiburón
 var eaten := false
+## Acostado en un altar de sacrificios esperando el final del ritual (lo mueve el altar, ver Altar)
+var altar: Altar
 
 # --- Muerte por disparo: el cadáver sale despedido y cae en ragdoll ---
 const SHOT_FORCE := 300.0     # Empuje horizontal del balazo
@@ -81,6 +84,7 @@ var corpse_vel := Vector2.ZERO
 var floor_y := 0.0            # Altura del "piso" donde cae el cadáver
 var corpse_timer := 0.0
 var fall_vx := 0.0            # Deriva horizontal al caer (cadáver empujado fuera de la isla)
+var _gentle_death := false              # Se murió de gripe o de hambre (asusta menos a los que lo ven)
 
 # --- Fuego y rayo (ver VillagerBurn): se prende fuego o lo parte un rayo, queda carbonizado y se hace cenizas ---
 var _burn: VillagerBurn
@@ -109,6 +113,9 @@ const FLOOD_FLEE_SPEED := 2.0
 var flooded := false             # Flota en la isla inundada (no en el mar)
 var _flee := 0.0
 var _flee_bias := 0.0            # Cada uno se escapa para un lado un poco distinto
+const SCRAM_TIME := 0.7                 # El aterrado sigue corriendo un poco después
+const SCRAM_SPEED := 2.2                # Veces speed
+var _scram := 0.0                       # Escapándose (de tu mano, de un zombi o de un ritual)
 
 # --- Gripe (ver VillagerFlu): se contagia, la incuba, se enferma y se cura (queda inmune) o se muere ---
 var _flu: VillagerFlu
@@ -274,53 +281,24 @@ var chat_with: Villager:
 	get:
 		return _chat.chat_with
 
-# --- Fe y miedo: cuánto creen en vos (el dios de la isla) y cuánto te temen, de 0 a 100. Con
-# eso son devotos, fanáticos, herejes o aterrados (ver creed). La fe sube con los milagros
-# (curarlos, rescatarlos del agua, o ver que curaste a otro) y baja de a poco si no hacés nada
-# por ellos, y de golpe si se les muere la pareja o un amigo. El miedo sube con lo que ven:
-# alguien que se muere cerca (más si lo querían), que los agarres o los revolees, el sol o la
-# luna perturbados; y se les va pasando (charlando, más rápido). Si pasás el mouse cerca, el
-# devoto se arrodilla y te reza, el fanático también pero temblando, el aterrado sale
-# corriendo y el hereje ni te mira; con un arma afuera, los que te temen se agachan. Rezando
-# dejan ofrendas según la fe y el miedo, y la fe recarga la devoción (ver World). Se ve en el
-# carnet y se guarda con la partida.
-enum Creed { DEVOUT, ZEALOT, HERETIC, TERRIFIED }
-enum Pose { NONE, PRAY, COWER }         # Ver VillagerRig
-const FAITH_START := Vector2(55.0, 75.0)
-const FEAR_START := Vector2(0.0, 10.0)
-const BELIEVES_AT := 40.0               # Con esta fe o más cree en vos...
-const FEARS_AT := 50.0                  # ...y con este miedo o más te teme
-const FAITH_DRIFT := 0.02               # Fe que pierde por segundo (1,2 por minuto) si no hacés nada
-const FEAR_FADE := 0.12                 # Miedo que se le pasa por segundo...
-const FEAR_FADE_CHAT := 3.0             # ...y charlando, el triple
-const WITNESS_RADIUS := 260.0           # Hasta dónde ve lo que pasa (de cerca, más le afecta)
-const WITNESS_STARE := 1.5              # Ve morir a alguien: se queda mirando, con la boca abierta
-const FEAR_DEATH := 25.0                # Ver morir a alguien bien de cerca (de gripe, menos)
-const FEAR_DEATH_GENTLE := 0.3
-const FEAR_LOVED := 15.0                # Y si era su pareja o un amigo, más
-const FAITH_LOST_PARTNER := 20.0        # Se le murió la pareja (lo haya visto o no)
-const FAITH_LOST_FRIEND := 8.0
-const FEAR_GRAB := 4.0                  # Que lo agarres...
-const FEAR_THROW := 12.0                # ...o lo revolees
-const FEAR_CREEPY := 0.4                # Por segundo, con el sol o la luna perturbados afuera
-const FAITH_CURED := 15.0
-const FAITH_RESCUED := 12.0             # Sacado del agua y dejado en la isla
-const FAITH_MIRACLE := 4.0              # Ver de cerca que curaste a alguien
-const THANKS_TIME := 1.6                # El corazoncito que pone al curarlo o rescatarlo
-const HAND_NEAR := 110.0                # El mouse (tu mano) así de cerca: te nota
-const SCRAM_TIME := 0.7                 # El aterrado sigue corriendo un poco después
-const SCRAM_SPEED := 2.2                # Veces speed
-const TRIBUTE_PAR := 110.0              # Fe más miedo que hacen 1 ofrenda por rezo
-var faith := 60.0
-var fear := 0.0
-var pose := Pose.NONE                   # Lo que está haciendo por vos (ver VillagerRig)
-var _scram := 0.0                       # Escapándose de tu mano
-var _from_water := false                # Lo agarraste del agua: si lo dejás en la isla, lo rescataste
-var _gentle_death := false              # Se murió de gripe o de hambre (asusta menos a los que lo ven)
-var _worship := 0.0                     # Viendo un ritual en el altar: lo que le queda de rodillas...
-var _worship_at := Vector2.ZERO         # ...rezando para ahí (ver witness_ritual)
-## Acostado en un altar de sacrificios esperando el final del ritual (lo mueve el altar, ver Altar)
-var altar: Altar
+# --- Fe y miedo (ver VillagerFaith): cuánto creen en vos y cuánto te temen; te rezan y dejan ofrendas ---
+var _faith: VillagerFaith
+## Cuánto cree en vos: 0 .. 100 (ver VillagerFaith).
+var faith: float:
+	get:
+		return _faith.faith
+	set(value):
+		_faith.faith = value
+## Cuánto te teme: 0 .. 100 (ver VillagerFaith).
+var fear: float:
+	get:
+		return _faith.fear
+	set(value):
+		_faith.fear = value
+## Lo que está haciendo por vos: rezarte o agacharse de miedo (ver VillagerRig).
+var pose: VillagerFaith.Pose:
+	get:
+		return _faith.pose
 
 # --- Ánimo (ver VillagerMood): qué tan contento está, por cómo está su vida y por lo que le pasa ---
 var _mood: VillagerMood
@@ -392,6 +370,7 @@ var _resting := false
 var _rig_rest := Vector2.ZERO   # Dónde va el rig (comiendo, mastica para arriba y para abajo)
 
 func _init() -> void:
+	_faith = VillagerFaith.new(self)
 	_chat = VillagerChat.new(self)
 	_hunger = VillagerHunger.new(self)
 	_sleep = VillagerSleep.new(self)
@@ -405,8 +384,6 @@ func _ready() -> void:
 	speed *= randf_range(PACE.x, PACE.y)
 	_pick_dir()
 	wander_timer = randf_range(1.5, 4.0)
-	faith = randf_range(FAITH_START.x, FAITH_START.y)   # Las partidas guardadas traen la suya
-	fear = randf_range(FEAR_START.x, FEAR_START.y)
 	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
 	_home_check = randf_range(0.0, HOME_CHECK)
 	age = randf_range(SPAWN_AGE.x, SPAWN_AGE.y)   # Los bebés y las partidas guardadas traen la suya
@@ -651,7 +628,7 @@ func _physics_process(dt: float) -> void:
 	# Asustado (ve venir un meteorito) se queda quieto mirándolo, y rezando o agachado de miedo
 	# también; prendido fuego (o escapándose del agua o de tu mano) corre sin parar
 	var hurry := on_fire or _flee > 0.0 or _scram > 0.0
-	var stop := (_resting or is_scared() or pose != Pose.NONE) and not hurry
+	var stop := (_resting or is_scared() or pose != VillagerFaith.Pose.NONE) and not hurry
 	_walk = move_toward(_walk, 0.0 if stop else 1.0, WALK_ACCEL * dt * (4.0 if hurry else 1.0))
 	# Al doblar va más despacio (y si vuelve para atrás, frena y arranca de nuevo)
 	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * (2.0 if hurry else 1.0) * dt))
@@ -1000,7 +977,7 @@ func _seek_home(dt: float) -> void:
 
 func _can_go_home() -> bool:
 	return _home_ok() and not _going_home and is_idle() and not on_fire and food == null \
-			and chat_with == null and _flee <= 0.0 and _scram <= 0.0 and pose == Pose.NONE \
+			and chat_with == null and _flee <= 0.0 and _scram <= 0.0 and pose == VillagerFaith.Pose.NONE \
 			and hunger < VillagerHunger.HUNGRY_AT and not home.moving and not is_zombie()
 
 func _go_home() -> void:
@@ -1104,116 +1081,29 @@ func _night() -> float:
 	var sky := get_tree().get_first_node_in_group("sky")
 	return sky.night if sky else 0.0
 
-# --- FE Y MIEDO ---
-## Devoto, fanático, hereje o aterrado, según cuánto cree en vos y cuánto te teme.
-func creed() -> Creed:
-	if faith >= BELIEVES_AT:
-		return Creed.ZEALOT if fear >= FEARS_AT else Creed.DEVOUT
-	return Creed.TERRIFIED if fear >= FEARS_AT else Creed.HERETIC
+# --- FE Y MIEDO (lo que el resto del juego le pregunta al aldeano; ver VillagerFaith) ---
+func creed() -> VillagerFaith.Creed:
+	return _faith.creed()
 
 func add_faith(amount: float) -> void:
-	faith = clampf(faith + amount, 0.0, 100.0)
+	_faith.add_faith(amount)
 
 func add_fear(amount: float) -> void:
-	fear = clampf(fear + amount, 0.0, 100.0)
+	_faith.add_fear(amount)
 
-## Lo que deja cada vez que reza (ver World): más cuanto más cree en vos y más te teme, y
-## cuanto más contento está.
 func tribute() -> float:
-	return (faith + fear) / TRIBUTE_PAR * lerpf(VillagerMood.MOOD_TRIBUTE.x, VillagerMood.MOOD_TRIBUTE.y, mood / 100.0)
+	return _faith.tribute()
 
-## Si te reza (y deja ofrendas, ver World._prayers).
 func prays() -> bool:
-	return prayer_block() == ""
+	return _faith.prays()
 
-## Por qué no te reza ahora ("" si reza): se murió, se está ahogando, es un zombi, le crecen
-## hongos, tiene gripe, se muere de hambre o está durmiendo (se ve en el carnet).
 func prayer_block() -> String:
-	if not is_alive():
-		return "Muerto"
-	if drowning:
-		return "Se está ahogando"
-	if is_zombie():
-		return "Es un zombi"
-	if spore_shows():
-		return "Le crecen hongos"
-	if is_sick():
-		return "Tiene gripe"
-	if starving():
-		return "Se muere de hambre"
-	if is_sleeping():
-		return "Está durmiendo"
-	return ""
+	return _faith.prayer_block()
 
-## Cuánto le afecta algo que pasó en at: 1 bien de cerca, nada si no lo vio.
-func _witness(at: Vector2) -> float:
-	if inside:
-		return 0.0   # Adentro de su choza no ve nada
-	var d := body_center().distance_to(at)
-	return 0.0 if d > WITNESS_RADIUS else lerpf(1.0, 0.4, d / WITNESS_RADIUS)
+func witness(at: Vector2) -> float:
+	return _faith.witness(at)
 
-## Le hiciste un milagro (lo curaste o lo rescataste): te cree más y te lo agradece. Los que
-## lo vieron (si lo curaste) también te creen un poco más.
-func _thank(amount: float, seen_by_others: bool) -> void:
-	add_faith(amount)
-	add_mood(VillagerMood.MOOD_MIRACLE, "Le hiciste un milagro")
-	say(Bubble.HEART, THANKS_TIME, false)
-	if not seen_by_others:
-		return
-	var at := body_center()
-	for node in get_tree().get_nodes_in_group("villager"):
-		var o := node as Villager
-		if o and o != self and o.is_alive():
-			o.add_faith(FAITH_MIRACLE * o._witness(at))
-
-## La fe se le va gastando y el miedo se le va pasando (o crece, con el cielo perturbado). Si
-## tu mano anda cerca reacciona según lo que cree: reza (pose), se escapa (_scram) o nada; y
-## si sacaste un arma, el que te teme se agacha.
-func _update_faith(dt: float) -> void:
-	_scram = maxf(0.0, _scram - dt)
-	pose = Pose.NONE
-	if not is_alive() or is_zombie():
-		return   # (El zombi ya no cree en nada ni le tiene miedo a nada)
-	add_faith(-(FAITH_DRIFT + (VillagerHunger.FAITH_DRIFT_STARVING if starving() else 0.0)) * dt)
-	add_fear(-FEAR_FADE * (FEAR_FADE_CHAT if chat_with else 1.0) * dt)
-	if _creepy_sky():
-		add_fear(FEAR_CREEPY * dt)
-	if _worship > 0.0:
-		# Viendo un ritual en el altar: de rodillas, rezando para ese lado
-		_worship -= dt
-		if is_idle() and not on_fire:
-			pose = Pose.PRAY
-			if rig:
-				rig.set_facing_left(_worship_at.x < global_position.x)
-		return
-	_ensure_hud()
-	if hud == null or not hud.visible or not is_idle() or on_fire or _flee > 0.0:
-		return
-	var hand := get_global_mouse_position()
-	var near := body_center().distance_to(hand) < HAND_NEAR
-	var c := creed()
-	if near and c == Creed.TERRIFIED:
-		# Sale corriendo para el otro lado (aunque estuviera comiendo)
-		_scram = SCRAM_TIME
-		dir = (global_position - hand).normalized()
-		_update_sprite_flip()
-		_resting = false
-		if food:
-			food.release_eater()
-	elif food:
-		return   # Comiendo, ni te mira
-	elif near and c != Creed.HERETIC:
-		pose = Pose.PRAY
-		if rig:
-			rig.set_facing_left(hand.x < global_position.x)
-	elif fear >= FEARS_AT and Power.threat():   # Con un arma o poder afuera (con la comida, no)
-		pose = Pose.COWER
-
-## El sol o la luna perturbados (o la Luna de Sangre) a la vista.
-func _creepy_sky() -> bool:
-	var sky := get_tree().get_first_node_in_group("sky")
-	return sky != null and (sky.blood_moon or (sky.sun.creepy and sky.sun.is_up) or (sky.moon.creepy and sky.moon.is_up))
-
+# --- CUERPO Y EMPUJONES ---
 ## Empuje suave para no quedar encimado con otros aldeanos en tierra.
 func _separation() -> Vector2:
 	var push := Vector2.ZERO
@@ -1307,18 +1197,6 @@ func _fall_from_shove() -> void:
 		v_fall = minf(push.y, 0.0)
 		swing_vel = clampf(push.x * 0.02, -8.0, 8.0)  # Que trastabille al caer
 
-## Cuenta como sacrificio: XP, sacrificios y ofrendas (el altar da más, ver Altar).
-func _grant_sacrifice_xp(offering := SACRIFICE_OFFERING, sacrifices := 1) -> void:
-	if xp_granted:
-		return
-	xp_granted = true
-	Genealogy.remember(self)   # Queda en el árbol genealógico (antes del duelo: todavía tiene pareja)
-	_mourn()   # Toda muerte pasa por acá
-	Game.add_xp(1)
-	Game.add_sacrifices(sacrifices)
-	Game.add_offerings(offering)
-	Game.say(tr("+%d ofrendas") % offering, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
-
 # --- ALTAR ---
 ## Lo soltaste encima del altar (ver Altar): queda acostado en la piedra, pataleando y con la
 ## boca abierta, hasta el final del ritual (lo mueve el altar).
@@ -1335,7 +1213,7 @@ func lay_on_altar(a: Altar) -> void:
 	rotation = (1.0 if randf() < 0.5 else -1.0) * PI * 0.5
 	z_index = 1   # Arriba de la piedra (por el orden por Y quedaría detrás del altar)
 	_scared = Altar.RITUAL_TIME + 1.0   # La boca abierta (ver VillagerRig)
-	add_fear(FEAR_THROW)
+	add_fear(VillagerFaith.FEAR_THROW)
 
 ## Ya no hay altar (lo quitaron): se cae de la piedra.
 func leave_altar() -> void:
@@ -1365,10 +1243,9 @@ func witness_ritual(time: float, at: Vector2) -> void:
 	if food:
 		food.release_eater()
 	match creed():
-		Creed.DEVOUT, Creed.ZEALOT:
-			_worship = time
-			_worship_at = at
-		Creed.TERRIFIED:
+		VillagerFaith.Creed.DEVOUT, VillagerFaith.Creed.ZEALOT:
+			_faith.worship(time, at)
+		VillagerFaith.Creed.TERRIFIED:
 			_scram = time * 0.5
 			dir = (global_position - at).normalized()
 			_update_sprite_flip()
@@ -1428,31 +1305,43 @@ func _die() -> void:
 	if rig:
 		rig.set_dead()
 
+## Cuenta como sacrificio: XP, sacrificios y ofrendas (el altar da más, ver Altar).
+func _grant_sacrifice_xp(offering := SACRIFICE_OFFERING, sacrifices := 1) -> void:
+	if xp_granted:
+		return
+	xp_granted = true
+	Genealogy.remember(self)   # Queda en el árbol genealógico (antes del duelo: todavía tiene pareja)
+	_mourn()   # Toda muerte pasa por acá
+	Game.add_xp(1)
+	Game.add_sacrifices(sacrifices)
+	Game.add_offerings(offering)
+	Game.say(tr("+%d ofrendas") % offering, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
+
 ## Se murió: los que lo vieron se asustan (más si lo querían) y se quedan mirando; su pareja, sus
 ## amigos y su familia lloran un rato, pierden fe y se ponen tristes, y sus enemigos se alegran.
 ## Y deja de contar para los demás.
 func _mourn() -> void:
 	var at := body_center()
-	var scary := FEAR_DEATH * (FEAR_DEATH_GENTLE if _gentle_death else 1.0)
+	var scary := VillagerFaith.FEAR_DEATH * (VillagerFaith.FEAR_DEATH_GENTLE if _gentle_death else 1.0)
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
 		if o == null or o == self or not o.is_alive() or o.is_zombie():
 			continue   # (El zombi ya no siente nada)
 		var k := Relations.kind(self, o)
-		var seen := o._witness(at)
+		var seen := o.witness(at)
 		if seen > 0.0:
 			var loved := k == Relations.Kind.COUPLE or k == Relations.Kind.FRIEND
-			o.add_fear((scary + (FEAR_LOVED if loved else 0.0)) * seen)
-			o.scare(WITNESS_STARE, at)
+			o.add_fear((scary + (VillagerFaith.FEAR_LOVED if loved else 0.0)) * seen)
+			o.scare(VillagerFaith.WITNESS_STARE, at)
 		match k:
 			Relations.Kind.COUPLE:
 				o.say(Bubble.TEAR, MOURN_TIME, false)
-				o.add_faith(-FAITH_LOST_PARTNER)
+				o.add_faith(-VillagerFaith.FAITH_LOST_PARTNER)
 				o.add_mood(VillagerMood.MOOD_LOST_PARTNER, "Se le murió la pareja")
 				Game.say("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), HUD.C_MUTED)
 			Relations.Kind.FRIEND:
 				o.say(Bubble.TEAR, MOURN_TIME * 0.6, false)
-				o.add_faith(-FAITH_LOST_FRIEND)
+				o.add_faith(-VillagerFaith.FAITH_LOST_FRIEND)
 				o.add_mood(VillagerMood.MOOD_LOST_FRIEND, "Se le murió un amigo")
 			Relations.Kind.ENEMY:
 				o.add_mood(VillagerMood.MOOD_ENEMY_DIED, "Se murió un enemigo")
@@ -1703,7 +1592,7 @@ func cure() -> bool:
 			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
 	var cured := flu_cured or spore_cured or burns
 	if cured and not zombie:
-		_thank(FAITH_CURED, true)
+		_faith.thank(VillagerFaith.FAITH_CURED, true)
 	return cured
 
 # --- ESPORA (lo que el resto del juego le pregunta al aldeano; ver VillagerSpore) ---
@@ -1780,7 +1669,7 @@ func give_shield(time := SHIELD_TIME, thank := true) -> void:
 	if thank:
 		Game.say("¡Bendecida!" if gender == Gender.FEMALE else "¡Bendecido!",
 				get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_HOLY)
-		_thank(FAITH_SHIELDED, false)
+		_faith.thank(FAITH_SHIELDED, false)
 
 ## Lo vacunaste (ver Miracle): no se contagia de gripe ni de espora por un tiempo (time, en
 ## segundos). thank: te lo agradece.
@@ -1789,7 +1678,7 @@ func vaccinate(time := VACCINE_TIME, thank := true) -> void:
 	if thank:
 		Game.say("¡Vacunada!" if gender == Gender.FEMALE else "¡Vacunado!",
 				get_global_transform_with_canvas().origin + Vector2(0, -80), Miracle.C_TEAL)
-		_thank(FAITH_VACCINATED, false)
+		_faith.thank(FAITH_VACCINATED, false)
 
 ## El escudo paró algo (un contagio, un rayo o una mordida): brilla. loud: además suena y lo dice
 ## (el rayo y la mordida). Vacunado no se nota nada.
@@ -1859,7 +1748,7 @@ func resurrect() -> void:
 	var at := Vector2(global_position.x, floor_y)
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
-		if o and o != self and o.is_alive() and o._witness(at) > 0.0:
+		if o and o != self and o.is_alive() and o.witness(at) > 0.0:
 			o.witness_ritual(RISE_TIME + 0.5, at)
 
 ## Volviendo a la vida: sube flotando mientras se endereza, y baja hasta quedar parado.
@@ -1929,7 +1818,7 @@ func _celebrate(bonds: Array, alive: Dictionary) -> void:
 	Game.say("¡Volvió a la vida!", get_global_transform_with_canvas().origin + Vector2(0, -90), HUD.C_HOLY)
 	add_faith(FAITH_RISEN)
 	add_mood(MOOD_RISEN, "Volvió de la muerte")
-	say(Bubble.HEART, THANKS_TIME, false)
+	say(Bubble.HEART, VillagerFaith.THANKS_TIME, false)
 	var partner := 0
 	var friends := {}
 	for r: Array in bonds:
@@ -1943,24 +1832,24 @@ func _celebrate(bonds: Array, alive: Dictionary) -> void:
 		var o: Villager = alive[id]
 		if o.is_zombie():
 			continue   # (El zombi ya no siente nada)
-		var heretic := o.creed() == Creed.HERETIC
-		var seen := o._witness(at)
+		var heretic := o.creed() == VillagerFaith.Creed.HERETIC
+		var seen := o.witness(at)
 		var family := id == partner or id in parents or id_number in o.parents \
 				or parents.any(func(p: int) -> bool: return p in o.parents)
 		if family:
 			o.add_faith(FAITH_RISEN_FAMILY)
 			o.add_mood(MOOD_RISEN_FAMILY, "Resucitaste a alguien de su familia")
-			o.say(Bubble.HEART, THANKS_TIME * 1.5, false)
+			o.say(Bubble.HEART, VillagerFaith.THANKS_TIME * 1.5, false)
 		elif friends.has(id):
 			o.add_faith(FAITH_RISEN_FRIEND)
 			o.add_mood(MOOD_RISEN_FRIEND, "Resucitaste a un amigo")
-			o.say(Bubble.HEART, THANKS_TIME, false)
+			o.say(Bubble.HEART, VillagerFaith.THANKS_TIME, false)
 		elif seen > 0.0 and not heretic:
 			o.add_faith(FAITH_RISEN_SEEN * seen)
 		if heretic:
 			o.add_fear(FEAR_RISEN_HERETIC * seen if seen > 0.0 else FEAR_RISEN_HEARD)
 			if seen > 0.0:
-				o.scare(WITNESS_STARE, at)
+				o.scare(VillagerFaith.WITNESS_STARE, at)
 
 # --- TIBURÓN ---
 ## En el agua se hunde. En la isla (mouth = la boca del tiburón) se lo chupa hacia la boca.
@@ -2060,7 +1949,8 @@ func _process(dt: float) -> void:
 	_spore.update(dt)
 	_hunger.update(dt)
 	_update_family(dt)
-	_update_faith(dt)
+	_scram = maxf(0.0, _scram - dt)
+	_faith.update(dt)
 	_mood.update(dt)
 	_sleep.update(dt)
 	_update_wards(dt)
@@ -2148,7 +2038,7 @@ func _start_drag() -> void:
 	elif not dead:
 		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
 		_voice.play()
-		add_fear(FEAR_GRAB)
+		add_fear(VillagerFaith.FEAR_GRAB)
 	_from_water = not dead and (in_water or flooded)
 	if dead:
 		corpse_timer = 0.0
@@ -2180,7 +2070,7 @@ func _stop_drag() -> void:
 	var on_island := island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly)
 	if throw.length() >= THROW_MIN_SPEED:
 		if not dead:
-			add_fear(FEAR_THROW)
+			add_fear(VillagerFaith.FEAR_THROW)
 			add_mood(VillagerMood.MOOD_THROWN, "La revoleaste" if gender == Gender.FEMALE else "Lo revoleaste")
 		_launch(throw, on_island)
 	elif on_island:
@@ -2255,4 +2145,4 @@ func _land_on_island() -> void:
 	if _from_water:
 		_from_water = false
 		if not is_zombie():
-			_thank(FAITH_RESCUED, false)   # Lo rescataste
+			_faith.thank(VillagerFaith.FAITH_RESCUED, false)   # Lo rescataste

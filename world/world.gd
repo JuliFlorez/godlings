@@ -47,7 +47,7 @@ const HEIGHT_MAX := 1.05
 @export var start_level: int = 0
 @export var starting_villagers: int = 4
 ## Cada tantos segundos, cada aldeano vivo, sano y no muerto de hambre reza y deja ofrendas:
-## más cuanto más cree en vos y más te teme (ver Villager.tribute).
+## más cuanto más cree en vos y más te teme (ver VillagerFaith.tribute).
 @export var worship_interval: float = 10.0
 ## Con esta fe promedio en la isla la devoción se recarga a velocidad normal (ver Game.refill):
 ## con más, más rápido; con menos, más lento (sin parar del todo, así siempre se puede invocar).
@@ -442,7 +442,7 @@ func alive_villagers() -> int:
 	return n
 
 ## Lo que dejan de ofrendas los que rezan (los vivos, sanos, no muertos de hambre y despiertos,
-## ver Villager.prays y tribute). Con hongos (o zombis) no rezan.
+## ver VillagerFaith.prays y tribute). Con hongos (o zombis) no rezan.
 func _prayers() -> float:
 	var sum := 0.0
 	for node in get_tree().get_nodes_in_group("villager"):

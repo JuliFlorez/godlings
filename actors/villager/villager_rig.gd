@@ -174,7 +174,7 @@ var _sneeze := 0.0            # Estornudando: la boca abierta un ratito
 var _kneel := 0.0             # 0 = parado, 1 = de rodillas (rezando, agachado de miedo o brotando)
 var _fungus: Fungus           # Los hongos de la cabeza (espora zombi)
 var _twitch_t := 0.0
-var _pose := Villager.Pose.NONE   # La última (para seguir con ella mientras se levanta)
+var _pose := VillagerFaith.Pose.NONE   # La última (para seguir con ella mientras se levanta)
 
 const MAX_MARKS := 10
 ## Alfa de cada textura del dibujo, para saber si un tiro cayó sobre el dibujo o en un hueco.
@@ -516,16 +516,16 @@ func _process(dt: float) -> void:
 	# De rodillas: el cuerpo baja y las piernas se quedan donde están (el cuerpo las tapa)
 	# (Brotando también: duro y temblando)
 	var blooming := villager.bloom_amount() > 0.0 and not villager.dead
-	if villager.pose != Villager.Pose.NONE:
+	if villager.pose != VillagerFaith.Pose.NONE:
 		_pose = villager.pose
-	_kneel = move_toward(_kneel, 1.0 if villager.pose != Villager.Pose.NONE or blooming else 0.0, KNEEL_SPEED * dt)
+	_kneel = move_toward(_kneel, 1.0 if villager.pose != VillagerFaith.Pose.NONE or blooming else 0.0, KNEEL_SPEED * dt)
 	var kneel := smoothstep(0.0, 1.0, _kneel) * (1.0 - rag)
-	var cower := _pose == Villager.Pose.COWER and not blooming
+	var cower := _pose == VillagerFaith.Pose.COWER and not blooming
 	if kneel > 0.0:
 		rise -= (COWER_DROP if cower else KNEEL_DROP) * kneel
 		if blooming:
 			rise += randf_range(-1.0, 1.0) * BLOOM_TREMBLE * (0.4 + villager.bloom_amount()) * kneel
-		elif villager.fear >= Villager.FEARS_AT:
+		elif villager.fear >= VillagerFaith.FEARS_AT:
 			rise += randf_range(-1.0, 1.0) * TREMBLE * kneel
 
 	hip.rotation = hip_rot

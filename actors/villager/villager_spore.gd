@@ -213,10 +213,10 @@ func _spore_turned(stage: Infection) -> void:
 			for node in v.get_tree().get_nodes_in_group("villager"):
 				var o := node as Villager
 				if o and o != v and o.is_alive() and not o.is_zombie():
-					var seen := o._witness(at)
+					var seen := o.witness(at)
 					if seen > 0.0:
-						o.add_fear(Villager.FEAR_DEATH * 0.6 * seen)
-						o.scare(Villager.WITNESS_STARE, at)
+						o.add_fear(VillagerFaith.FEAR_DEATH * 0.6 * seen)
+						o.scare(VillagerFaith.WITNESS_STARE, at)
 
 ## ¡Cof! Tose una nubecita de esporas para adelante: contagia a los que tiene enfrente.
 func _cough() -> void:
@@ -347,7 +347,7 @@ func get_bitten(z: Villager) -> void:
 	v._update_sprite_flip()
 	v._resting = false
 	v.wander_timer = maxf(v.wander_timer, v._scram)
-	v.add_fear(Villager.FEAR_THROW)
+	v.add_fear(VillagerFaith.FEAR_THROW)
 	v.add_faith(-FAITH_BITTEN)
 	v.add_mood(MOOD_BITTEN, "La mordió un zombi" if v.gender == Villager.Gender.FEMALE else "Lo mordió un zombi")
 	Game.say("¡Mordida!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)

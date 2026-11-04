@@ -10,7 +10,7 @@ class_name VillagerCard
 ## cuánto lo domina ya el hongo (ver Villager.spore).
 ## Después, cuánto cree en vos y cuánto te teme (ver Villager.faith y fear), y qué es por eso:
 ## devoto, fanático, hereje o aterrado; su ánimo (ver Villager.mood): qué tan contento está y
-## por qué; y cuántas ofrendas te deja cada vez que reza (ver Villager.tribute), o por qué no
+## por qué; y cuántas ofrendas te deja cada vez que reza (ver VillagerFaith.tribute), o por qué no
 ## reza ahora.
 ## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos; su familia (sus
 ## padres y sus hijos, y "Ver árbol" para el árbol genealógico, ver FamilyTree) y su casa (la
@@ -57,10 +57,10 @@ const RELATIONS := [
 const REL_CAPTION_W := 66.0
 ## Lo que es según su fe y su miedo: [varón, aldeana, color]
 const CREEDS := {
-	Villager.Creed.DEVOUT: ["Devoto", "Devota", HUD.C_HOLY],
-	Villager.Creed.ZEALOT: ["Fanático", "Fanática", HUD.C_METEOR],
-	Villager.Creed.HERETIC: ["Hereje", "Hereje", HUD.C_MUTED],
-	Villager.Creed.TERRIFIED: ["Aterrado", "Aterrada", HUD.C_WARN],
+	VillagerFaith.Creed.DEVOUT: ["Devoto", "Devota", HUD.C_HOLY],
+	VillagerFaith.Creed.ZEALOT: ["Fanático", "Fanática", HUD.C_METEOR],
+	VillagerFaith.Creed.HERETIC: ["Hereje", "Hereje", HUD.C_MUTED],
+	VillagerFaith.Creed.TERRIFIED: ["Aterrado", "Aterrada", HUD.C_WARN],
 }
 ## Su ánimo: [varón, aldeana, color]
 const MOODS := {
@@ -497,7 +497,7 @@ func _build_creed(parent: Control) -> void:
 	_mood_why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_mood_why.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	why_row.add_child(_mood_why)
-	# Lo que te deja cada vez que reza: sale de la fe, el miedo y el ánimo (ver Villager.tribute)
+	# Lo que te deja cada vez que reza: sale de la fe, el miedo y el ánimo (ver VillagerFaith.tribute)
 	var tribute_row := HBoxContainer.new()
 	tribute_row.add_theme_constant_override("separation", 6)
 	box.add_child(tribute_row)

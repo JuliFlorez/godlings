@@ -131,10 +131,10 @@ func _finish() -> void:
 		var o := node as Villager
 		if o == null or o == v or not o.is_alive():
 			continue
-		var seen := o._witness(at)
+		var seen := o.witness(at)
 		if seen > 0.0:
 			o.add_fear(FEAR * seen)
-			if o.creed() == Villager.Creed.DEVOUT or o.creed() == Villager.Creed.ZEALOT:
+			if o.creed() == VillagerFaith.Creed.DEVOUT or o.creed() == VillagerFaith.Creed.ZEALOT:
 				o.add_faith(FAITH_DEVOUT * seen)
 		if Relations.kind(v, o) == Relations.Kind.COUPLE or o.id_number in v.parents or v.id_number in o.parents:
 			o.add_faith(-FAITH_LOVED)
