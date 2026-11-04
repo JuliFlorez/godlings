@@ -79,8 +79,45 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 
 ## 🎮 Controles
 
+Las teclas (esta tabla la arma `tools/controls_doc.py` desde `ui/controls.gd`: para cambiar una
+tecla, se cambia ahí):
+
+<!-- teclas -->
+| Tecla | Qué hace |
+|---|---|
+| `G` | Sacar o guardar la pistola |
+| `R` | Sacar o guardar el rayo |
+| `M` | Sacar o guardar el meteorito |
+| `T` | Sacar o guardar el tornado |
+| `D` | Desatar o calmar el diluvio |
+| `P` | Sacar o guardar la peste |
+| `Z` | Sacar o guardar la espora zombi |
+| `E` | Sacar o guardar la manzana de la discordia |
+| `F` | Sacar o guardar la comida |
+| `C` | Sacar o guardar curar |
+| `V` | Sacar o guardar la vacuna |
+| `O` | Sacar o guardar el escudo |
+| `L` | Sacar o guardar la resurrección |
+| `A` | Sacar o guardar el arco de Cupido |
+| `B` | Sacar o guardar la pelota de la amistad |
+| `S` | Arrastrar o seleccionar: el click abre el carnet de un aldeano o el cartel de una choza |
+| `I` | Editar la isla: mover y quitar decoraciones |
+| `H` | Abrir o cerrar el historial |
+| `Esc` | Guardar el poder, cerrar lo que esté abierto o abrir el menú de pausa |
+| `F1` o la de la izquierda del 1 | Consola de trucos (solo en el editor y en exports de debug) |
+| `=`, `+` o el + del teclado numérico | Acercar |
+| `-` o el - del teclado numérico | Alejar |
+| `0` o el 0 del teclado numérico | Volver al tamaño normal y al centro |
+| `←` | Mover la cámara a la izquierda |
+| `→` | Mover la cámara a la derecha |
+| `↑` | Mover la cámara para arriba |
+| `↓` | Mover la cámara para abajo |
+<!-- /teclas -->
+
+Con el mouse y los botones:
+
 - **Click Izquierdo + Arrastrar**: Agarrar un aldeano y moverlo por la pantalla.
-- **Botón "Arrastrar / Seleccionar" (tecla S)**: Cambia lo que hace el click sobre los aldeanos: agarrarlos o abrir su carnet para ponerles nombre (Esc o ✕ lo cierran). Seleccionando, un click en una choza abre su cartel para ponerle nombre.
+- **Botón "Arrastrar / Seleccionar"** (o su tecla): Cambia lo que hace el click sobre los aldeanos: agarrarlos o abrir su carnet para ponerles nombre (Esc o ✕ lo cierran). Seleccionando, un click en una choza abre su cartel para ponerle nombre.
 - **Soltar en la isla**: El aldeano continúa caminando normalmente (o es rescatado si estaba en el agua).
 - **Soltar en el agua / vacío**: El aldeano cae y comienza a flotar / ahogarse. El mar es un piso: lo que cae desde la isla o desde el aire flota en la orilla de adelante, y lo que soltás más adelante (con la cámara corrida para abajo o el zoom alejado) flota ahí donde lo soltaste. El meteorito, el tornado y el rayo también pegan en el agua donde apuntás.
 - **Arrastrar el sol (o la luna) hasta el horizonte**: Se pone y sale el otro astro (día ↔ noche). Soltándolo más arriba o más abajo cambia la hora (más abajo, más tarde).
@@ -89,18 +126,18 @@ En **Godlings**, cuidás (o sacrificás) aldeanos en una isla flotante en medio 
 - **Orbe "+" en la isla / Botón "Expandir isla"**: Gasta un punto de expansión para agrandar la isla.
 - **Botón "Tienda"**: en pestañas (Isla, Poderes malos, Poderes buenos, y Cielo y tiburones): comprar decoraciones (click en la isla para colocarlas, click derecho o Esc para terminar) y desbloquear armas y poderes. Tocar un poder bloqueado en la barra abre la tienda en su pestaña.
 - **Click en la aleta del tiburón + Arrastrar**: Sacarlo del agua (soltalo en el agua, tiralo o dejalo en la isla).
-- **Tecla G / casilla "Pistola"**: Sacar o guardar la pistola (una vez desbloqueada en la tienda). Sirve para aldeanos y tiburones.
-- **Tecla R / botón "Rayo"**: Sacar o guardar el rayo (una vez desbloqueado en la tienda). Cada click lanza un rayo; click derecho o Esc lo guardan.
-- **Tecla M / botón "Meteorito"**: Sacar o guardar el meteorito (una vez desbloqueado en la tienda). Click en la isla o en el agua para tirarlo; click derecho o Esc lo guardan.
-- **Tecla T / botón "Tornado"**: Sacar o guardar el tornado (una vez desbloqueado en la tienda). Mantené apretado el click en la isla o en el agua para que baje y llevalo con el mouse; al soltar se disuelve. Click derecho o Esc lo guardan.
-- **Tecla D / botón "Diluvio"**: Desatar o calmar el diluvio (una vez desbloqueado en la tienda). Mientras llueve se pueden seguir agarrando aldeanos para rescatarlos.
-- **Tecla P / botón "Peste"**: Sacar o guardar la peste (una vez desbloqueada en la tienda). Click sobre los aldeanos para enfermarlos; click derecho o Esc la guardan.
-- **Tecla Z / botón "Espora"**: Sacar o guardar la espora zombi (una vez desbloqueada en la tienda). Click sobre los aldeanos para meterles el hongo; click derecho o Esc la guardan.
-- **Tecla C / botón "Curar"**: Sacar o guardar curar (una vez desbloqueado en la tienda). Click sobre un aldeano para curarlo; click derecho o Esc lo guardan.
-- **Tecla V / botón "Vacuna"**: Sacar o guardar la vacuna (una vez desbloqueada en la tienda). Click sobre un aldeano sano para vacunarlo; click derecho o Esc la guardan.
-- **Tecla O / botón "Escudo"**: Sacar o guardar el escudo (una vez desbloqueado en la tienda). Click sobre un aldeano para bendecirlo; click derecho o Esc lo guardan.
-- **Tecla L / botón "Resurrección"**: Sacar o guardar la resurrección (una vez desbloqueada en la tienda). Click sobre un cadáver reciente para devolverle la vida; click derecho o Esc la guardan.
-- **Rueda del mouse (o + y -)**: Zoom para acercarse o alejarse (hacia donde está el mouse); 0 vuelve al tamaño normal y centra la vista. Alejándose entra la isla más grande sin chocar con los paneles.
-- **Flechas (o arrastrar con la rueda apretada)**: Mueven la cámara para los costados y para abajo, con o sin zoom, hasta un poco más allá de lo que se ve normalmente (para arriba, hasta el horizonte). Mientras escribís un nombre, las flechas mueven el cursor del texto.
+- **Casilla "Pistola"** (o su tecla): Sacar o guardar la pistola (una vez desbloqueada en la tienda). Sirve para aldeanos y tiburones.
+- **Botón "Rayo"** (o su tecla): Sacar o guardar el rayo (una vez desbloqueado en la tienda). Cada click lanza un rayo; click derecho o Esc lo guardan.
+- **Botón "Meteorito"** (o su tecla): Sacar o guardar el meteorito (una vez desbloqueado en la tienda). Click en la isla o en el agua para tirarlo; click derecho o Esc lo guardan.
+- **Botón "Tornado"** (o su tecla): Sacar o guardar el tornado (una vez desbloqueado en la tienda). Mantené apretado el click en la isla o en el agua para que baje y llevalo con el mouse; al soltar se disuelve. Click derecho o Esc lo guardan.
+- **Botón "Diluvio"** (o su tecla): Desatar o calmar el diluvio (una vez desbloqueado en la tienda). Mientras llueve se pueden seguir agarrando aldeanos para rescatarlos.
+- **Botón "Peste"** (o su tecla): Sacar o guardar la peste (una vez desbloqueada en la tienda). Click sobre los aldeanos para enfermarlos; click derecho o Esc la guardan.
+- **Botón "Espora"** (o su tecla): Sacar o guardar la espora zombi (una vez desbloqueada en la tienda). Click sobre los aldeanos para meterles el hongo; click derecho o Esc la guardan.
+- **Botón "Curar"** (o su tecla): Sacar o guardar curar (una vez desbloqueado en la tienda). Click sobre un aldeano para curarlo; click derecho o Esc lo guardan.
+- **Botón "Vacuna"** (o su tecla): Sacar o guardar la vacuna (una vez desbloqueada en la tienda). Click sobre un aldeano sano para vacunarlo; click derecho o Esc la guardan.
+- **Botón "Escudo"** (o su tecla): Sacar o guardar el escudo (una vez desbloqueado en la tienda). Click sobre un aldeano para bendecirlo; click derecho o Esc lo guardan.
+- **Botón "Resurrección"** (o su tecla): Sacar o guardar la resurrección (una vez desbloqueada en la tienda). Click sobre un cadáver reciente para devolverle la vida; click derecho o Esc la guardan.
+- **Rueda del mouse** (o las teclas del zoom): Zoom para acercarse o alejarse (hacia donde está el mouse); la de volver al tamaño normal también centra la vista. Alejándose entra la isla más grande sin chocar con los paneles.
+- **Arrastrar con la rueda apretada** (o las flechas): Mueve la cámara para los costados y para abajo, con o sin zoom, hasta un poco más allá de lo que se ve normalmente (para arriba, hasta el horizonte). Mientras escribís un nombre, las flechas mueven el cursor del texto.
 - **Click o cualquier tecla mientras baja la cámara**: La apura hasta la isla.
 - **Esc**: Menú de pausa (volumen, idioma, pantalla completa, menú principal y salir). En el menú de inicio vuelve a la pantalla principal.

@@ -380,6 +380,25 @@ de Sangre). Lo último de la fase:
       vuelve a cargar el mundo, se fija que cada aldeano vuelva como se guardó y sigue jugando, ahora
       con el diluvio. La CI falla si Godot escribe un error de script.
 
+### Después del plan · Las teclas en un solo lugar ✅ (falta probarlo en el juego)
+
+- [x] `Controls` (`ui/controls.gd`): las 27 acciones con sus teclas, en una tabla (`KEYS`), que
+      registra en el `InputMap` por código (no en `project.godot`, que lo pisa el editor). El
+      poder, el HUD, el mundo, la pausa, la consola, el menú de inicio, colocar decoraciones y los
+      paneles preguntan por su acción en vez de por la tecla. Las flechas de la consola (los
+      comandos anteriores) quedaron como estaban: son del cuadro de texto, no del juego.
+- [x] Los textos que nombraban una tecla la sacan de ahí: los tooltips (`Controls.tip`), las
+      pistas de los poderes y de los modos, los carteles de desbloqueado y la consola (con `%s`).
+      Eran 53 textos en los dos idiomas; ahora cambiar una tecla es cambiarla en `KEYS`. El
+      chequeo de traducciones ahora también se fija que cada traducción tenga los mismos `%d` /
+      `%s`, en orden.
+- [x] La tabla de teclas del README sale de `KEYS` (`tools/controls_doc.py`, con el comentario de
+      cada una) y la CI avisa si quedó vieja. Antes al README le faltaban E, A, B, F, H, I y la
+      consola.
+- [x] `tests/test_controls.gd`: que no se pisen, que cada poder tenga la suya, que se registren
+      una sola vez y que los textos se armen bien en español y en inglés. La prueba de humo
+      aprieta las teclas como el jugador y se fija que hagan lo suyo.
+
 ## Cómo quedó
 
 | | Antes | Ahora |
@@ -388,11 +407,12 @@ de Sangre). Lo último de la fase:
 | `hud.gd` | 1.704 | 372, más `TopBar`, `PowerBar`, `UiStyle`, `HudIcon` y `Painter` |
 | Agregar un poder | 14 archivos | su clase, una línea en `World._create_powers`, su ícono y sus textos |
 | Estado de la partida | en el HUD y en 35 `static var` sueltos | `Game`, y lo demás se borra en `Game.reset()` |
-| CI | nada | gdlint, traducciones, compilar todo, 33 tests, una partida sola y 18 capturas comparadas |
+| Teclas | en 14 archivos y adentro de 53 textos | `Controls.KEYS`, y de ahí salen los textos y la tabla del README |
+| CI | nada | gdlint, traducciones, compilar todo, 38 tests, una partida sola y 18 capturas comparadas |
 
-Lo que queda, de los hallazgos: juntar las teclas en un solo lugar (punto 7), llevar la lista de
-aldeanos en `World` y sintetizar los sonidos al cargar (punto 8), partir el README (punto 9), y
-`shark.gd` y `villager_rig.gd`, que siguen pasando las 1.000 líneas. Desde el editor: los nombres
+Lo que queda, de los hallazgos: llevar la lista de aldeanos en `World` y sintetizar los sonidos al
+cargar (punto 8), partir el README (punto 9), y `shark.gd` y `villager_rig.gd`, que siguen pasando
+las 1.000 líneas. Desde el editor: los nombres
 de los nodos de `world.tscn` y `company_name` en `export_presets.cfg`.
 
 ## Reglas para que no vuelva a pasar

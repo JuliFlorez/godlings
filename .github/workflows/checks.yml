@@ -1,6 +1,7 @@
 # Chequeos en cada push, en cualquier rama:
-# - checks: lo que no necesita Godot: la sintaxis de todos los scripts (gdlint, ver gdlintrc) y que
-#   las traducciones estén al día (tools/check_i18n.py).
+# - checks: lo que no necesita Godot: la sintaxis de todos los scripts (gdlint, ver gdlintrc), que
+#   las traducciones estén al día (tools/check_i18n.py) y que la tabla de teclas del README sea la
+#   de ui/controls.gd (tools/controls_doc.py).
 # - godot: con Godot de verdad (sin pantalla): compila todos los scripts (tools/ci/check_scripts.gd),
 #   corre los tests (tools/ci/run_tests.gd y tests/) y juega una partida sola un rato
 #   (tools/ci/smoke.gd). Falla si Godot escribe algún error de script.
@@ -30,6 +31,9 @@ jobs:
 
       - name: Traducciones
         run: python3 tools/check_i18n.py
+
+      - name: Tabla de teclas del README
+        run: python3 tools/controls_doc.py --check
 
   godot:
     runs-on: ubuntu-latest

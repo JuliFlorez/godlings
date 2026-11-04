@@ -18,7 +18,8 @@ mecánicas están en `README.md`; la revisión de estructura y el plan de refact
   juega) lo prueba el usuario en el juego: decile qué probar.
 - Comentarios, textos del juego y docs en **español rioplatense** (voseo); commits en **inglés**
   (título corto y un cuerpo que cuenta qué cambia para el jugador).
-- Si cambia una mecánica, un precio o una tecla, actualizá el README (su sección y Controles).
+- Si cambia una mecánica, un precio o una tecla, actualizá el README (su sección; la tabla de
+  teclas de Controles la arma `python3 tools/controls_doc.py`).
 - La versión va en tres lugares: `World.VERSION`, `project.godot` y `export_presets.cfg`.
 - Commiteá los `.uid` (y los `.import`) junto con su archivo.
 
@@ -46,6 +47,7 @@ mecánicas están en `README.md`; la revisión de estructura y el plan de refact
 | `world/game.gd` (`Game`) | La partida, en estáticos: ofrendas, sacrificios, devoción, XP y puntos de expansión, la Luna de Sangre y los tiburones comprados, las compras (`buy`, `unlock_power`...) y su guardado (`save_state` / `load_state`). `Game.reset()` borra todo lo de la partida; `Game.events` avisa lo que cambia; `Game.say` / `announce` muestran un cartel flotante. |
 | `ui/hud.gd` (`HUD`, grupo `"hud"`) | La interfaz: arma `TopBar` y `PowerBar`, abre los paneles (tienda, historial, carnet, cartel de la choza, árbol, pausa), lleva el modo del click, la pista y los carteles flotantes, y **muestra** la partida: escucha `Game.events`. No guarda nada. |
 | `ui/top_bar.gd` (`TopBar`), `ui/power_bar.gd` (`PowerBar`) | La barra de arriba (el día, la XP, la isla, la tienda y el historial, el + de invocar con la devoción, las monedas) y la de abajo (el modo del click y los poderes, con `set_powers`). |
+| `ui/controls.gd` (`Controls`) | Todas las teclas (`KEYS`), que registra en el InputMap por código, y cómo se nombran en los textos (`label`, `tip`). |
 | `ui/ui_style.gd` (`UiStyle`) | El estilo de la interfaz: la paleta (`UiStyle.C_TEXT`, `C_PANEL`, el color de cada poder...) y las piezas (`label`, `button`, `box`, `window`, `outline`). |
 | `ui/hud_icon.gd` (`HudIcon`), `ui/painter.gd` (`Painter`) | Los íconos vectoriales por nombre (y la moneda de los sacrificios), y el lienzo del `overlay` donde dibujan el rayo, el meteorito y el tornado. |
 | `ui/` (el resto) | `shop`, `villager_card` (el carnet), `hut_card`, `family_tree`, `history_panel`, `title_menu`, `pause_menu`, `settings` y `settings_panel`, `i18n`, `debug_console` (F1, solo en debug). |
@@ -87,20 +89,24 @@ mecánicas están en `README.md`; la revisión de estructura y el plan de refact
   versión y seguí cargando las de antes. Cada aldeano se guarda con `Villager.to_dict()` /
   `from_dict()`, que le piden su parte a cada componente: un campo nuevo de un sistema del aldeano
   va en el `to_dict` / `from_dict` de su componente.
-- **Teclas**: la de cada poder es su `key` (la atiende `Power`); las demás, cada uno en su
-  `_unhandled_input` (no hay InputMap). Ocupadas: G R M T D
-  P Z E F C V O L A B; S (seleccionar), H (historial), I (editar la isla), F1 o la tecla a la
-  izquierda del 1 (consola), flechas, + − 0 (zoom) y Esc. Antes de usar una, fijate que esté
-  libre.
+- **Teclas**: todas en `Controls.KEYS` (`ui/controls.gd`), que las registra en el InputMap por
+  código; cada uno pregunta por su acción (`event.is_action_pressed(Controls.HISTORY)`; la de un
+  poder es `"power_" + id`, ver `Power.action`). Los textos que nombran una tecla la sacan de ahí
+  (`Controls.label`, `Controls.tip` o un `%s`), así que para cambiar una alcanza con cambiarla en
+  `KEYS` y volver a armar la tabla del README (`python3 tools/controls_doc.py`; la CI avisa si
+  quedó vieja). Una nueva va en `KEYS`, con lo que hace en el comentario (va a la tabla), y
+  `tests/test_controls.gd` avisa si se pisa con otra.
 
 ## Tests y CI
 
 La CI (`.github/workflows/checks.yml`) corre en cada push tres jobs:
 
-- `checks`: gdlint y las traducciones.
+- `checks`: gdlint, las traducciones (también que cada traducción tenga los mismos `%d` / `%s`) y
+  que la tabla de teclas del README esté al día con `Controls`.
 - `godot`: baja Godot 4.7.2 y, sin pantalla, compila todos los scripts
   (`tools/ci/check_scripts.gd`), corre los tests (`tools/ci/run_tests.gd`) y juega una partida sola
-  (`tools/ci/smoke.gd`: de todo un poco, la guarda, la vuelve a cargar y compara cada aldeano).
+  (`tools/ci/smoke.gd`: aprieta las teclas y se fija que hagan lo suyo, juega de todo un poco, la
+  guarda, la vuelve a cargar y compara cada aldeano).
   Falla si Godot escribe un error de script.
 - `screens`: con una pantalla virtual saca 18 capturas de la interfaz (`tools/ci/screenshots.gd`),
   saca las mismas en el commit de antes del push y dice en el log cuáles cambiaron, dónde y cómo
@@ -118,11 +124,13 @@ ranura 9 (no pisan las de verdad) y una semilla fija; por eso lo que se anima al
 
 ## Agregar un poder
 
-Una clase hija de `Power` en `weapons/` que en `_init()` dice cómo es (id, nombre, tecla, si es
-bueno, color, precio y sacrificios, sus textos: ver los comentarios de `Power`) y hace lo suyo en
+Una clase hija de `Power` en `weapons/` que en `_init()` dice cómo es (id, nombre, si es bueno,
+color, precio y sacrificios, sus textos: ver los comentarios de `Power`) y hace lo suyo en
 `_use(at)` (el click), `_on_armed(on)` y, si hace falta, `_can_arm()` o `recharge()`. Se agrega en
-`World._create_powers`, en su lugar de la barra, con su ícono en `HudIcon` y sus textos en
-`I18n.EN`; la barra, la tienda, el guardado y la consola lo toman solos. Si es malo (cuesta
+`World._create_powers`, en su lugar de la barra, con su tecla en `Controls.KEYS` (`"power_" + id`),
+su ícono en `HudIcon` y sus textos en `I18n.EN`; la barra, la tienda, el guardado y la consola lo
+toman solos. Sus textos no nombran la tecla: la pista termina con "click derecho, %s o %s para
+guardarlo" y el cartel de desbloqueado con "Sacalo con %s", y las pone `Power`. Si es malo (cuesta
 sacrificios), su `locked_tooltip` es "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)" (o
 "Desbloqueala"). Si tiene variantes, seguí el patrón de `Charm` / `Miracle` (`Kind`, `KINDS` y
 `make`). Sumale su sección al README.
