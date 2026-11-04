@@ -466,118 +466,152 @@ func exit_water() -> void:
 	if was_floating and not dragging and not eaten and not on_island:
 		_start_fall()
 
-func _physics_process(dt: float) -> void:
+## Qué está haciendo el cuerpo: los estados que se excluyen entre sí, en el orden en que se miran
+## (ver body). Que esté muerto va aparte (dead): un cadáver también se arrastra, flota, se cae o gira
+## en un tornado; tirado en el piso es LYING.
+enum Body { WALKING, EATEN, RISING, ALTAR, DRAGGED, INSIDE, TORNADO, PINNED, FLOATING, DROWNING, FALLING,
+		LYING, ASLEEP }
+
+## El estado del cuerpo, según los flags (dragging, inside, in_water...), en orden de prioridad: si
+## está agarrado no importa que esté dormido, si flota no importa que esté muerto, etcétera. Es lo
+## que decide qué hace _physics_process.
+func body() -> Body:
 	if eaten:
-		return
+		return Body.EATEN
 	if _rising > 0.0:
-		_rise(dt)   # Volviendo a la vida: lo mueve la luz
-		return
-	if asleep and (dragging or falling or in_water or tornado or dead or inside):
-		wake_up(false)   # Lo agarraron, lo revolearon, se lo llevó el agua...: ya no está acostado
+		return Body.RISING
+	if altar:
+		return Body.ALTAR   # (El altar le apaga la física: lo mueve él)
 	if dragging:
-		velocity = Vector2.ZERO
-		return
+		return Body.DRAGGED
 	if inside:
-		_home.inside_ai(dt)
-		return
+		return Body.INSIDE
 	if tornado:
-		# Girando en el tornado: lo mueve él (ver Tornado)
-		velocity = Vector2.ZERO
-		if not is_instance_valid(tornado):
-			tornado = null
-			_start_fall()
-		return
+		return Body.TORNADO
 	if zap_pinned():
-		# Le cayó el rayo en la isla: se queda ahí hasta hacerse cenizas
-		velocity = Vector2.ZERO
-		return
-
-	# --- Agua: flotar o ahogarse ---
+		return Body.PINNED   # Le cayó el rayo en la isla: se queda ahí hasta hacerse cenizas
 	if in_water:
-		bob_t += dt
-
-		# En la isla inundada: si bajó el agua queda en tierra; si no, la corriente se lo lleva
-		if flooded and not drowning:
-			var feet := ground_point()
-			if not Storm.flooded_at(feet):
-				_flood_dry()
-				return
-			var drift := Storm.current_at(feet)
-			global_position += drift * dt
-			water_surface_y += drift.y * dt
-
-		# Temporizador de ahogo
-		if not drowning:
-			drown_elapsed += dt
-			if drown_elapsed >= DROWN_DELAY:
-				drowning = true
-
-		if drowning:
-			# Hundirse y desvanecerse
-			global_position.y += SINK_SPEED * dt
-			modulate.a = max(0.0, modulate.a - FADE_RATE * dt)
-			rotation = lerp_angle(rotation, 0.5, 3.0 * dt)
-			velocity = Vector2.ZERO
-			if modulate.a <= 0.02:
-				# Recién acá cuenta como sacrificio: mientras se hunde todavía se lo puede rescatar
-				_grant_sacrifice_xp()
-				queue_free()
-			return
-		# Flotación suave y balanceo
-		var target_y := water_surface_y + sin(bob_t * BOB_SPEED) * BOB_AMP
-		global_position.y = move_toward(global_position.y, target_y, 120.0 * dt)
-		global_position.x += sin(bob_t * 0.8) * 10.0 * dt
-		var float_rot := _lie_angle() if dead else 0.0
-		rotation = lerp_angle(rotation, float_rot + sin(bob_t * 0.9) * 0.08, 4.0 * dt)
-		velocity = Vector2.ZERO
-		return
-
-	# --- Caída libre fuera de la isla ---
+		return Body.DROWNING if drowning else Body.FLOATING
 	if falling:
-		v_fall += GRAVITY * dt
-		global_position.y += v_fall * dt
-		global_position.x += fall_vx * dt
-		rotation += swing_vel * dt
+		return Body.FALLING
+	if dead:
+		return Body.LYING
+	if asleep:
+		return Body.ASLEEP
+	return Body.WALKING
 
-		# Los costados de la pantalla lo rebotan: así no se pierde volando fuera de la vista
-		# (lo que se ve del mundo: con el zoom alejado, más; ver World.zoom)
-		var view := get_canvas_transform().affine_inverse() * get_viewport_rect()
-		if (global_position.x < view.position.x + BODY_HALF_W and fall_vx < 0.0) \
-				or (global_position.x > view.end.x - BODY_HALF_W and fall_vx > 0.0):
-			fall_vx *= -0.5
-			swing_vel *= -0.6
+func _physics_process(dt: float) -> void:
+	var b := body()
+	if asleep and b != Body.ASLEEP and b != Body.EATEN and b != Body.RISING:
+		wake_up(false)   # Lo agarraron, lo revolearon, se lo llevó el agua...: ya no está acostado
+	match b:
+		Body.EATEN, Body.ALTAR:
+			pass
+		Body.RISING:
+			_rise(dt)   # Volviendo a la vida: lo mueve la luz
+		Body.DRAGGED, Body.PINNED:
+			velocity = Vector2.ZERO
+		Body.INSIDE:
+			_home.inside_ai(dt)
+		Body.TORNADO:
+			_tornado_physics()
+		Body.FLOATING, Body.DROWNING:
+			_water_physics(dt)
+		Body.FALLING:
+			_fall_physics(dt)
+		Body.LYING:
+			_corpse_physics(dt)
+		Body.ASLEEP:
+			_sleep.sleep_ai(dt)
+		Body.WALKING:
+			_walk_ai(dt)
 
-		# Lanzado dentro del agua (sin entrar de nuevo al área): al bajar hasta donde salió, vuelve
-		# a flotar (el mar es un piso: no se va a la orilla)
-		if touching_water and v_fall > 0.0:
-			var level := WaterArea.level_at(get_tree(), _launch_y)
-			if global_position.y >= level:
-				water_surface_y = level
-				Sea.ripple_at(self, Vector2(global_position.x, level), 0.8)
-				_start_floating()
-				return
+## Girando en el tornado: lo mueve él (ver Tornado). Si el tornado ya no está, se cae.
+func _tornado_physics() -> void:
+	velocity = Vector2.ZERO
+	if not is_instance_valid(tornado):
+		tornado = null
+		_start_fall()
 
-		# Si cae de regreso a la tierra (no mientras sube, ni apenas lanzado sobre la isla)
-		if island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly):
-			if v_fall > 0.0 and (_flight_left_island or global_position.y - _launch_y > THROW_LAND_DROP):
-				_land_on_island()
-				return
-		else:
-			_flight_left_island = true
+## En el agua: flota (en la isla inundada, la corriente se lo lleva y si baja el agua queda en
+## tierra) y, si no lo sacan a tiempo, se ahoga: se hunde y se desvanece.
+func _water_physics(dt: float) -> void:
+	bob_t += dt
 
-		var kill_y := view.end.y + 150.0
-		if global_position.y > kill_y:
+	# En la isla inundada: si bajó el agua queda en tierra; si no, la corriente se lo lleva
+	if flooded and not drowning:
+		var feet := ground_point()
+		if not Storm.flooded_at(feet):
+			_flood_dry()
+			return
+		var drift := Storm.current_at(feet)
+		global_position += drift * dt
+		water_surface_y += drift.y * dt
+
+	# Temporizador de ahogo
+	if not drowning:
+		drown_elapsed += dt
+		if drown_elapsed >= DROWN_DELAY:
+			drowning = true
+
+	if drowning:
+		# Hundirse y desvanecerse
+		global_position.y += SINK_SPEED * dt
+		modulate.a = max(0.0, modulate.a - FADE_RATE * dt)
+		rotation = lerp_angle(rotation, 0.5, 3.0 * dt)
+		velocity = Vector2.ZERO
+		if modulate.a <= 0.02:
+			# Recién acá cuenta como sacrificio: mientras se hunde todavía se lo puede rescatar
+			_grant_sacrifice_xp()
 			queue_free()
 		return
+	# Flotación suave y balanceo
+	var target_y := water_surface_y + sin(bob_t * BOB_SPEED) * BOB_AMP
+	global_position.y = move_toward(global_position.y, target_y, 120.0 * dt)
+	global_position.x += sin(bob_t * 0.8) * 10.0 * dt
+	var float_rot := _lie_angle() if dead else 0.0
+	rotation = lerp_angle(rotation, float_rot + sin(bob_t * 0.9) * 0.08, 4.0 * dt)
+	velocity = Vector2.ZERO
 
-	if dead:
-		_corpse_physics(dt)
-		return
-	if asleep:
-		_sleep.sleep_ai(dt)
-		return
+## Cayendo fuera de la isla (o revoleado): vuelve a la isla, cae al agua o se pierde abajo.
+func _fall_physics(dt: float) -> void:
+	v_fall += GRAVITY * dt
+	global_position.y += v_fall * dt
+	global_position.x += fall_vx * dt
+	rotation += swing_vel * dt
 
-	# --- IA normal caminando en la isla ---
+	# Los costados de la pantalla lo rebotan: así no se pierde volando fuera de la vista
+	# (lo que se ve del mundo: con el zoom alejado, más; ver World.zoom)
+	var view := get_canvas_transform().affine_inverse() * get_viewport_rect()
+	if (global_position.x < view.position.x + BODY_HALF_W and fall_vx < 0.0) \
+			or (global_position.x > view.end.x - BODY_HALF_W and fall_vx > 0.0):
+		fall_vx *= -0.5
+		swing_vel *= -0.6
+
+	# Lanzado dentro del agua (sin entrar de nuevo al área): al bajar hasta donde salió, vuelve
+	# a flotar (el mar es un piso: no se va a la orilla)
+	if touching_water and v_fall > 0.0:
+		var level := WaterArea.level_at(get_tree(), _launch_y)
+		if global_position.y >= level:
+			water_surface_y = level
+			Sea.ripple_at(self, Vector2(global_position.x, level), 0.8)
+			_start_floating()
+			return
+
+	# Si cae de regreso a la tierra (no mientras sube, ni apenas lanzado sobre la isla)
+	if island_poly.size() > 0 and Geometry2D.is_point_in_polygon(global_position, island_poly):
+		if v_fall > 0.0 and (_flight_left_island or global_position.y - _launch_y > THROW_LAND_DROP):
+			_land_on_island()
+			return
+	else:
+		_flight_left_island = true
+
+	var kill_y := view.end.y + 150.0
+	if global_position.y > kill_y:
+		queue_free()
+
+## Vivo y despierto en la isla: escapa del agua, come, charla, se va a su casa, se duerme o pasea.
+func _walk_ai(dt: float) -> void:
 	var gp := ground_point()
 	if Storm.flooded_at(gp):
 		_swept_by_flood()   # Lo alcanzó el agua
@@ -704,7 +738,7 @@ func is_alive() -> bool:
 	return not dead and not eaten and not is_queued_for_deletion()
 
 ## Parado o caminando en la isla (no agarrado, volando, en el agua, en un tornado, adentro de su
-## choza ni muerto).
+## choza ni muerto). Es lo mismo que body() == Body.WALKING, escrito de una (se llama muchísimo).
 func is_idle() -> bool:
 	return not (dragging or falling or in_water or eaten or dead or tornado or inside or asleep or altar)
 
