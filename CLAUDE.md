@@ -49,7 +49,7 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 | `ui/ui_style.gd` (`UiStyle`) | El estilo de la interfaz: la paleta (`UiStyle.C_TEXT`, `C_PANEL`, el color de cada poder...) y las piezas (`label`, `button`, `box`, `window`, `outline`). |
 | `ui/hud_icon.gd` (`HudIcon`), `ui/painter.gd` (`Painter`) | Los íconos vectoriales por nombre (y la moneda de los sacrificios), y el lienzo del `overlay` donde dibujan el rayo, el meteorito y el tornado. |
 | `ui/` (el resto) | `shop`, `villager_card` (el carnet), `hut_card`, `family_tree`, `history_panel`, `title_menu`, `pause_menu`, `settings` y `settings_panel`, `i18n`, `debug_console` (F1, solo en debug). |
-| `world/` (el resto) | `decoration` (todas, por `kind`; la choza tiene vecinos y nacimientos), `decor_placer`, `altar`, `food` / `coconut` / `manna`, `sea` y `water.gdshader`, `water_area`, `hut_debris`, `expand_marker`, `save_slots`. |
+| `world/` (el resto) | `decoration` (todas, por `kind`; se crean con `Decoration.make(kind)`), `hut` (`Hut`, la choza: los que viven ahí, los nacimientos, el cartel y romperse), `decor_placer`, `altar`, `food` / `coconut` / `manna`, `sea` y `water.gdshader`, `water_area`, `hut_debris`, `expand_marker`, `save_slots`. |
 | `sky/` | `sky.gd` (reloj, día y noche, Luna de Sangre), `sun` y `moon` (`Celestial`), nubes, estrellas y gaviotas. |
 | `audio/` | La música, `wow.wav` y `Synth.wav()`; cada clase sintetiza sus sonidos en sus `_make_*`. |
 

@@ -90,8 +90,7 @@ func _setup() -> void:
 		Game.add_offerings(5000)
 		Game.add_sacrifices(50)
 		for kind: String in ["hut", "hut", "hut", "torch", "berries", "palm", "altar"]:
-			var d := Decoration.new()
-			d.kind = kind
+			var d := Decoration.make(kind)
 			_world.props.add_child(d)
 			d.global_position = _world._island_point()
 	Game.fill_devotion()

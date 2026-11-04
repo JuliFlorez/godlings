@@ -702,8 +702,8 @@ func save_game() -> void:
 		if d:
 			deco_index[d] = decorations.size()
 			var entry := {"kind": d.kind, "pos": placer.resting_position(d), "variant": d.variant}
-			if d.hut_name != "":
-				entry.name = d.hut_name   # Lo que dice el cartel de la choza
+			if d is Hut and (d as Hut).hut_name != "":
+				entry.name = (d as Hut).hut_name   # Lo que dice el cartel de la choza
 			if d.stains > 0:
 				entry.stains = d.stains   # La sangre del altar
 			decorations.append(entry)
@@ -766,12 +766,12 @@ func _load_game() -> bool:
 		if not Decoration.KINDS.has(kind):
 			decos.append(null)
 			continue
-		var deco := Decoration.new()
-		deco.kind = kind
+		var deco := Decoration.make(kind)
 		props.add_child(deco)
 		deco.global_position = d.get("pos", _island_point())
 		deco.variant = d.get("variant", deco.variant)   # Después de _ready, que elige una al azar
-		deco.hut_name = d.get("name", "")
+		if deco is Hut:
+			(deco as Hut).hut_name = d.get("name", "")
 		deco.stains = d.get("stains", 0)
 		decos.append(deco)
 	var loaded: Array[Villager] = []
@@ -780,7 +780,7 @@ func _load_game() -> bool:
 		loaded.append(v)
 		v.from_dict(d)   # Lo de cada sistema (ver Villager.from_dict); la choza, de acá
 		var h: int = d.get("home", -1)
-		if h >= 0 and h < decos.size() and decos[h] != null and decos[h].kind == "hut":
+		if h >= 0 and h < decos.size() and decos[h] is Hut:
 			v.home = decos[h]
 	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
 	Relations.load_state(cfg.get_value("island", "relations", []))

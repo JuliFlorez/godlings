@@ -2,7 +2,7 @@ extends PanelContainer
 class_name HutCard
 ## Cartel de la choza: se abre con un click sobre ella en modo seleccionar (o tocando la casa
 ## en el carnet de un aldeano, ver VillagerCard). Tiene el dibujo de la choza, el nombre para
-## escribir (se ve en el cartel de arriba de la puerta, ver Decoration.hut_name) y los que
+## escribir (se ve en el cartel de arriba de la puerta, ver Hut.hut_name) y los que
 ## viven ahí: un click en uno abre su carnet. Mientras está abierto, una flechita señala la choza.
 
 const PREVIEW_SIZE := Vector2(132, 104)
@@ -11,7 +11,7 @@ const PREVIEW_GROUND := 12.0     # Lo que queda de arena abajo de la choza
 const C_SAND := Color(0.93, 0.83, 0.6)
 
 var hud: HUD
-var hut: Decoration
+var hut: Hut
 var _name: LineEdit
 var _preview: Preview
 var _beds: Label
@@ -52,7 +52,7 @@ func _ready() -> void:
 	fields.add_theme_constant_override("separation", 4)
 	fields.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(fields)
-	_name = VillagerCard.field(fields, "Cartel", "Sin nombre", Decoration.HUT_NAME_MAX)
+	_name = VillagerCard.field(fields, "Cartel", "Sin nombre", Hut.NAME_MAX)
 	_name.text_changed.connect(func(t: String):
 		if is_instance_valid(hut):
 			hut.hut_name = t.strip_edges()
@@ -76,10 +76,10 @@ func _ready() -> void:
 	fields.add_child(_residents)
 
 ## "Choza" si no le pusieron nombre.
-static func title_of(h: Decoration) -> String:
+static func title_of(h: Hut) -> String:
 	return h.hut_name if h.hut_name != "" else TranslationServer.translate("Choza")
 
-func open(h: Decoration) -> void:
+func open(h: Hut) -> void:
 	hut = h
 	_name.release_focus()
 	_name.text = h.hut_name
@@ -120,7 +120,7 @@ func _update_residents() -> void:
 	if key == _residents_key:
 		return
 	_residents_key = key
-	_beds.text = "%d / %d" % [people.size(), Decoration.HUT_BEDS]
+	_beds.text = "%d / %d" % [people.size(), Hut.BEDS]
 	for c in _residents.get_children():
 		c.queue_free()
 	if people.is_empty():

@@ -212,7 +212,7 @@ var eat_t: float:
 # --- Casa (ver VillagerHome): vive en una choza, de noche va a dormir adentro y de día entra a descansar ---
 var _home: VillagerHome
 ## Su choza (null: sin casa; ver VillagerHome).
-var home: Decoration:
+var home: Hut:
 	get:
 		return _home.home
 	set(value):

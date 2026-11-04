@@ -6,7 +6,7 @@ class_name Lightning
 ## Los aldeanos alcanzados se electrocutan (ver VillagerBurn.zap): se les ve el esqueleto,
 ## quedan carbonizados y se hacen cenizas. El rayo salta a los que están cerca y, si cae
 ## en el agua, la descarga se esparce y fríe a todos los que flotan alrededor (tiburones
-## incluidos, ver Shark.zap). Si cae en una choza la hace pedazos (ver Decoration.smash); los
+## incluidos, ver Shark.zap). Si cae en una choza la hace pedazos (ver Hut.smash); los
 ## de adentro salen enteros: el rayo se lo llevó la choza.
 ## La nube, los rayos y la mira se dibujan en HUD.overlay (con un Painter): encima del
 ## mundo pero sin el tinte de la noche (si no, de noche el rayo se vería apagado).
@@ -134,9 +134,9 @@ func _strike(at: Vector2) -> void:
 	_sparks(at, 26)
 
 	# La choza en la que cae (la de más adelante) se hace pedazos
-	var hut: Decoration = null
+	var hut: Hut = null
 	for node in get_tree().get_nodes_in_group("hut"):
-		var h := node as Decoration
+		var h := node as Hut
 		if (h.hit_test(at) or h.footprint_point(at).distance_to(at) <= HIT_RADIUS) \
 				and (hut == null or h.global_position.y > hut.global_position.y):
 			hut = h

@@ -7,7 +7,7 @@ class_name VillagerAge
 ## uno vive lo suyo (lifespan): cuando le llega la hora, parado en la isla (o durmiendo, y ahí ni se
 ## despierta), se muere de viejo. La edad son los días vividos: pasan con los del cielo (ver
 ## Sky.passed; si adelantás el sol o la luna, también). También dice si puede tener un bebé (ver
-## can_have_baby y Decoration._try_birth). Se ve en el carnet y se guarda con la partida.
+## can_have_baby y Hut._try_birth). Se ve en el carnet y se guarda con la partida.
 ## Es una parte del aldeano (Villager la crea en _init): v es él. Desde afuera se usa lo que el
 ## aldeano reenvía (age, is_child, set_age...).
 

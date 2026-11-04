@@ -1,6 +1,6 @@
 extends Node2D
 class_name HutDebris
-## Un pedacito de una choza rota (ver Decoration.smash): una caña partida, un palo, una mata de
+## Un pedacito de una choza rota (ver Hut.smash): una caña partida, un palo, una mata de
 ## paja, una hoja, un hueso o el cartel con su nombre. Sale volando, rebota en el piso, queda
 ## tirado un rato (en el piso, debajo de los aldeanos) y se desvanece; si cae fuera de la isla
 ## se hunde en el agua. Se dibuja en las medidas de la choza (ver Decoration.HUT_SCALE).
@@ -31,7 +31,7 @@ var _lie := 0.0                       # Tirado: el ángulo en el que queda acost
 
 ## Rompe la choza h: arma sus pedacitos donde estaba cada uno, los tira para afuera desde from
 ## (force: con cuánta fuerza, px/s) y levanta polvo. burnt (0..1): qué tan chamuscados.
-static func burst(h: Decoration, from: Vector2, force: float, burnt := 0.0) -> void:
+static func burst(h: Hut, from: Vector2, force: float, burnt := 0.0) -> void:
 	var parent := h.get_parent()
 	var base := h.door()
 	var w := Decoration.HUT_WALL

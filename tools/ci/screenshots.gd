@@ -134,8 +134,7 @@ func _setup() -> void:
 	Game.add_sacrifices(50)
 	Game.fill_devotion()
 	for kind: String in ["hut", "hut", "torch", "berries", "palm", "altar"]:
-		var d := Decoration.new()
-		d.kind = kind
+		var d := _decoration(kind)
 		_world.props.add_child(d)
 		d.global_position = _world._island_point()
 	_world.debug_spawn_villagers(8)
@@ -153,6 +152,17 @@ func _setup() -> void:
 func _show_tab(good: bool) -> void:
 	var bar: Object = _hud.get("_bar")
 	(bar if bar else _hud).call("_set_tab", good)
+
+## Una decoración nueva de ese tipo. (La choza es una Hut desde que existe esa clase: se busca por
+## nombre porque este script también corre en commits de antes, sin Hut ni Decoration.make.)
+func _decoration(kind: String) -> Decoration:
+	if kind == "hut":
+		for c: Dictionary in ProjectSettings.get_global_class_list():
+			if c["class"] == "Hut":
+				return load(c["path"]).new()
+	var d := Decoration.new()
+	d.kind = kind
+	return d
 
 func _shot(shot_name: String) -> void:
 	await RenderingServer.frame_post_draw

@@ -26,7 +26,7 @@ var kind := ""
 var _ghost: Decoration
 
 ## Lo que está bajo el mouse: {"deco": Decoration}, {"palm": Decoration, "slot": int}
-## (un coco en la copa), {"nut": Coconut} (un coco suelto), {"hut": Decoration} (una choza,
+## (un coco en la copa), {"nut": Coconut} (un coco suelto), {"hut": Hut} (una choza,
 ## en el modo seleccionar), o vacío.
 var _hover := {}
 var _moving: Decoration
@@ -40,8 +40,7 @@ func _ready() -> void:
 func start(k: String) -> void:
 	stop()
 	kind = k
-	_ghost = Decoration.new()
-	_ghost.kind = k
+	_ghost = Decoration.make(k)
 	_ghost.ghost = true
 	add_child(_ghost)
 	_update_ghost()
@@ -130,8 +129,7 @@ func _place() -> void:
 		Game.say("No te alcanzan las ofrendas", screen, UiStyle.C_WARN)
 		stop()
 		return
-	var d := Decoration.new()
-	d.kind = kind
+	var d := Decoration.make(kind)
 	props.add_child(d)
 	d.global_position = pos
 	_puff(pos + Vector2(0, Decoration.LIFT))

@@ -208,12 +208,12 @@ func open_family_tree(id: int) -> void:
 	_family_tree.open(id)
 
 ## Click sobre una choza en modo seleccionar: abre su cartel, para ponerle nombre.
-func select_hut(h: Decoration) -> void:
+func select_hut(h: Hut) -> void:
 	_card.close()
 	_hut_card.open(h)
 
 ## La choza con el cartel abierto (o null).
-func selected_hut() -> Decoration:
+func selected_hut() -> Hut:
 	if _hut_card == null or not _hut_card.visible or not is_instance_valid(_hut_card.hut):
 		return null
 	return _hut_card.hut

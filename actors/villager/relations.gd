@@ -170,7 +170,7 @@ static func make(a: Villager, b: Villager, k: Kind) -> Event:
 		_note(ev, a, b)
 	return events.back()
 
-## La pareja a y b tuvo un bebé (ver Decoration._try_birth): queda en el historial.
+## La pareja a y b tuvo un bebé (ver Hut._try_birth): queda en el historial.
 static func note_birth(a: Villager, b: Villager) -> void:
 	_note(Event.BIRTH, a, b)
 

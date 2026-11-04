@@ -1,11 +1,11 @@
 extends RefCounted
 class_name VillagerHome
-## La casa: cada uno se busca una choza donde vivir (ver Decoration "hut"): con su pareja si tiene (en
+## La casa: cada uno se busca una choza donde vivir (ver Hut): con su pareja si tiene (en
 ## la de alguno de los dos, o en una con lugar para los dos) y si no, en cualquiera con lugar. De
 ## noche se van a dormir adentro hasta que se hace de día, y de día entran cada tanto a descansar un
 ## rato (las parejas, juntas). Adentro no se lo ve ni lo alcanza nada (ni rayos ni meteoritos ni la
 ## peste; ver Villager.inside); si le agarra hambre de verdad sale a comer. Las parejas que están
-## adentro juntas a veces tienen un bebé (ver Decoration._try_birth y VillagerAge.can_have_baby).
+## adentro juntas a veces tienen un bebé (ver Hut._try_birth y VillagerAge.can_have_baby).
 ## Es una parte del aldeano (Villager la crea en _init): v es él. Desde afuera se usa lo que el
 ## aldeano reenvía (home, has_home, enter_home...).
 
@@ -16,7 +16,7 @@ const REST_INSIDE := Vector2(12.0, 25.0)   # ...y lo que se quedan
 const HOME_CHECK := 2.0           # Cada cuánto se fija dónde vivir
 const HOME_REACH := 6.0
 const HOME_GIVE_UP := 15.0        # Si no llega a la puerta en este tiempo, lo deja
-var home: Decoration              # Su choza (null: sin casa)
+var home: Hut                     # Su choza (null: sin casa)
 var going_home := false            # Va caminando a su choza (ver walk_home)
 var _home_t := 0.0
 var _inside_t := 0.0
@@ -73,7 +73,7 @@ func leave_home() -> void:
 	v._heading = Vector2.ZERO
 	v.wander_timer = randf_range(1.5, 3.0)
 
-## Le rompieron la choza (ver Decoration.smash): si estaba adentro sale de golpe, y se queda
+## Le rompieron la choza (ver Hut.smash): si estaba adentro sale de golpe, y se queda
 ## sin casa (después se busca otra).
 func lose_home() -> void:
 	if v.inside:
@@ -186,11 +186,11 @@ func _update_home() -> void:
 		home = _free_hut(1)
 
 ## La choza más cerca con al menos beds lugares libres, o null.
-func _free_hut(beds: int) -> Decoration:
-	var best: Decoration = null
+func _free_hut(beds: int) -> Hut:
+	var best: Hut = null
 	var best_d := INF
 	for node in v.get_tree().get_nodes_in_group("hut"):
-		var h := node as Decoration
+		var h := node as Hut
 		var d := h.door().distance_to(v.global_position)
 		if h and not h.moving and h.free_beds() >= beds and d < best_d:
 			best = h

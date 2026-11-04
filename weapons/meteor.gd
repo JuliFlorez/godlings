@@ -6,7 +6,7 @@ class_name Meteor
 ## salen volando, los de más lejos salen despedidos vivos (ver Villager.blast), y en la isla
 ## queda un cráter con la piedra al rojo, humeando. En el agua levanta una columna de agua y
 ## olas. A los tiburones también los mata (ver Shark.blast), y las chozas de cerca se hacen
-## pedazos (ver Decoration.smash).
+## pedazos (ver Hut.smash).
 ## Mientras cae, los que están cerca lo miran venir con la boca abierta (Villager.scare).
 ## El fuego y la mira se dibujan en HUD.overlay (así de noche no se apagan); la sombra y las
 ## olas, en el mundo.
@@ -187,7 +187,7 @@ func _impact(m: Dictionary) -> void:
 
 	# Las chozas de cerca se hacen pedazos: los de adentro salen y los alcanza la explosión
 	for node in get_tree().get_nodes_in_group("hut"):
-		var h := node as Decoration
+		var h := node as Hut
 		if h.footprint_point(at).distance_to(at) <= KILL_RADIUS:
 			h.smash(at, HUT_BLAST, 0.7)
 	# Los de cerca mueren y salen volando; los de más lejos solo salen volando

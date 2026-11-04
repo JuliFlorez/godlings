@@ -7,7 +7,7 @@ class_name Tornado
 ## adentro del embudo): los hace girar alrededor, cada vez más arriba, y al rato los revolea
 ## por el aire (ver Villager.enter_tornado). En el agua levanta a los que flotan y saca
 ## volando a los tiburones (ver Shark.fling); en la isla revolea los cocos (Coconut.fling) y
-## hace pedazos las chozas (Decoration.smash): los de adentro salen y se los chupa.
+## hace pedazos las chozas (Hut.smash): los de adentro salen y se los chupa.
 ## El embudo se dibuja en el mundo (Funnel, ordenado por Y con los aldeanos: lo que está
 ## adelante lo tapa); la mira, en HUD.overlay.
 
@@ -204,7 +204,7 @@ func _lift_off() -> void:
 func _suck() -> void:
 	if not _wet:
 		for node in get_tree().get_nodes_in_group("hut"):
-			var h := node as Decoration
+			var h := node as Hut
 			if _on_ground(h.footprint_point(_base), CAPTURE_R):
 				h.smash(_base + Vector2(0, 30), HUT_FLING)   # Desde abajo: los pedazos salen para arriba
 	for node in get_tree().get_nodes_in_group("villager"):
