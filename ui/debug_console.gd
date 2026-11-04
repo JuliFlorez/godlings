@@ -44,7 +44,7 @@ func _ready() -> void:
 
 	var panel := PanelContainer.new()
 	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	panel.add_theme_stylebox_override("panel", HUD.make_box(Color(0.03, 0.05, 0.09, 0.94), 0, HUD.C_PANEL_BORDER, 1, Vector4(14, 10, 14, 10)))
+	panel.add_theme_stylebox_override("panel", UiStyle.box(Color(0.03, 0.05, 0.09, 0.94), 0, UiStyle.C_PANEL_BORDER, 1, Vector4(14, 10, 14, 10)))
 	add_child(panel)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 6)

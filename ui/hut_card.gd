@@ -20,7 +20,7 @@ var _residents_key := ""         # Lo que se está mostrando: se rearma solo si 
 
 func _ready() -> void:
 	visible = false
-	add_theme_stylebox_override("panel", HUD.make_box(Color(0.06, 0.09, 0.16, 0.94), 16, HUD.C_PANEL_BORDER, 1, Vector4(16, 12, 16, 16)))
+	add_theme_stylebox_override("panel", UiStyle.window(0.94, Vector4(16, 12, 16, 16)))
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	add_child(col)
@@ -28,7 +28,7 @@ func _ready() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	col.add_child(head)
-	head.add_child(HUD.make_label("Choza", 17, HUD.C_TEXT))
+	head.add_child(UiStyle.label("Choza", 17, UiStyle.C_TEXT))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
@@ -40,7 +40,7 @@ func _ready() -> void:
 
 	# El dibujo, enmarcado como la foto del carnet
 	var frame := PanelContainer.new()
-	frame.add_theme_stylebox_override("panel", HUD.make_box(VillagerCard.PHOTO_FRAME, 6, Color(0, 0, 0, 0), 0, Vector4(4, 4, 4, 4)))
+	frame.add_theme_stylebox_override("panel", UiStyle.box(VillagerCard.PHOTO_FRAME, 6, Color(0, 0, 0, 0), 0, Vector4(4, 4, 4, 4)))
 	frame.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	body.add_child(frame)
 	_preview = Preview.new()
@@ -67,7 +67,7 @@ func _ready() -> void:
 	var spacer2 := Control.new()
 	spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(spacer2)
-	_beds = HUD.make_label("", 12, HUD.C_MUTED)
+	_beds = UiStyle.label("", 12, UiStyle.C_MUTED)
 	row.add_child(_beds)
 	_residents = HFlowContainer.new()
 	_residents.custom_minimum_size = Vector2(176, 0)   # Lo mismo que el nombre
@@ -124,10 +124,10 @@ func _update_residents() -> void:
 	for c in _residents.get_children():
 		c.queue_free()
 	if people.is_empty():
-		_residents.add_child(HUD.make_label("—", 14, Color(HUD.C_MUTED, 0.6)))
+		_residents.add_child(UiStyle.label("—", 14, Color(UiStyle.C_MUTED, 0.6)))
 	for o in people:
 		# Los que están adentro, más claritos
-		_residents.add_child(VillagerCard.link_button(VillagerCard.listed_name(o), HUD.C_TEXT if o.inside else HUD.C_MUTED, func():
+		_residents.add_child(VillagerCard.link_button(VillagerCard.listed_name(o), UiStyle.C_TEXT if o.inside else UiStyle.C_MUTED, func():
 			if is_instance_valid(o) and hud:
 				hud.select_villager(o)))
 

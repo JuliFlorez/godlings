@@ -96,7 +96,7 @@ func ignite() -> void:
 		_fire_light.enabled = false
 		v.add_child(_fire_light)
 	if not v.dead:
-		Game.say("¡Se prendió fuego!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)
+		Game.say("¡Se prendió fuego!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_WARN)
 
 ## Se apaga. steam: cayó al agua o lo agarró la lluvia (sale vapor).
 func put_out(steam := false) -> void:
@@ -113,7 +113,7 @@ func put_out(steam := false) -> void:
 	if steam:
 		_spawn_steam()
 		if not v.dead:
-			Game.say("¡Fiuuu!", v.get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_TEXT)
+			Game.say("¡Fiuuu!", v.get_global_transform_with_canvas().origin + Vector2(0, -60), UiStyle.C_TEXT)
 
 ## Le cayó un rayo (ver Lightning): se electrocuta y muere. Con el escudo, el rayo rebota.
 func zap() -> void:

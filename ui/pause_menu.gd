@@ -27,13 +27,13 @@ func _ready() -> void:
 	add_child(center)
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(340, 0)
-	panel.add_theme_stylebox_override("panel", HUD.make_box(Color(0.06, 0.09, 0.16, 0.97), 16, HUD.C_PANEL_BORDER, 1, Vector4(22, 18, 22, 20)))
+	panel.add_theme_stylebox_override("panel", UiStyle.window(0.97, Vector4(22, 18, 22, 20)))
 	center.add_child(panel)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 12)
 	panel.add_child(col)
 
-	var title := HUD.make_label("Pausa", 22, HUD.C_TEXT)
+	var title := UiStyle.label("Pausa", 22, UiStyle.C_TEXT)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(title)
 
@@ -44,16 +44,16 @@ func _ready() -> void:
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 4)
 	col.add_child(gap)
-	var resume := HUD.make_button("Continuar", HUD.C_SHOP)
+	var resume := UiStyle.button("Continuar", UiStyle.C_SHOP)
 	resume.add_theme_color_override("font_color", Color(0.08, 0.14, 0.08))
 	resume.add_theme_color_override("font_hover_color", Color(0.08, 0.14, 0.08))
 	resume.pressed.connect(close)
 	col.add_child(resume)
 	# Guarda y vuelve al cielo, a elegir partida (ver World._to_title)
-	var menu := HUD.make_button("Menú principal", Color(1, 1, 1, 0.08))
+	var menu := UiStyle.button("Menú principal", Color(1, 1, 1, 0.08))
 	menu.pressed.connect(func(): hud.menu_requested.emit())
 	col.add_child(menu)
-	var quit := HUD.make_button("Salir del juego", Color(0.75, 0.25, 0.22))
+	var quit := UiStyle.button("Salir del juego", Color(0.75, 0.25, 0.22))
 	quit.pressed.connect(func():
 		Settings.save()
 		# Igual que cerrar la ventana: así el mundo guarda la partida antes de salir
@@ -61,7 +61,7 @@ func _ready() -> void:
 		get_tree().quit())
 	col.add_child(quit)
 
-	var note := HUD.make_label("La partida se guarda sola.", 12, HUD.C_MUTED)
+	var note := UiStyle.label("La partida se guarda sola.", 12, UiStyle.C_MUTED)
 	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(note)
 

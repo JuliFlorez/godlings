@@ -45,6 +45,8 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 | `weapons/` | Un nodo por poder, todos hijos de `Power` (`power.gd`: lo común, y `Power.all()` / `aiming()`): `Gun`, `Lightning`, `Meteor`, `Tornado`, `Storm` (diluvio, no se apunta), `Plague`, `Spore`, `Cure`, `Feed`. `Charm` (Cupido, Discordia, Amistad) y `Miracle` (Resurrección, Escudo, Vacuna) van por `Kind`. `World._create_powers` los crea en el orden de la barra. |
 | `world/game.gd` (`Game`) | La partida, en estáticos: ofrendas, sacrificios, devoción, XP y puntos de expansión, la Luna de Sangre y los tiburones comprados, las compras (`buy`, `unlock_power`...) y su guardado (`save_state` / `load_state`). `Game.reset()` borra todo lo de la partida; `Game.events` avisa lo que cambia; `Game.say` / `announce` muestran un cartel flotante. |
 | `ui/hud.gd` (`HUD`, grupo `"hud"`) | Arma toda la interfaz por código (la barra de poderes, con `set_powers`) y **muestra** la partida: escucha `Game.events`. No guarda nada. |
+| `ui/ui_style.gd` (`UiStyle`) | El estilo de la interfaz: la paleta (`UiStyle.C_TEXT`, `C_PANEL`, el color de cada poder...) y las piezas (`label`, `button`, `box`, `window`, `outline`). |
+| `ui/hud_icon.gd` (`HudIcon`), `ui/painter.gd` (`Painter`) | Los íconos vectoriales por nombre (y la moneda de los sacrificios), y el lienzo del `overlay` donde dibujan el rayo, el meteorito y el tornado. |
 | `ui/` (el resto) | `shop`, `villager_card` (el carnet), `hut_card`, `family_tree`, `history_panel`, `title_menu`, `pause_menu`, `settings` y `settings_panel`, `i18n`, `debug_console` (F1, solo en debug). |
 | `world/` (el resto) | `decoration` (todas, por `kind`; la choza tiene vecinos y nacimientos), `decor_placer`, `altar`, `food` / `coconut` / `manna`, `sea` y `water.gdshader`, `water_area`, `hut_debris`, `expand_marker`, `save_slots`. |
 | `sky/` | `sky.gd` (reloj, día y noche, Luna de Sangre), `sun` y `moon` (`Celestial`), nubes, estrellas y gaviotas. |
@@ -53,7 +55,9 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 ## Cómo está hecho
 
 - **Todo se crea por código** (`X.new()` y `add_child`); las únicas escenas son `world.tscn` y
-  `villager.tscn`. La interfaz usa `HUD.make_label`, `make_button` y `make_box`.
+  `villager.tscn`. La interfaz se arma con `UiStyle`: sus colores y sus piezas (`UiStyle.label`,
+  `button`, `box`, `window`, `outline`). Un color o un estilo que se repite va ahí, no suelto en
+  cada panel.
 - **No hay autoloads: el estado global son `static var`.** De la partida: todo `Game`, y además
   `Villager.ids_issued`, `World.play_time`, `Relations`, `Genealogy` y el agua del diluvio
   (`Storm.rain`...). "Menú principal" recarga la escena y los estáticos **sobreviven**: los borra

@@ -58,7 +58,7 @@ func _ready() -> void:
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", HUD.make_box(Color(0.06, 0.09, 0.16, 0.96), 16, HUD.C_PANEL_BORDER, 1, Vector4(18, 16, 18, 18)))
+	panel.add_theme_stylebox_override("panel", UiStyle.window(0.96, Vector4(18, 16, 18, 18)))
 	center.add_child(panel)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
@@ -67,7 +67,7 @@ func _ready() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	col.add_child(head)
-	head.add_child(HUD.make_label("Historial", 20, HUD.C_TEXT))
+	head.add_child(UiStyle.label("Historial", 20, UiStyle.C_TEXT))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
@@ -75,12 +75,12 @@ func _ready() -> void:
 	close_btn.text = "✕"
 	close_btn.focus_mode = Control.FOCUS_NONE
 	close_btn.custom_minimum_size = Vector2(28, 28)
-	close_btn.add_theme_stylebox_override("normal", HUD.make_box(Color(1, 1, 1, 0.08), 8))
-	close_btn.add_theme_stylebox_override("hover", HUD.make_box(Color(1, 1, 1, 0.18), 8))
-	close_btn.add_theme_stylebox_override("pressed", HUD.make_box(Color(1, 1, 1, 0.26), 8))
+	close_btn.add_theme_stylebox_override("normal", UiStyle.box(Color(1, 1, 1, 0.08), 8))
+	close_btn.add_theme_stylebox_override("hover", UiStyle.box(Color(1, 1, 1, 0.18), 8))
+	close_btn.add_theme_stylebox_override("pressed", UiStyle.box(Color(1, 1, 1, 0.26), 8))
 	close_btn.pressed.connect(close)
 	head.add_child(close_btn)
-	col.add_child(HUD.make_label("Quién se hizo amigo, enemigo o pareja de quién.", 12, HUD.C_MUTED))
+	col.add_child(UiStyle.label("Quién se hizo amigo, enemigo o pareja de quién.", 12, UiStyle.C_MUTED))
 
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 6)
@@ -143,13 +143,13 @@ func _set_filter(i: int) -> void:
 		var on := j == i
 		var c := Relations.color(FILTERS[j][2])
 		var pad := Vector4(12, 2, 12, 2)
-		var box := HUD.make_box(Color(c, 0.24), 8, Color(c, 0.8), 2, pad) if on \
-				else HUD.make_box(Color(1, 1, 1, 0.06), 8, Color(1, 1, 1, 0.10), 1, pad)
+		var box := UiStyle.box(Color(c, 0.24), 8, Color(c, 0.8), 2, pad) if on \
+				else UiStyle.box(Color(1, 1, 1, 0.06), 8, Color(1, 1, 1, 0.10), 1, pad)
 		b.add_theme_stylebox_override("normal", box)
-		b.add_theme_stylebox_override("hover", box if on else HUD.make_box(Color(c, 0.14), 8, Color(c, 0.5), 1, pad))
+		b.add_theme_stylebox_override("hover", box if on else UiStyle.box(Color(c, 0.14), 8, Color(c, 0.5), 1, pad))
 		b.add_theme_stylebox_override("pressed", box)
 		for state in ["font_color", "font_hover_color", "font_pressed_color"]:
-			b.add_theme_color_override(state, c if on else HUD.C_MUTED)
+			b.add_theme_color_override(state, c if on else UiStyle.C_MUTED)
 	if _scroll:
 		_scroll.scroll_vertical = 0
 	if visible:
@@ -186,7 +186,7 @@ func _rebuild(shown: Array[Dictionary], alive: Dictionary) -> void:
 		c.queue_free()
 	_times.clear()
 	if shown.is_empty():
-		var l := HUD.make_label(EMPTY if Relations.history.is_empty() else EMPTY_FILTER, 13, HUD.C_MUTED)
+		var l := UiStyle.label(EMPTY if Relations.history.is_empty() else EMPTY_FILTER, 13, UiStyle.C_MUTED)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(LIST_SIZE.x - 20.0, 0)
 		_list.add_child(l)
@@ -210,10 +210,10 @@ func _row(e: Dictionary, alive: Dictionary) -> Control:
 	row.add_child(flow)
 	var b := _person(e.b, e.get("b_name", ""), alive, col)
 	flow.add_child(_person(e.a, e.get("a_name", ""), alive, col))
-	flow.add_child(HUD.make_label(_and(b.text), 14, HUD.C_TEXT))
+	flow.add_child(UiStyle.label(_and(b.text), 14, UiStyle.C_TEXT))
 	flow.add_child(b)
-	flow.add_child(HUD.make_label(info[0], 14, HUD.C_TEXT))
-	var time := HUD.make_label("", 12, HUD.C_MUTED)
+	flow.add_child(UiStyle.label(info[0], 14, UiStyle.C_TEXT))
+	var time := UiStyle.label("", 12, UiStyle.C_MUTED)
 	time.custom_minimum_size = Vector2(TIME_W, 24)
 	time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	time.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -240,15 +240,15 @@ func _person(id: int, saved_name: String, alive: Dictionary, col: Color) -> Butt
 	if v == null:
 		b.disabled = true
 		b.add_theme_color_override("font_disabled_color", Color(col, 0.5))
-		b.add_theme_stylebox_override("disabled", HUD.make_box(Color(1, 1, 1, 0.05), 6, Color(0, 0, 0, 0), 0, pad))
+		b.add_theme_stylebox_override("disabled", UiStyle.box(Color(1, 1, 1, 0.05), 6, Color(0, 0, 0, 0), 0, pad))
 		return b
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	b.add_theme_color_override("font_color", col)
 	b.add_theme_color_override("font_hover_color", col.lightened(0.35))
 	b.add_theme_color_override("font_pressed_color", col.darkened(0.2))
-	b.add_theme_stylebox_override("normal", HUD.make_box(Color(col, 0.1), 6, Color(0, 0, 0, 0), 0, pad))
-	b.add_theme_stylebox_override("hover", HUD.make_box(Color(col, 0.22), 6, Color(0, 0, 0, 0), 0, pad))
-	b.add_theme_stylebox_override("pressed", HUD.make_box(Color(col, 0.3), 6, Color(0, 0, 0, 0), 0, pad))
+	b.add_theme_stylebox_override("normal", UiStyle.box(Color(col, 0.1), 6, Color(0, 0, 0, 0), 0, pad))
+	b.add_theme_stylebox_override("hover", UiStyle.box(Color(col, 0.22), 6, Color(0, 0, 0, 0), 0, pad))
+	b.add_theme_stylebox_override("pressed", UiStyle.box(Color(col, 0.3), 6, Color(0, 0, 0, 0), 0, pad))
 	b.pressed.connect(func():
 		if is_instance_valid(v):
 			close()
@@ -265,8 +265,8 @@ static func _color(ev: Relations.Event) -> Color:
 		Relations.Event.COUPLE, Relations.Event.BIRTH:
 			return Relations.color(Relations.Kind.COUPLE)
 		Relations.Event.MADE_UP:
-			return HUD.C_DEVOTION
-	return HUD.C_MUTED
+			return UiStyle.C_DEVOTION
+	return UiStyle.C_MUTED
 
 ## "y", que en castellano antes de i se vuelve "e" (Ana e Isabel, pero Ana y Hierro).
 func _and(next: String) -> String:

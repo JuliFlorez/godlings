@@ -202,7 +202,7 @@ static func buy_shark() -> bool:
 	if index < 0 or not buy(Shark.PRICE, Shark.SACRIFICES):
 		return false
 	give_shark(index)
-	announce("¡Tiburón suelto en el agua!", HUD.C_DEVOTION)
+	announce("¡Tiburón suelto en el agua!", UiStyle.C_DEVOTION)
 	return true
 
 ## El tiburón index queda comprado y suelto (también la consola de trucos).
@@ -223,16 +223,16 @@ static func set_shark_on(index: int, on: bool) -> void:
 static func lose_shark(index: int) -> void:
 	shark_owned[index] = false
 	shark_on[index] = false
-	announce("¡Mataste al tiburón! Comprá otro en la tienda", HUD.C_WARN)
+	announce("¡Mataste al tiburón! Comprá otro en la tienda", UiStyle.C_WARN)
 	events.changed.emit()
 
 # ---- Carteles ----
 ## Un cartel flotante en at (en la pantalla): sube y se desvanece (lo muestra el HUD).
-static func say(text: String, at: Vector2, color := HUD.C_TEXT) -> void:
+static func say(text: String, at: Vector2, color := UiStyle.C_TEXT) -> void:
 	events.said.emit(text, at, color)
 
 ## Un cartel en el medio de la pantalla.
-static func announce(text: String, color := HUD.C_TEXT) -> void:
+static func announce(text: String, color := UiStyle.C_TEXT) -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree:
 		say(text, tree.root.get_visible_rect().size * Vector2(0.5, 0.42), color)

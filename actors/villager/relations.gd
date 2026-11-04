@@ -68,7 +68,7 @@ static func kind(a: Villager, b: Villager) -> Kind:
 	return _bonds.get(_key(a, b), Kind.NONE)
 
 static func color(k: Kind) -> Color:
-	return COLORS.get(k, HUD.C_TEXT)
+	return COLORS.get(k, UiStyle.C_TEXT)
 
 ## Cuántos amigos, enemigos y parejas tiene v ({Kind: cuántos}).
 static func counts(v: Villager) -> Dictionary:
@@ -198,14 +198,14 @@ static func news(ev: Event) -> Array:
 		Event.ENEMIES:
 			return ["¡Ahora son enemigos!", color(Kind.ENEMY)]
 		Event.MADE_UP:
-			return ["Hicieron las paces", HUD.C_DEVOTION]
+			return ["Hicieron las paces", UiStyle.C_DEVOTION]
 		Event.COUPLE:
 			return ["¡Son pareja!", color(Kind.COUPLE)]
 		Event.BROKE_UP:
-			return ["Se separaron", HUD.C_MUTED]
+			return ["Se separaron", UiStyle.C_MUTED]
 		Event.BIRTH:
 			return ["¡Nació un bebé!", color(Kind.COUPLE)]
-	return ["", HUD.C_TEXT]
+	return ["", UiStyle.C_TEXT]
 
 static func _change(a: Villager, b: Villager, delta: float) -> Event:
 	var k := _key(a, b)

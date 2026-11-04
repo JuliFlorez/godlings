@@ -10,7 +10,7 @@ const TAIL := Vector2(5, 7)          # Medio ancho y alto de la colita
 const RADIUS := 10
 const LINE_W := 2.0
 const C_BG := Color(0.99, 0.99, 1.0, 0.97)
-const C_LINE := Color(0.05, 0.07, 0.12, 0.9)
+const C_LINE := UiStyle.C_INK
 const C_INK := Color(0.16, 0.18, 0.26)
 const C_HEART := Color(0.93, 0.25, 0.42)
 const C_ANGER := Color(1.0, 0.42, 0.32)
@@ -54,7 +54,7 @@ func _draw() -> void:
 	var rect := Rect2(Vector2(-SIZE.x * 0.5, -TAIL.y - SIZE.y), SIZE)
 	var bg: Color = BG.get(kind, C_BG)
 	if not _boxes.has(bg):
-		_boxes[bg] = HUD.make_box(bg, RADIUS, C_LINE, int(LINE_W))
+		_boxes[bg] = UiStyle.box(bg, RADIUS, C_LINE, int(LINE_W))
 	(_boxes[bg] as StyleBoxFlat).draw(get_canvas_item(), rect)
 	# La colita tapa el borde de abajo del globo donde se junta con él
 	var l := Vector2(-TAIL.x, -TAIL.y)

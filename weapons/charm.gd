@@ -171,7 +171,7 @@ func _process(dt: float) -> void:
 		if not _alive(_pierced):
 			_pierced = null
 		elif _pierce_t <= 0.0:
-			_popup("Se le pasó el flechazo", _pierced.global_position, HUD.C_MUTED)
+			_popup("Se le pasó el flechazo", _pierced.global_position, UiStyle.C_MUTED)
 			_pierced = null
 	queue_redraw()   # Siempre: así al guardarlo (o cuando termina lo último) no queda dibujado
 
@@ -236,7 +236,7 @@ func _land_arrow(s: Shot) -> void:
 ## no les hace nada.
 func _pierce(v: Villager) -> void:
 	if v.is_child():
-		_popup("Es muy chico para eso", v.global_position, HUD.C_MUTED)
+		_popup("Es muy chico para eso", v.global_position, UiStyle.C_MUTED)
 		return
 	if _alive(_pierced) and _pierced != v:
 		var a := _pierced
@@ -284,7 +284,7 @@ func _land_apple(s: Shot) -> void:
 			near.append(v)
 	if near.size() < 2:
 		if near.size() == 1:
-			_popup("No tiene con quién pelearse", near[0].global_position, HUD.C_MUTED)
+			_popup("No tiene con quién pelearse", near[0].global_position, UiStyle.C_MUTED)
 		return
 	var any := false
 	for i in near.size():
@@ -356,7 +356,7 @@ func _befriend(group: Array[Villager]) -> void:
 	var friends := group.filter(func(v): return _alive(v))
 	if friends.size() < 2:
 		if friends.size() == 1:
-			_popup("No tiene con quién jugar", friends[0].global_position, HUD.C_MUTED)
+			_popup("No tiene con quién jugar", friends[0].global_position, UiStyle.C_MUTED)
 		return
 	var any := false
 	var mid := Vector2.ZERO

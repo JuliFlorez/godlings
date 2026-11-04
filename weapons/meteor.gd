@@ -49,7 +49,7 @@ func _init() -> void:
 	id = "meteor"
 	title = "Meteorito"
 	key = KEY_M
-	accent = HUD.C_METEOR
+	accent = UiStyle.C_METEOR
 	price = 260
 	sacrifices = 6
 	tooltip = "Sacar o guardar el meteorito [M]"
@@ -136,7 +136,7 @@ func _target(p: Vector2) -> Vector2:
 func _drop(p: Vector2) -> void:
 	var to := _target(p)
 	if not to.is_finite():
-		Game.say("Apuntá a la isla o al agua", get_canvas_transform() * p, HUD.C_WARN)
+		Game.say("Apuntá a la isla o al agua", get_canvas_transform() * p, UiStyle.C_WARN)
 		return
 	if _cooldown > 0.0:
 		return

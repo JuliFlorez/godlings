@@ -90,7 +90,7 @@ func infect() -> void:
 func recover() -> void:
 	flu = Stage.IMMUNE
 	flu_t = IMMUNE_TIME
-	Game.say("¡Se curó!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
+	Game.say("¡Se curó!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_SHOP)
 
 ## Volvió a la vida (ver Villager._come_back): sano y sin lo verdoso, sin decir nada. Si la tenía,
 ## queda inmune.
@@ -162,7 +162,7 @@ func _sneeze() -> void:
 		v.rig.sneeze()
 	_spawn_droplets(mouth, Vector2(facing, 0.15))
 	v._play_sfx(VillagerSounds.sneeze(), Villager.VOICE_DB - 4.0, v._voice_pitch * randf_range(0.92, 1.05))
-	Game.say("¡Achís!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
+	Game.say("¡Achís!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_TEXT)
 	for node in v.get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
 		if o == null or o == v or o.flu != Stage.HEALTHY or not o.is_idle():
@@ -174,7 +174,7 @@ func _sneeze() -> void:
 
 ## No aguantó: se desploma donde está (cuenta como sacrificio, como cualquier muerte).
 func _die_of_flu() -> void:
-	Game.say("Murió de gripe", v.get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
+	Game.say("Murió de gripe", v.get_global_transform_with_canvas().origin + Vector2(0, -80), UiStyle.C_WARN)
 	if v.food:
 		v.food.release_eater()
 	v._gentle_death = true

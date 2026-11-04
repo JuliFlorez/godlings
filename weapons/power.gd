@@ -63,7 +63,7 @@ func _notification(what: int) -> void:
 ## Lo saca (si está comprado y se puede) o lo guarda.
 func set_armed(on: bool) -> void:
 	if on and not unlocked:
-		Game.announce(need, HUD.C_WARN)
+		Game.announce(need, UiStyle.C_WARN)
 		return
 	if on == armed or (on and not _can_arm()):
 		return

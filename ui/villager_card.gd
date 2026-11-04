@@ -57,24 +57,24 @@ const RELATIONS := [
 const REL_CAPTION_W := 66.0
 ## Lo que es según su fe y su miedo: [varón, aldeana, color]
 const CREEDS := {
-	VillagerFaith.Creed.DEVOUT: ["Devoto", "Devota", HUD.C_HOLY],
-	VillagerFaith.Creed.ZEALOT: ["Fanático", "Fanática", HUD.C_METEOR],
-	VillagerFaith.Creed.HERETIC: ["Hereje", "Hereje", HUD.C_MUTED],
-	VillagerFaith.Creed.TERRIFIED: ["Aterrado", "Aterrada", HUD.C_WARN],
+	VillagerFaith.Creed.DEVOUT: ["Devoto", "Devota", UiStyle.C_HOLY],
+	VillagerFaith.Creed.ZEALOT: ["Fanático", "Fanática", UiStyle.C_METEOR],
+	VillagerFaith.Creed.HERETIC: ["Hereje", "Hereje", UiStyle.C_MUTED],
+	VillagerFaith.Creed.TERRIFIED: ["Aterrado", "Aterrada", UiStyle.C_WARN],
 }
 ## Su ánimo: [varón, aldeana, color]
 const MOODS := {
-	VillagerMood.Mood.DEPRESSED: ["Deprimido", "Deprimida", HUD.C_WARN],
+	VillagerMood.Mood.DEPRESSED: ["Deprimido", "Deprimida", UiStyle.C_WARN],
 	VillagerMood.Mood.SAD: ["Triste", "Triste", Color(1.0, 0.7, 0.4)],
-	VillagerMood.Mood.OK: ["Tranquilo", "Tranquila", HUD.C_MUTED],
+	VillagerMood.Mood.OK: ["Tranquilo", "Tranquila", UiStyle.C_MUTED],
 	VillagerMood.Mood.CONTENT: ["Contento", "Contenta", Color(0.66, 0.88, 0.5)],
-	VillagerMood.Mood.HAPPY: ["Feliz", "Feliz", HUD.C_SHOP],
+	VillagerMood.Mood.HAPPY: ["Feliz", "Feliz", UiStyle.C_SHOP],
 }
-const C_FAITH := HUD.C_HOLY
-const C_FEAR := HUD.C_EVIL
-const C_HUNGER := HUD.C_FEED
+const C_FAITH := UiStyle.C_HOLY
+const C_FEAR := UiStyle.C_EVIL
+const C_HUNGER := UiStyle.C_FEED
 const C_SLEEP := Color(0.6, 0.6, 1.0)
-const C_SPORE := HUD.C_SPORE
+const C_SPORE := UiStyle.C_SPORE
 const MAX_LISTED_NAME := 18      # Los nombres más largos se cortan con "…"
 const C_HUT := Color(0.9, 0.72, 0.46)
 
@@ -108,7 +108,7 @@ var _relations_key := ""        # Lo que se está mostrando: se rearma solo si c
 
 func _ready() -> void:
 	visible = false
-	add_theme_stylebox_override("panel", HUD.make_box(Color(0.06, 0.09, 0.16, 0.94), 16, HUD.C_PANEL_BORDER, 1, Vector4(16, 12, 16, 16)))
+	add_theme_stylebox_override("panel", UiStyle.window(0.94, Vector4(16, 12, 16, 16)))
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 7)
 	add_child(col)
@@ -116,12 +116,12 @@ func _ready() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	col.add_child(head)
-	head.add_child(HUD.make_label("Carnet de aldeano", 17, HUD.C_TEXT))
+	head.add_child(UiStyle.label("Carnet de aldeano", 17, UiStyle.C_TEXT))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
-	head.add_child(HUD.make_label("N.º", 12, HUD.C_MUTED))
-	_number = HUD.make_label("", 14, HUD.C_XP)
+	head.add_child(UiStyle.label("N.º", 12, UiStyle.C_MUTED))
+	_number = UiStyle.label("", 14, UiStyle.C_XP)
 	head.add_child(_number)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(4, 0)
@@ -137,7 +137,7 @@ func _ready() -> void:
 	photo_col.add_theme_constant_override("separation", 0)
 	body.add_child(photo_col)
 	var frame := PanelContainer.new()
-	frame.add_theme_stylebox_override("panel", HUD.make_box(PHOTO_FRAME, 6, Color(0, 0, 0, 0), 0, Vector4(4, 4, 4, 4)))
+	frame.add_theme_stylebox_override("panel", UiStyle.box(PHOTO_FRAME, 6, Color(0, 0, 0, 0), 0, Vector4(4, 4, 4, 4)))
 	photo_col.add_child(frame)
 	_photo = ColorRect.new()
 	_photo.color = PHOTO_BG
@@ -148,13 +148,13 @@ func _ready() -> void:
 	gap2.custom_minimum_size = Vector2(0, 8)
 	photo_col.add_child(gap2)
 	photo_col.add_child(caption("Género"))
-	_gender = HUD.make_label("", 15, HUD.C_TEXT)
+	_gender = UiStyle.label("", 15, UiStyle.C_TEXT)
 	photo_col.add_child(_gender)
 	var gap5 := Control.new()
 	gap5.custom_minimum_size = Vector2(0, 6)
 	photo_col.add_child(gap5)
 	photo_col.add_child(caption("Edad"))
-	_age = HUD.make_label("", 15, HUD.C_TEXT)
+	_age = UiStyle.label("", 15, UiStyle.C_TEXT)
 	_age.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_status (lleva el número)
 	photo_col.add_child(_age)
 
@@ -171,10 +171,10 @@ func _ready() -> void:
 	gap4.custom_minimum_size = Vector2(0, 6)
 	fields.add_child(gap4)
 	fields.add_child(caption("Estado"))
-	_status = HUD.make_label("", 15, HUD.C_TEXT)
+	_status = UiStyle.label("", 15, UiStyle.C_TEXT)
 	_status.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_status (puede decir dos cosas)
 	fields.add_child(_status)
-	_wards = HUD.make_label("", 12, HUD.C_HOLY)
+	_wards = UiStyle.label("", 12, UiStyle.C_HOLY)
 	_wards.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_status (lleva el tiempo)
 	fields.add_child(_wards)
 	_hunger_bar = _bar(fields, "Hambre", C_HUNGER)
@@ -235,35 +235,35 @@ func _process(_dt: float) -> void:
 func _update_status() -> void:
 	var v := villager
 	var text := "Sano"
-	var col := HUD.C_SHOP
+	var col := UiStyle.C_SHOP
 	if v.is_rising():
 		text = "Volviendo a la vida"
-		col = HUD.C_HOLY
+		col = UiStyle.C_HOLY
 	elif v.dead:
 		text = "Muerto"
-		col = HUD.C_MUTED
+		col = UiStyle.C_MUTED
 	else:
 		match v.flu:
 			VillagerFlu.Stage.INCUBATING:
 				text = "Incubando gripe"
-				col = HUD.C_SOON
+				col = UiStyle.C_SOON
 			VillagerFlu.Stage.SICK:
 				text = "Enfermo de gripe"
-				col = HUD.C_WARN
+				col = UiStyle.C_WARN
 			VillagerFlu.Stage.IMMUNE:
 				text = "Curado (inmune)"
-				col = HUD.C_DEVOTION
+				col = UiStyle.C_DEVOTION
 		# La espora pesa más que la gripe
 		match v.infection():
 			VillagerSpore.Infection.INCUBATING:
 				text = "Incubando la espora"
-				col = HUD.C_SOON
+				col = UiStyle.C_SOON
 			VillagerSpore.Infection.SPREADING:
 				text = "Le crecen hongos"
 				col = C_SPORE
 			VillagerSpore.Infection.ZOMBIE:
 				text = "Zombi (brotando)" if v.bloom_amount() > 0.0 else "Zombi"
-				col = HUD.C_WARN
+				col = UiStyle.C_WARN
 	_status.text = tr(text)
 	if v.is_sleeping() and not v.dead:
 		_status.text += " · " + tr("durmiendo")
@@ -323,11 +323,11 @@ func _update_creed() -> void:
 	_tribute_row.visible = not v.dead
 	if block == "":
 		_tribute.text = HUD.per_prayer(v.tribute(), hud.tribute_interval if hud else 10.0)
-		_tribute.add_theme_color_override("font_color", HUD.C_OFFERING)
+		_tribute.add_theme_color_override("font_color", UiStyle.C_OFFERING)
 		_tribute_coin.modulate.a = 1.0
 	else:
 		_tribute.text = tr("No reza: %s") % tr(block).to_lower()
-		_tribute.add_theme_color_override("font_color", HUD.C_MUTED)
+		_tribute.add_theme_color_override("font_color", UiStyle.C_MUTED)
 		_tribute_coin.modulate.a = 0.4
 
 ## Su pareja, sus amigos y sus enemigos (los vivos), con el nombre de cada uno (o su número
@@ -365,22 +365,22 @@ func _update_relations() -> void:
 		for c in _family.get_children():
 			c.queue_free()   # Sin la raya: queda solo "Ver árbol"
 	var who := villager.id_number
-	_family.add_child(link_button(tr("Ver árbol"), HUD.C_DEVOTION, func():   # Otro color: no es un pariente
+	_family.add_child(link_button(tr("Ver árbol"), UiStyle.C_DEVOTION, func():   # Otro color: no es un pariente
 		if hud:
 			hud.open_family_tree(who)))
 	for c in _home.get_children():
 		c.queue_free()
 	if not villager.has_home():
-		_home.add_child(HUD.make_label("Sin casa", 14, Color(HUD.C_MUTED, 0.6)))
+		_home.add_child(UiStyle.label("Sin casa", 14, Color(UiStyle.C_MUTED, 0.6)))
 	else:
 		var hut := villager.home
 		_home.add_child(link_button(HutCard.title_of(hut), C_HUT, func():
 			if is_instance_valid(hut) and hud:
 				hud.select_hut(hut)))
 		if villager.inside:
-			_home.add_child(HUD.make_label("adentro", 14, HUD.C_MUTED))
+			_home.add_child(UiStyle.label("adentro", 14, UiStyle.C_MUTED))
 		for o in housemates:
-			_home.add_child(_person_button(o, HUD.C_MUTED))
+			_home.add_child(_person_button(o, UiStyle.C_MUTED))
 	for i in RELATIONS.size():
 		_fill(_relations[i], lists[RELATIONS[i][0]], Relations.color(RELATIONS[i][0]))
 
@@ -389,7 +389,7 @@ func _fill(flow: HFlowContainer, people: Array, col: Color) -> void:
 	for c in flow.get_children():
 		c.queue_free()
 	if people.is_empty():
-		flow.add_child(HUD.make_label("—", 14, Color(HUD.C_MUTED, 0.6)))
+		flow.add_child(UiStyle.label("—", 14, Color(UiStyle.C_MUTED, 0.6)))
 	for o: Villager in people:
 		flow.add_child(_person_button(o, col))
 
@@ -421,9 +421,9 @@ static func link_button(text: String, col: Color, on_pressed: Callable) -> Butto
 	b.add_theme_color_override("font_hover_color", col.lightened(0.35))
 	b.add_theme_color_override("font_pressed_color", col.darkened(0.2))
 	var pad := Vector4(5, 0, 5, 0)
-	b.add_theme_stylebox_override("normal", HUD.make_box(Color(col, 0.1), 6, Color(0, 0, 0, 0), 0, pad))
-	b.add_theme_stylebox_override("hover", HUD.make_box(Color(col, 0.22), 6, Color(0, 0, 0, 0), 0, pad))
-	b.add_theme_stylebox_override("pressed", HUD.make_box(Color(col, 0.3), 6, Color(0, 0, 0, 0), 0, pad))
+	b.add_theme_stylebox_override("normal", UiStyle.box(Color(col, 0.1), 6, Color(0, 0, 0, 0), 0, pad))
+	b.add_theme_stylebox_override("hover", UiStyle.box(Color(col, 0.22), 6, Color(0, 0, 0, 0), 0, pad))
+	b.add_theme_stylebox_override("pressed", UiStyle.box(Color(col, 0.3), 6, Color(0, 0, 0, 0), 0, pad))
 	b.pressed.connect(on_pressed)
 	return b
 
@@ -433,9 +433,9 @@ static func close_button(on_pressed: Callable) -> Button:
 	b.text = "✕"
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(28, 28)
-	b.add_theme_stylebox_override("normal", HUD.make_box(Color(1, 1, 1, 0.08), 8))
-	b.add_theme_stylebox_override("hover", HUD.make_box(Color(1, 1, 1, 0.18), 8))
-	b.add_theme_stylebox_override("pressed", HUD.make_box(Color(1, 1, 1, 0.26), 8))
+	b.add_theme_stylebox_override("normal", UiStyle.box(Color(1, 1, 1, 0.08), 8))
+	b.add_theme_stylebox_override("hover", UiStyle.box(Color(1, 1, 1, 0.18), 8))
+	b.add_theme_stylebox_override("pressed", UiStyle.box(Color(1, 1, 1, 0.26), 8))
 	b.pressed.connect(on_pressed)
 	return b
 
@@ -478,12 +478,12 @@ func _build_creed(parent: Control) -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
-	_creed = HUD.make_label("", 14, HUD.C_TEXT)
+	_creed = UiStyle.label("", 14, UiStyle.C_TEXT)
 	head.add_child(_creed)
 	_faith_bar = _bar(box, "Fe", C_FAITH)
 	_fear_bar = _bar(box, "Miedo", C_FEAR)
-	_mood_bar = _bar(box, "Ánimo", HUD.C_MUTED)
-	_mood_label = HUD.make_label("", 12, HUD.C_TEXT)
+	_mood_bar = _bar(box, "Ánimo", UiStyle.C_MUTED)
+	_mood_label = UiStyle.label("", 12, UiStyle.C_TEXT)
 	_mood_label.custom_minimum_size = Vector2(70, 0)
 	_mood_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_mood_bar.get_parent().add_child(_mood_label)
@@ -493,7 +493,7 @@ func _build_creed(parent: Control) -> void:
 	var indent := Control.new()
 	indent.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
 	why_row.add_child(indent)
-	_mood_why = HUD.make_label("", 12, HUD.C_MUTED)
+	_mood_why = UiStyle.label("", 12, UiStyle.C_MUTED)
 	_mood_why.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_mood_why.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	why_row.add_child(_mood_why)
@@ -501,12 +501,12 @@ func _build_creed(parent: Control) -> void:
 	var tribute_row := HBoxContainer.new()
 	tribute_row.add_theme_constant_override("separation", 6)
 	box.add_child(tribute_row)
-	var tribute_caption := HUD.make_label("Ofrendas", 13, HUD.C_MUTED)
+	var tribute_caption := UiStyle.label("Ofrendas", 13, UiStyle.C_MUTED)
 	tribute_caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
 	tribute_row.add_child(tribute_caption)
 	_tribute_coin = HudIcon.make("coin", 13)
 	tribute_row.add_child(_tribute_coin)
-	_tribute = HUD.make_label("", 13, HUD.C_OFFERING)
+	_tribute = UiStyle.label("", 13, UiStyle.C_OFFERING)
 	_tribute.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_creed (lleva el número)
 	tribute_row.add_child(_tribute)
 	_tribute_row = tribute_row
@@ -516,7 +516,7 @@ func _bar(parent: Control, title: String, col: Color) -> ProgressBar:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	parent.add_child(row)
-	var caption := HUD.make_label(title, 13, HUD.C_MUTED)
+	var caption := UiStyle.label(title, 13, UiStyle.C_MUTED)
 	caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
 	row.add_child(caption)
 	var bar := ProgressBar.new()
@@ -525,8 +525,8 @@ func _bar(parent: Control, title: String, col: Color) -> ProgressBar:
 	bar.custom_minimum_size = Vector2(0, 10)
 	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	bar.add_theme_stylebox_override("background", HUD.make_box(HUD.C_TRACK, 5))
-	bar.add_theme_stylebox_override("fill", HUD.make_box(col, 5, col.lightened(0.35), 1))
+	bar.add_theme_stylebox_override("background", UiStyle.box(UiStyle.C_TRACK, 5))
+	bar.add_theme_stylebox_override("fill", UiStyle.box(col, 5, col.lightened(0.35), 1))
 	row.add_child(bar)
 	return bar
 
@@ -559,7 +559,7 @@ func _relation_row(box: Control, title: String, bubble: Villager.Bubble, hut := 
 	icon.kind = bubble
 	icon.hut = hut
 	row.add_child(icon)
-	var caption := HUD.make_label(title, 13, HUD.C_MUTED)
+	var caption := UiStyle.label(title, 13, UiStyle.C_MUTED)
 	caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
 	caption.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	row.add_child(caption)
@@ -571,7 +571,7 @@ func _relation_row(box: Control, title: String, bubble: Villager.Bubble, hut := 
 	return flow
 
 static func caption(text: String) -> Label:
-	var l := HUD.make_label(text, 11, HUD.C_MUTED)
+	var l := UiStyle.label(text, 11, UiStyle.C_MUTED)
 	l.uppercase = true   # Mayúsculas al mostrar, así el texto sigue siendo la clave de traducción
 	return l
 
@@ -583,12 +583,12 @@ static func field(parent: Control, title: String, placeholder: String, max_lengt
 	e.select_all_on_focus = true
 	e.custom_minimum_size = Vector2(176, 32)
 	e.add_theme_font_size_override("font_size", 15)
-	e.add_theme_color_override("font_color", HUD.C_TEXT)
-	e.add_theme_color_override("font_placeholder_color", Color(HUD.C_MUTED, 0.45))
-	e.add_theme_color_override("caret_color", HUD.C_DEVOTION)
-	e.add_theme_color_override("selection_color", Color(HUD.C_DEVOTION, 0.35))
-	e.add_theme_stylebox_override("normal", HUD.make_box(Color(1, 1, 1, 0.07), 8, Color(1, 1, 1, 0.12), 1, Vector4(10, 4, 10, 4)))
-	e.add_theme_stylebox_override("focus", HUD.make_box(Color(0, 0, 0, 0), 8, HUD.C_DEVOTION, 2))
+	e.add_theme_color_override("font_color", UiStyle.C_TEXT)
+	e.add_theme_color_override("font_placeholder_color", Color(UiStyle.C_MUTED, 0.45))
+	e.add_theme_color_override("caret_color", UiStyle.C_DEVOTION)
+	e.add_theme_color_override("selection_color", Color(UiStyle.C_DEVOTION, 0.35))
+	e.add_theme_stylebox_override("normal", UiStyle.box(Color(1, 1, 1, 0.07), 8, Color(1, 1, 1, 0.12), 1, Vector4(10, 4, 10, 4)))
+	e.add_theme_stylebox_override("focus", UiStyle.box(Color(0, 0, 0, 0), 8, UiStyle.C_DEVOTION, 2))
 	parent.add_child(e)
 	return e
 

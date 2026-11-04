@@ -177,7 +177,7 @@ func food_ai(dt: float) -> bool:
 	return true
 
 func _die_of_hunger() -> void:
-	Game.say("Murió de hambre", v.get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
+	Game.say("Murió de hambre", v.get_global_transform_with_canvas().origin + Vector2(0, -80), UiStyle.C_WARN)
 	if food:
 		food.release_eater()
 	v._gentle_death = true

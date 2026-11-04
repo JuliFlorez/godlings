@@ -51,7 +51,7 @@ func _init() -> void:
 	id = "lightning"
 	title = "Rayo"
 	key = KEY_R
-	accent = HUD.C_ZAP
+	accent = UiStyle.C_ZAP
 	price = 180
 	sacrifices = 4
 	tooltip = "Sacar o guardar el rayo [R]"

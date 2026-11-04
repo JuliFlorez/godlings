@@ -19,7 +19,7 @@ func _init() -> void:
 	title = "Comida"
 	key = KEY_F
 	good = true
-	accent = HUD.C_FEED
+	accent = UiStyle.C_FEED
 	always = true
 	unlocked = true
 	scares = false
@@ -50,10 +50,10 @@ func _drop(p: Vector2) -> void:
 	var at := v.ground_point() if v else p
 	var screen := get_canvas_transform() * at
 	if not _on_island(at):
-		Game.say("Solo sobre la isla", screen, HUD.C_WARN)
+		Game.say("Solo sobre la isla", screen, UiStyle.C_WARN)
 		return
 	if not Game.spend_devotion(COST):
-		Game.say("Devoción insuficiente", screen, HUD.C_WARN)
+		Game.say("Devoción insuficiente", screen, UiStyle.C_WARN)
 		return
 	_cooldown = COOLDOWN
 	var m := Manna.new()

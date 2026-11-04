@@ -218,7 +218,7 @@ func _finish_chat(o: Villager) -> void:
 		pushed.add_mood(VillagerMood.MOOD_SHOVED, "Se peleó a los empujones")
 		if news == "":
 			news = "¡Pelea!"
-			color = HUD.C_WARN
+			color = UiStyle.C_WARN
 	if news != "":
 		var mid := (v.get_global_transform_with_canvas().origin + o.get_global_transform_with_canvas().origin) * 0.5
 		Game.say(news, mid + Vector2(0, -100), color)

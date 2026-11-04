@@ -78,7 +78,7 @@ func _init() -> void:
 	id = "tornado"
 	title = "Tornado"
 	key = KEY_T
-	accent = HUD.C_TORNADO
+	accent = UiStyle.C_TORNADO
 	price = 340
 	sacrifices = 8
 	tooltip = "Sacar o guardar el tornado [T]"
@@ -176,7 +176,7 @@ func _touch_down(p: Vector2) -> void:
 		return
 	var to := _target(p)
 	if not to.is_finite():
-		Game.say("Apuntá a la isla o al agua", get_canvas_transform() * p, HUD.C_WARN)
+		Game.say("Apuntá a la isla o al agua", get_canvas_transform() * p, UiStyle.C_WARN)
 		return
 	_state = State.DOWN
 	_base = to

@@ -27,7 +27,7 @@ func _init() -> void:
 	title = "Curar"
 	key = KEY_C
 	good = true
-	accent = HUD.C_CURE
+	accent = UiStyle.C_CURE
 	price = 130
 	tooltip = "Sacar o guardar curar [C]"
 	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas)"

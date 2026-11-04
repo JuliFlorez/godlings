@@ -176,14 +176,14 @@ func _cast(p: Vector2) -> void:
 		return
 	var v := _corpse_at(p) if kind == Kind.RESURRECT else _villager_at(p)
 	if v == null:
-		_popup(KINDS[kind].aim, p, HUD.C_WARN)
+		_popup(KINDS[kind].aim, p, UiStyle.C_WARN)
 		return
 	var why := _problem(v)
 	if why != "":
-		_popup(why, v.body_center(), HUD.C_MUTED)
+		_popup(why, v.body_center(), UiStyle.C_MUTED)
 		return
 	if not Game.spend_devotion(KINDS[kind].cost):
-		_popup("Devoción insuficiente", v.body_center(), HUD.C_WARN)
+		_popup("Devoción insuficiente", v.body_center(), UiStyle.C_WARN)
 		return
 	_cooldown = COOLDOWN
 	match kind:

@@ -25,7 +25,7 @@ func _init() -> void:
 	id = "plague"
 	title = "Peste"
 	key = KEY_P
-	accent = HUD.C_PLAGUE
+	accent = UiStyle.C_PLAGUE
 	price = 200
 	sacrifices = 5
 	tooltip = "Sacar o guardar la peste [P]"

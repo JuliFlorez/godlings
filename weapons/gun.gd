@@ -29,7 +29,7 @@ func _init() -> void:
 	id = "gun"
 	title = "Pistola"
 	key = KEY_G
-	accent = HUD.C_GUN
+	accent = UiStyle.C_GUN
 	price = 100
 	sacrifices = 2
 	tooltip = "Sacar o guardar la pistola [G]"
@@ -56,7 +56,7 @@ func _use(at: Vector2) -> void:
 
 ## El cartel al comprarla, un poco más claro que su rojo.
 func unlock_color() -> Color:
-	return HUD.C_GUN.lightened(0.3)
+	return UiStyle.C_GUN.lightened(0.3)
 
 func _process(dt: float) -> void:
 	_cooldown -= dt

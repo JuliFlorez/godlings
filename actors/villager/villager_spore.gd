@@ -200,7 +200,7 @@ func _spore_turned(stage: Infection) -> void:
 		Infection.SPREADING:
 			_cough_t = randf_range(SPORE_COUGH_EVERY.x, SPORE_COUGH_EVERY.y) * 0.5
 			if v.visible:
-				Game.say("¡Le salen hongos!", v.get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SPORE)
+				Game.say("¡Le salen hongos!", v.get_global_transform_with_canvas().origin + Vector2(0, -80), UiStyle.C_SPORE)
 		Infection.ZOMBIE:
 			# Deja todo lo que estaba haciendo (y si estaba adentro de su choza, sale)
 			v.wake_up()
@@ -214,7 +214,7 @@ func _spore_turned(stage: Infection) -> void:
 			v._resting = false
 			_prey = null
 			_groan_t = randf_range(0.2, 0.8)
-			Game.say("¡Se hizo zombi!", v.get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
+			Game.say("¡Se hizo zombi!", v.get_global_transform_with_canvas().origin + Vector2(0, -80), UiStyle.C_WARN)
 			# Los que lo ven se asustan y se quedan mirando
 			var at := v.body_center()
 			for node in v.get_tree().get_nodes_in_group("villager"):
@@ -234,7 +234,7 @@ func _cough() -> void:
 		v.rig.sneeze()
 	_spawn_spores(mouth, Vector2(facing, -0.1), 14, 0.6)
 	v._play_sfx(VillagerSounds.cough(), Villager.VOICE_DB - 5.0, v._voice_pitch * randf_range(0.9, 1.05))
-	Game.say("¡Cof!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SPORE)
+	Game.say("¡Cof!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_SPORE)
 	for node in v.get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
 		if o == null or o == v or o.spore > 0.0 or not (o.is_idle() or o.asleep):
@@ -357,7 +357,7 @@ func get_bitten(z: Villager) -> void:
 	v.add_fear(VillagerFaith.FEAR_THROW)
 	v.add_faith(-FAITH_BITTEN)
 	v.add_mood(MOOD_BITTEN, "La mordió un zombi" if v.gender == Villager.Gender.FEMALE else "Lo mordió un zombi")
-	Game.say("¡Mordida!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_WARN)
+	Game.say("¡Mordida!", v.get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_WARN)
 	catch_spore()
 
 ## Con un zombi cerca se asusta y sale corriendo para el otro lado (y un poco para el medio de la
@@ -419,7 +419,7 @@ func _burst() -> void:
 			o.catch_spore(SPORE_DOSE * 0.5)
 	Spore.release_cloud(v.get_tree(), feet, BURST_RADIUS * 0.8)
 	Game.say("La consumió la espora" if v.gender == Villager.Gender.FEMALE else "Lo consumió la espora",
-			v.get_global_transform_with_canvas().origin + Vector2(0, -90), HUD.C_SPORE)
+			v.get_global_transform_with_canvas().origin + Vector2(0, -90), UiStyle.C_SPORE)
 	if v.food:
 		v.food.release_eater()
 	v._die()

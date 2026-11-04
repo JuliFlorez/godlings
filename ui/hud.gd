@@ -30,38 +30,6 @@ var _population := -1
 var _capacity := -1
 var _spawn_cost := 10.0
 
-# --- Paleta ---
-const C_PANEL := Color(0.06, 0.09, 0.16, 0.78)
-const C_PANEL_BORDER := Color(1, 1, 1, 0.12)
-const C_TRACK := Color(1, 1, 1, 0.10)
-const C_XP := Color(1.0, 0.76, 0.22)
-const C_DEVOTION := Color(0.42, 0.82, 1.0)
-const C_TEXT := Color(0.96, 0.97, 1.0)
-const C_MUTED := Color(0.72, 0.77, 0.88)
-const C_WARN := Color(1.0, 0.55, 0.45)
-const C_SPAWN := Color(0.98, 0.58, 0.24)
-const C_EXPAND := Color(0.98, 0.78, 0.22)
-const C_GUN := Color(0.9, 0.36, 0.32)
-const C_ZAP := Color(1.0, 0.86, 0.3)
-const C_METEOR := Color(1.0, 0.55, 0.22)
-const C_TORNADO := Color(0.78, 0.82, 0.9)
-const C_RAIN := Color(0.42, 0.62, 1.0)
-const C_SOON := Color(1.0, 0.8, 0.3)
-const C_OFFERING := Color(1.0, 0.84, 0.34)
-const C_SHOP := Color(0.46, 0.84, 0.52)
-const C_PLAGUE := Color(0.55, 0.85, 0.3)
-const C_SPORE := Color(0.98, 0.64, 0.28)
-const C_CURE := Color(1.0, 0.88, 0.45)
-const C_HISTORY := Color(0.74, 0.66, 1.0)
-const C_FEED := Color(1.0, 0.68, 0.32)
-const C_SUN := Color(1.0, 0.8, 0.3)
-const C_MOON := Color(0.72, 0.76, 1.0)
-
-## El dibujo de cada Charm y de cada Miracle (ver HudIcon), por su ícono.
-const CHARM_ICONS := {"cupid": Charm.Kind.CUPID, "discord": Charm.Kind.DISCORD, "friendship": Charm.Kind.FRIENDSHIP}
-const MIRACLE_ICONS := {"resurrect": Miracle.Kind.RESURRECT, "shield": Miracle.Kind.SHIELD, "vaccine": Miracle.Kind.VACCINE}
-const C_EVIL := Color(0.92, 0.3, 0.26)
-const C_HOLY := Color(1.0, 0.86, 0.4)
 const TAB_SIZE := 38.0
 const SLOT_SIZE := Vector2(76, 62)
 const SUMMON_SIZE := 78.0       # El + de invocar...
@@ -71,8 +39,6 @@ const PANEL_W := 250.0          # El panel de la izquierda...
 const PANEL_BUTTON_H := 38.0    # ...y sus botones
 const COIN_W := 118.0           # Ancho de cada moneda de arriba a la derecha
 const COIN_ICON := 34.0          # Alto del ícono de cada moneda
-const SACRIFICE_ICON := preload("res://icon.png")
-const SACRIFICE_HEAD := Rect2(15, 78, 481, 357)   # Donde está la cabeza en el logo
 
 var _root: Control
 var _day_icon: HudIcon
@@ -201,14 +167,14 @@ func _update_day() -> void:
 	_day_icon.queue_redraw()
 	_day_label.text = (tr("Noche %d") if night else tr("Día %d")) % sky.day
 	_day_bar.value = 1.0 - sky.phase()
-	(_day_bar.get_theme_stylebox("fill") as StyleBoxFlat).bg_color = C_MOON if night else C_SUN
+	(_day_bar.get_theme_stylebox("fill") as StyleBoxFlat).bg_color = UiStyle.C_MOON if night else UiStyle.C_SUN
 
 # ---- API para otros scripts ----
 ## Ganaste un punto para agrandar la isla (ver Game.add_xp): la barra vuelve a empezar.
 func _on_point_earned() -> void:
 	_xp_bar.value = 0.0
 	_flash(_expand_btn)
-	popup_text("+1 punto de expansión", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), C_EXPAND)
+	popup_text("+1 punto de expansión", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), UiStyle.C_EXPAND)
 
 ## Las barras en su valor, sin animarlas (al armar el HUD y al cargar una partida).
 func _snap_bars() -> void:
@@ -268,7 +234,7 @@ func flash_screen(amount: float) -> void:
 func set_tribute(amount: float, interval: float) -> void:
 	tribute_interval = interval
 	_tribute_label.text = per_prayer(amount, interval)
-	_tribute_label.add_theme_color_override("font_color", C_OFFERING if amount > 0.0 else C_MUTED)
+	_tribute_label.add_theme_color_override("font_color", UiStyle.C_OFFERING if amount > 0.0 else UiStyle.C_MUTED)
 
 ## "+1,5 cada 10 s": lo que dejan (amount) cada vez que rezan (cada interval segundos).
 static func per_prayer(amount: float, interval: float) -> String:
@@ -402,13 +368,12 @@ func set_decor_edit(state: DecorPlacer.Edit) -> void:
 	_refresh()
 
 ## Texto flotante que sube y se desvanece (posición en pantalla).
-func popup_text(text: String, screen_pos: Vector2, color: Color = C_TEXT) -> void:
+func popup_text(text: String, screen_pos: Vector2, color: Color = UiStyle.C_TEXT) -> void:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", 20)
 	l.add_theme_color_override("font_color", color)
-	l.add_theme_color_override("font_outline_color", Color(0.05, 0.07, 0.12, 0.9))
-	l.add_theme_constant_override("outline_size", 6)
+	UiStyle.outline(l, 6)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(l)
 	l.position = screen_pos - Vector2(l.get_combined_minimum_size().x * 0.5, 0)
@@ -435,7 +400,7 @@ func _refresh() -> void:
 
 	var full := _capacity >= 0 and _population >= _capacity
 	_pop_value.text = "%d / %d" % [maxi(_population, 0), maxi(_capacity, 0)]
-	_pop_value.add_theme_color_override("font_color", C_WARN if full else C_TEXT)
+	_pop_value.add_theme_color_override("font_color", UiStyle.C_WARN if full else UiStyle.C_TEXT)
 	_level_value.text = "%d / %d" % [Game.island_level + 1, Game.island_max + 1]
 
 	var has_energy := Game.devotion >= _spawn_cost
@@ -444,7 +409,7 @@ func _refresh() -> void:
 			+ tr("Devoción: %d / %d") % [int(Game.devotion), int(Game.DEVOTION_MAX)]
 	_spawn_btn.get_meta("icon").modulate.a = 0.45 if _spawn_btn.disabled else 1.0
 	_spawn_cost_label.text = str(int(_spawn_cost))
-	_spawn_cost_label.add_theme_color_override("font_color", C_TEXT if has_energy else C_WARN)
+	_spawn_cost_label.add_theme_color_override("font_color", UiStyle.C_TEXT if has_energy else UiStyle.C_WARN)
 
 	var island_maxed := Game.island_level >= Game.island_max
 	_expand_btn.disabled = Game.expansion_points <= 0 or island_maxed
@@ -547,7 +512,7 @@ func _build_ui() -> void:
 	var panel := PanelContainer.new()
 	panel.position = Vector2(14, 14)
 	panel.custom_minimum_size = Vector2(PANEL_W, 0)
-	panel.add_theme_stylebox_override("panel", make_box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(12, 10, 12, 12)))
+	panel.add_theme_stylebox_override("panel", UiStyle.box(UiStyle.C_PANEL, 14, UiStyle.C_PANEL_BORDER, 1, Vector4(12, 10, 12, 12)))
 	_root.add_child(panel)
 
 	var col := VBoxContainer.new()
@@ -561,7 +526,7 @@ func _build_ui() -> void:
 	col.add_child(day_row)
 	_day_icon = HudIcon.make("day", 16)
 	day_row.add_child(_day_icon)
-	_day_label = make_label("", 13, C_TEXT)
+	_day_label = UiStyle.label("", 13, UiStyle.C_TEXT)
 	_day_label.custom_minimum_size = Vector2(62, 0)
 	day_row.add_child(_day_label)
 	_day_bar = ProgressBar.new()
@@ -571,8 +536,8 @@ func _build_ui() -> void:
 	_day_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_day_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_day_bar.mouse_filter = Control.MOUSE_FILTER_PASS
-	_day_bar.add_theme_stylebox_override("background", make_box(C_TRACK, 3))
-	_day_bar.add_theme_stylebox_override("fill", make_box(C_SUN, 3))
+	_day_bar.add_theme_stylebox_override("background", UiStyle.box(UiStyle.C_TRACK, 3))
+	_day_bar.add_theme_stylebox_override("fill", UiStyle.box(UiStyle.C_SUN, 3))
 	day_row.add_child(_day_bar)
 
 	# XP: una barrita finita con lo que falta para el próximo punto de expansión
@@ -587,10 +552,10 @@ func _build_ui() -> void:
 	_xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_xp_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_xp_bar.mouse_filter = Control.MOUSE_FILTER_PASS
-	_xp_bar.add_theme_stylebox_override("background", make_box(C_TRACK, 4))
-	_xp_bar.add_theme_stylebox_override("fill", make_box(C_XP, 4))
+	_xp_bar.add_theme_stylebox_override("background", UiStyle.box(UiStyle.C_TRACK, 4))
+	_xp_bar.add_theme_stylebox_override("fill", UiStyle.box(UiStyle.C_XP, 4))
 	xp_row.add_child(_xp_bar)
-	_xp_value = make_label("", 12, C_MUTED)
+	_xp_value = UiStyle.label("", 12, UiStyle.C_MUTED)
 	xp_row.add_child(_xp_value)
 
 	# La isla: de qué tamaño es y el botón para agrandarla
@@ -599,27 +564,27 @@ func _build_ui() -> void:
 	col.add_child(island_row)
 	var island := PanelContainer.new()
 	island.tooltip_text = "Isla"
-	island.add_theme_stylebox_override("panel", make_box(Color(1, 1, 1, 0.06), 9, Color(0, 0, 0, 0), 0, Vector4(8, 0, 9, 0)))
+	island.add_theme_stylebox_override("panel", UiStyle.box(Color(1, 1, 1, 0.06), 9, Color(0, 0, 0, 0), 0, Vector4(8, 0, 9, 0)))
 	island_row.add_child(island)
 	var island_in := HBoxContainer.new()
 	island_in.add_theme_constant_override("separation", 5)
 	island_in.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	island.add_child(island_in)
 	island_in.add_child(HudIcon.make("island", 16))
-	_level_value = make_label("", 14, C_TEXT)
+	_level_value = UiStyle.label("", 14, UiStyle.C_TEXT)
 	island_in.add_child(_level_value)
-	_expand_btn = _action_button(island_row, C_EXPAND)
+	_expand_btn = _action_button(island_row, UiStyle.C_EXPAND)
 	_expand_btn.custom_minimum_size.y = PANEL_BUTTON_H
 	_expand_btn.pressed.connect(func(): expand_pressed.emit())
 
 	var shop_row := HBoxContainer.new()
 	shop_row.add_theme_constant_override("separation", 8)
 	col.add_child(shop_row)
-	_shop_btn = _action_button(shop_row, C_SHOP)
+	_shop_btn = _action_button(shop_row, UiStyle.C_SHOP)
 	_shop_btn.custom_minimum_size.y = PANEL_BUTTON_H
 	_shop_btn.text = "Tienda"
 	_shop_btn.pressed.connect(open_shop)
-	_history_btn = _action_button(shop_row, C_HISTORY)
+	_history_btn = _action_button(shop_row, UiStyle.C_HISTORY)
 	_history_btn.custom_minimum_size.y = PANEL_BUTTON_H
 	_history_btn.text = "Historial"
 	_history_btn.tooltip_text = "Quién se hizo amigo, enemigo o pareja de quién [H]"
@@ -627,7 +592,7 @@ func _build_ui() -> void:
 
 	_hint = Label.new()
 	_hint.add_theme_font_size_override("font_size", 12)
-	_hint.add_theme_color_override("font_color", C_MUTED)
+	_hint.add_theme_color_override("font_color", UiStyle.C_MUTED)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_hint.custom_minimum_size = Vector2(PANEL_W - 24.0, 0)
 	col.add_child(_hint)
@@ -672,9 +637,9 @@ func _build_top() -> void:
 	_spawn_btn.pivot_offset = Vector2(SUMMON_SIZE, SUMMON_SIZE) * 0.5
 	_spawn_btn.focus_mode = Control.FOCUS_NONE
 	var r := int(SUMMON_SIZE * 0.5)
-	for state: Array in [["normal", C_SPAWN, C_SPAWN.lightened(0.45)], ["hover", C_SPAWN.lightened(0.12), Color.WHITE],
-			["pressed", C_SPAWN.darkened(0.15), C_SPAWN.darkened(0.3)], ["disabled", Color(C_PANEL, 0.55), Color(1, 1, 1, 0.18)]]:
-		var box := make_box(state[1], r, state[2], 3)
+	for state: Array in [["normal", UiStyle.C_SPAWN, UiStyle.C_SPAWN.lightened(0.45)], ["hover", UiStyle.C_SPAWN.lightened(0.12), Color.WHITE],
+			["pressed", UiStyle.C_SPAWN.darkened(0.15), UiStyle.C_SPAWN.darkened(0.3)], ["disabled", Color(UiStyle.C_PANEL, 0.55), Color(1, 1, 1, 0.18)]]:
+		var box := UiStyle.box(state[1], r, state[2], 3)
 		box.shadow_color = Color(0, 0, 0, 0.28)
 		box.shadow_size = 6
 		box.shadow_offset = Vector2(0, 3)
@@ -692,28 +657,28 @@ func _build_top() -> void:
 	# Cuántos aldeanos hay (y cuántos entran), al costado
 	var pop := PanelContainer.new()
 	pop.tooltip_text = "Aldeanos"
-	pop.add_theme_stylebox_override("panel", make_box(C_PANEL, 17, C_PANEL_BORDER, 1, Vector4(8, 3, 12, 3)))
+	pop.add_theme_stylebox_override("panel", UiStyle.box(UiStyle.C_PANEL, 17, UiStyle.C_PANEL_BORDER, 1, Vector4(8, 3, 12, 3)))
 	ring_box.add_child(pop)
 	var pop_row := HBoxContainer.new()
 	pop_row.add_theme_constant_override("separation", 5)
 	pop_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pop.add_child(pop_row)
 	pop_row.add_child(HudIcon.make("villager", 22))
-	_pop_value = make_label("", 18, C_TEXT)
+	_pop_value = UiStyle.label("", 18, UiStyle.C_TEXT)
 	pop_row.add_child(_pop_value)
 	pop.position = Vector2(ring_size + 6.0, (ring_size - pop.get_combined_minimum_size().y) * 0.5)
 	# Lo que cuesta: una gotita de devoción y el número
 	var cost := PanelContainer.new()
 	cost.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	cost.mouse_filter = Control.MOUSE_FILTER_IGNORE   # Que no le saque clicks al +
-	cost.add_theme_stylebox_override("panel", make_box(Color(0.06, 0.09, 0.16, 0.92), 10, C_DEVOTION.darkened(0.2), 1, Vector4(7, 1, 9, 1)))
+	cost.add_theme_stylebox_override("panel", UiStyle.box(Color(0.06, 0.09, 0.16, 0.92), 10, UiStyle.C_DEVOTION.darkened(0.2), 1, Vector4(7, 1, 9, 1)))
 	summon.add_child(cost)
 	var cost_row := HBoxContainer.new()
 	cost_row.add_theme_constant_override("separation", 3)
 	cost_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cost.add_child(cost_row)
 	cost_row.add_child(HudIcon.make("devotion", 13))
-	_spawn_cost_label = make_label("", 13, C_TEXT)
+	_spawn_cost_label = UiStyle.label("", 13, UiStyle.C_TEXT)
 	cost_row.add_child(_spawn_cost_label)
 
 	var coins := VBoxContainer.new()
@@ -729,56 +694,40 @@ func _build_top() -> void:
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_offer_value.get_parent().add_child(stack)
 	_offer_value.reparent(stack)
-	_tribute_label = make_label("", 11, C_OFFERING)
+	_tribute_label = UiStyle.label("", 11, UiStyle.C_OFFERING)
 	_tribute_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_tribute_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce set_tribute (lleva el número)
 	stack.add_child(_tribute_label)
 	set_tribute(0.0, tribute_interval)
-	_sacrifice_value = _coin(coins, sacrifice_icon(COIN_ICON),
+	_sacrifice_value = _coin(coins, HudIcon.sacrifice(COIN_ICON),
 			"Sacrificios: cada muerte suma uno (en el altar, más). Se gastan en la tienda: las cosas malas cuestan ofrendas y sacrificios")
 	_sacrifice_chip = _sacrifice_value.get_parent().get_parent()
 	coins.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 14)
 	coins.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-
-## La moneda de los sacrificios: la cabeza de un aldeano muerto, como el logo (de px de alto;
-## también para la tienda).
-static func sacrifice_icon(px: float) -> TextureRect:
-	var head := TextureRect.new()
-	var trimmed := AtlasTexture.new()   # Sin el margen vacío del logo: que la cabeza llene la moneda
-	trimmed.atlas = SACRIFICE_ICON
-	trimmed.region = SACRIFICE_HEAD
-	head.texture = trimmed
-	head.custom_minimum_size = Vector2(px * SACRIFICE_HEAD.size.aspect(), px)
-	head.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	head.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	head.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	head.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	return head
 
 ## Una moneda de arriba a la derecha: el ícono y cuántas hay (devuelve el número).
 func _coin(parent: Control, icon: Control, tip: String) -> Label:
 	var chip := PanelContainer.new()
 	chip.custom_minimum_size = Vector2(COIN_W, 0)
 	chip.tooltip_text = tip
-	chip.add_theme_stylebox_override("panel", make_box(C_PANEL, 21, C_PANEL_BORDER, 1, Vector4(6, 4, 14, 4)))
+	chip.add_theme_stylebox_override("panel", UiStyle.box(UiStyle.C_PANEL, 21, UiStyle.C_PANEL_BORDER, 1, Vector4(6, 4, 14, 4)))
 	parent.add_child(chip)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	chip.add_child(row)
 	row.add_child(icon)
-	var value := make_label("", 21, C_TEXT)
+	var value := UiStyle.label("", 21, UiStyle.C_TEXT)
 	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(value)
 	return value
 
 func _build_toolbar() -> void:
-	_slot_idle = make_box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1)
-	_slot_hover = make_box(Color(1, 1, 1, 0.13), 12, Color(1, 1, 1, 0.28), 1)
-	_slot_active = make_box(Color(C_GUN, 0.38), 12, C_GUN.lightened(0.3), 2)
-	_slot_mode = make_box(Color(C_DEVOTION, 0.30), 12, C_DEVOTION.lightened(0.2), 2)
+	_slot_idle = UiStyle.box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1)
+	_slot_hover = UiStyle.box(Color(1, 1, 1, 0.13), 12, Color(1, 1, 1, 0.28), 1)
+	_slot_active = UiStyle.box(Color(UiStyle.C_GUN, 0.38), 12, UiStyle.C_GUN.lightened(0.3), 2)
+	_slot_mode = UiStyle.box(Color(UiStyle.C_DEVOTION, 0.30), 12, UiStyle.C_DEVOTION.lightened(0.2), 2)
 
 	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
 	var dock := VBoxContainer.new()
@@ -838,11 +787,11 @@ func _set_tab(good: bool) -> void:
 		slot.visible = _tool_slots[slot] == good
 	for tab: Button in [_tab_evil, _tab_holy]:
 		var on := (tab == _tab_holy) == good
-		var col := C_HOLY if tab == _tab_holy else C_EVIL
+		var col := UiStyle.C_HOLY if tab == _tab_holy else UiStyle.C_EVIL
 		var r := int(TAB_SIZE * 0.5)
-		var box := make_box(Color(col, 0.32), r, col.lightened(0.25), 2) if on \
-				else make_box(Color(C_PANEL, 0.9), r, Color(1, 1, 1, 0.14), 1)
-		var hover := box if on else make_box(Color(col, 0.18), r, Color(col, 0.6), 1)
+		var box := UiStyle.box(Color(col, 0.32), r, col.lightened(0.25), 2) if on \
+				else UiStyle.box(Color(UiStyle.C_PANEL, 0.9), r, Color(1, 1, 1, 0.14), 1)
+		var hover := box if on else UiStyle.box(Color(col, 0.18), r, Color(col, 0.6), 1)
 		tab.add_theme_stylebox_override("normal", box)
 		tab.add_theme_stylebox_override("hover", hover)
 		tab.add_theme_stylebox_override("pressed", hover)
@@ -872,10 +821,10 @@ func _power_slot(power: Power) -> Button:
 	var slot := _tool_slot(_power_row, power.icon_kind(), power.title, OS.get_keycode_string(power.key), true,
 			power.tooltip)
 	_tool_slots[slot] = power.good
-	var active := make_box(Color(power.accent, 0.32), 12, power.accent.lightened(0.3), 2)
+	var active := UiStyle.box(Color(power.accent, 0.32), 12, power.accent.lightened(0.3), 2)
 	slot.set_meta("active", active)
 	slot.add_theme_stylebox_override("pressed", active)
-	slot.set_meta("lock", _slot_badge(slot, "EN LA TIENDA", C_SHOP))
+	slot.set_meta("lock", _slot_badge(slot, "EN LA TIENDA", UiStyle.C_SHOP))
 	var bar := ColorRect.new()
 	bar.color = power.accent
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -895,7 +844,7 @@ func _power_slot(power: Power) -> Button:
 func _toolbar_panel(parent: Control) -> HBoxContainer:
 	var bar := PanelContainer.new()
 	bar.mouse_filter = Control.MOUSE_FILTER_STOP  # Los clicks en la barra no llegan al mundo
-	bar.add_theme_stylebox_override("panel", make_box(C_PANEL, 14, C_PANEL_BORDER, 1, Vector4(8, 8, 8, 8)))
+	bar.add_theme_stylebox_override("panel", UiStyle.box(UiStyle.C_PANEL, 14, UiStyle.C_PANEL_BORDER, 1, Vector4(8, 8, 8, 8)))
 	parent.add_child(bar)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -910,7 +859,7 @@ func _tool_slot(parent: Control, kind: String, title: String, key: String, avail
 	b.add_theme_stylebox_override("normal", _slot_idle)
 	b.add_theme_stylebox_override("hover", _slot_hover)
 	b.add_theme_stylebox_override("pressed", _slot_active)
-	b.add_theme_stylebox_override("disabled", make_box(Color(1, 1, 1, 0.03), 12, Color(1, 1, 1, 0.06), 1))
+	b.add_theme_stylebox_override("disabled", UiStyle.box(Color(1, 1, 1, 0.03), 12, Color(1, 1, 1, 0.06), 1))
 	parent.add_child(b)
 
 	var col := VBoxContainer.new()
@@ -922,12 +871,12 @@ func _tool_slot(parent: Control, kind: String, title: String, key: String, avail
 	var icon := HudIcon.make(kind, 26)
 	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	col.add_child(icon)
-	var name_l := make_label(title, 11, C_TEXT)
+	var name_l := UiStyle.label(title, 11, UiStyle.C_TEXT)
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(name_l)
 
 	if key != "":
-		var k := make_label(key, 10, C_MUTED)
+		var k := UiStyle.label(key, 10, UiStyle.C_MUTED)
 		k.position = Vector2(8, 4)
 		b.add_child(k)
 
@@ -936,15 +885,15 @@ func _tool_slot(parent: Control, kind: String, title: String, key: String, avail
 		b.disabled = true
 		icon.modulate = Color(1, 1, 1, 0.5)
 		name_l.modulate = Color(1, 1, 1, 0.55)
-		_slot_badge(b, "PRÓXIMAMENTE", C_SOON)
+		_slot_badge(b, "PRÓXIMAMENTE", UiStyle.C_SOON)
 	return b
 
 ## Cartelito ("Próximamente", "En la tienda") pegado sobre el borde superior del slot.
 func _slot_badge(slot: Control, text: String, color: Color) -> Control:
 	var badge := PanelContainer.new()
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge.add_theme_stylebox_override("panel", make_box(color, 4, color.darkened(0.4), 1, Vector4(4, 0, 4, 0)))
-	badge.add_child(make_label(text, 8, Color(0.18, 0.11, 0.02)))
+	badge.add_theme_stylebox_override("panel", UiStyle.box(color, 4, color.darkened(0.4), 1, Vector4(4, 0, 4, 0)))
+	badge.add_child(UiStyle.label(text, 8, Color(0.18, 0.11, 0.02)))
 	slot.add_child(badge)
 	var sz := badge.get_combined_minimum_size()
 	badge.size = sz
@@ -963,45 +912,12 @@ func _action_button(parent: Control, color: Color) -> Button:
 	b.add_theme_color_override("font_hover_color", Color(0.12, 0.08, 0.04))
 	b.add_theme_color_override("font_pressed_color", Color(0.12, 0.08, 0.04))
 	b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.35))
-	b.add_theme_stylebox_override("normal", make_box(color, 10, color.lightened(0.3), 1))
-	b.add_theme_stylebox_override("hover", make_box(color.lightened(0.15), 10, color.lightened(0.5), 1))
-	b.add_theme_stylebox_override("pressed", make_box(color.darkened(0.15), 10, color.darkened(0.3), 1))
-	b.add_theme_stylebox_override("disabled", make_box(Color(1, 1, 1, 0.07), 10, Color(1, 1, 1, 0.08), 1))
+	b.add_theme_stylebox_override("normal", UiStyle.box(color, 10, color.lightened(0.3), 1))
+	b.add_theme_stylebox_override("hover", UiStyle.box(color.lightened(0.15), 10, color.lightened(0.5), 1))
+	b.add_theme_stylebox_override("pressed", UiStyle.box(color.darkened(0.15), 10, color.darkened(0.3), 1))
+	b.add_theme_stylebox_override("disabled", UiStyle.box(Color(1, 1, 1, 0.07), 10, Color(1, 1, 1, 0.08), 1))
 	parent.add_child(b)
 	return b
-
-static func make_label(text: String, size: int, color: Color) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	return l
-
-## Botón de los menús (pausa, opciones, inicio).
-static func make_button(text: String, color: Color) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(0, 38)
-	b.add_theme_font_size_override("font_size", 15)
-	b.add_theme_stylebox_override("normal", make_box(color, 8, color.lightened(0.25), 1))
-	b.add_theme_stylebox_override("hover", make_box(color.lightened(0.15), 8, color.lightened(0.45), 1))
-	b.add_theme_stylebox_override("pressed", make_box(color.darkened(0.15), 8, color.darkened(0.3), 1))
-	return b
-
-static func make_box(bg: Color, radius: int, border := Color(0, 0, 0, 0), border_w := 0, pad := Vector4.ZERO) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = bg
-	s.set_corner_radius_all(radius)
-	s.border_color = border
-	s.set_border_width_all(border_w)
-	s.content_margin_left = pad.x
-	s.content_margin_top = pad.y
-	s.content_margin_right = pad.z
-	s.content_margin_bottom = pad.w
-	s.anti_aliasing = true
-	return s
 
 ## El anillo de devoción alrededor del +: se llena desde arriba, en el sentido del reloj, con la
 ## devoción. Si no alcanza para invocar (cost), apagado.
@@ -1020,5 +936,5 @@ class DevotionRing extends Control:
 		draw_arc(c, r, 0.0, TAU, 64, Color(0.06, 0.09, 0.16, 0.75), HUD.RING_W + 3.0, true)
 		var k := clampf(value / maxf(max_value, 1.0), 0.0, 1.0)
 		if k > 0.002:
-			var col := HUD.C_DEVOTION if value >= cost else HUD.C_DEVOTION.darkened(0.45)
+			var col := UiStyle.C_DEVOTION if value >= cost else UiStyle.C_DEVOTION.darkened(0.45)
 			draw_arc(c, r, -PI * 0.5, -PI * 0.5 + TAU * k, maxi(3, int(64.0 * k)), col, HUD.RING_W, true)

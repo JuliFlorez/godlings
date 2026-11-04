@@ -573,7 +573,7 @@ func _rand_point_in_poly(poly: PackedVector2Array, box: Rect2) -> Vector2:
 
 func _on_spawn_btn_pressed() -> void:
 	if alive_villagers() >= capacity():
-		Game.say("¡La isla está llena!", _pivot + Vector2(0, -120), HUD.C_WARN)
+		Game.say("¡La isla está llena!", _pivot + Vector2(0, -120), UiStyle.C_WARN)
 		return
 	# Sin devoción suficiente el + ya está apagado (ver HUD._refresh)
 	if Game.spend_devotion(spawn_devotion_cost):
@@ -630,7 +630,7 @@ func expand_island() -> void:
 	_sand_burst(_edge_point(-1.0))
 	_sand_burst(_edge_point(1.0))
 	Game.set_island(island_level, max_level())
-	Game.say(tr("¡La isla creció! Capacidad: %d aldeanos") % capacity(), _pivot + Vector2(0, -130), HUD.C_EXPAND)
+	Game.say(tr("¡La isla creció! Capacidad: %d aldeanos") % capacity(), _pivot + Vector2(0, -130), UiStyle.C_EXPAND)
 
 func _on_expand_finished() -> void:
 	_expanding = false
@@ -744,7 +744,7 @@ func save_game() -> void:
 	if err != OK:
 		push_error("No se pudo guardar la partida %d: %s" % [slot, error_string(err)])
 		if not _save_failed:
-			Game.announce("No se pudo guardar la partida", HUD.C_WARN)
+			Game.announce("No se pudo guardar la partida", UiStyle.C_WARN)
 	_save_failed = err != OK
 
 ## Sigue la partida guardada en la ranura. false si estaba vacía (arranca una nueva). Si el archivo

@@ -108,7 +108,7 @@ func update(dt: float) -> void:
 		set_age(age + sky.passed)
 	if was_child and not is_child():
 		if v.visible:
-			Game.say("¡Ya es grande!", v.get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SHOP)
+			Game.say("¡Ya es grande!", v.get_global_transform_with_canvas().origin + Vector2(0, -80), UiStyle.C_SHOP)
 	# Termina parado en la isla (o durmiendo): no se muere colgando del mouse, flotando ni adentro
 	if age >= lifespan and (v.is_idle() or v.asleep) and not v.on_fire:
 		_die_of_old_age()
@@ -116,7 +116,7 @@ func update(dt: float) -> void:
 ## Le llegó la hora: se muere tranquilo donde está (si estaba durmiendo, ni se despierta).
 func _die_of_old_age() -> void:
 	Game.say("Murió de vieja" if v.gender == Villager.Gender.FEMALE else "Murió de viejo",
-			v.get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_MUTED)
+			v.get_global_transform_with_canvas().origin + Vector2(0, -80), UiStyle.C_MUTED)
 	if v.food:
 		v.food.release_eater()
 	v._gentle_death = true

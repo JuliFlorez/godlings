@@ -31,7 +31,7 @@ func _init() -> void:
 	id = "spore"
 	title = "Espora"
 	key = KEY_Z
-	accent = HUD.C_SPORE
+	accent = UiStyle.C_SPORE
 	price = 300
 	sacrifices = 8
 	tooltip = "Sacar o guardar la espora [Z]"

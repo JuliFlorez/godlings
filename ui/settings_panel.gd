@@ -67,17 +67,17 @@ func sync() -> void:
 		_mark(_fps_buttons[on], on == Settings.show_fps)
 
 func _mark(b: Button, on: bool) -> void:
-	b.add_theme_stylebox_override("normal", HUD.make_box(Color(HUD.C_DEVOTION, 0.35) if on else Color(1, 1, 1, 0.08), 8, HUD.C_DEVOTION if on else Color(1, 1, 1, 0.12), 1))
+	b.add_theme_stylebox_override("normal", UiStyle.box(Color(UiStyle.C_DEVOTION, 0.35) if on else Color(1, 1, 1, 0.08), 8, UiStyle.C_DEVOTION if on else Color(1, 1, 1, 0.12), 1))
 
 # ---- Construcción ----
 func _slider_row(title: String, value: float, setter: Callable) -> Array:
 	var head := HBoxContainer.new()
 	add_child(head)
-	head.add_child(HUD.make_label(title, 14, HUD.C_TEXT))
+	head.add_child(UiStyle.label(title, 14, UiStyle.C_TEXT))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
-	var value_l := HUD.make_label("", 13, HUD.C_MUTED)
+	var value_l := UiStyle.label("", 13, UiStyle.C_MUTED)
 	head.add_child(value_l)
 
 	var s := HSlider.new()
@@ -87,9 +87,9 @@ func _slider_row(title: String, value: float, setter: Callable) -> Array:
 	s.value = value * 100.0
 	s.focus_mode = Control.FOCUS_NONE
 	s.custom_minimum_size = Vector2(0, 20)
-	s.add_theme_stylebox_override("slider", HUD.make_box(HUD.C_TRACK, 4, Color(0, 0, 0, 0), 0, Vector4(0, 4, 0, 4)))
-	s.add_theme_stylebox_override("grabber_area", HUD.make_box(HUD.C_DEVOTION, 4, Color(0, 0, 0, 0), 0, Vector4(0, 4, 0, 4)))
-	s.add_theme_stylebox_override("grabber_area_highlight", HUD.make_box(HUD.C_DEVOTION.lightened(0.2), 4, Color(0, 0, 0, 0), 0, Vector4(0, 4, 0, 4)))
+	s.add_theme_stylebox_override("slider", UiStyle.box(UiStyle.C_TRACK, 4, Color(0, 0, 0, 0), 0, Vector4(0, 4, 0, 4)))
+	s.add_theme_stylebox_override("grabber_area", UiStyle.box(UiStyle.C_DEVOTION, 4, Color(0, 0, 0, 0), 0, Vector4(0, 4, 0, 4)))
+	s.add_theme_stylebox_override("grabber_area_highlight", UiStyle.box(UiStyle.C_DEVOTION.lightened(0.2), 4, Color(0, 0, 0, 0), 0, Vector4(0, 4, 0, 4)))
 	s.value_changed.connect(func(v: float):
 		setter.call(v / 100.0)
 		value_l.text = "%d%%" % roundi(v))
@@ -101,7 +101,7 @@ func _slider_row(title: String, value: float, setter: Callable) -> Array:
 func _choice_row(title: String, inline := false) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	var label := HUD.make_label(title, 14, HUD.C_TEXT)
+	var label := UiStyle.label(title, 14, UiStyle.C_TEXT)
 	if inline:
 		row.add_child(label)
 	else:
@@ -110,7 +110,7 @@ func _choice_row(title: String, inline := false) -> HBoxContainer:
 	return row
 
 func _choice(row: HBoxContainer, text: String) -> Button:
-	var b := HUD.make_button(text, Color(1, 1, 1, 0.08))
+	var b := UiStyle.button(text, Color(1, 1, 1, 0.08))
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(b)
 	return b

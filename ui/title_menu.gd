@@ -19,7 +19,6 @@ const SCREEN_FADE := 0.2          # Al cambiar de pantalla
 const LEAVE_FADE := 0.6           # El menú se desvanece al empezar a bajar
 const CARD_W := 224.0
 const PREVIEW_SIZE := Vector2(200, 112)   # La pantalla del juego en chiquito (16:9)
-const C_PANEL := Color(0.06, 0.09, 0.16, 0.94)
 const C_FLOATING := Color(0.1, 0.14, 0.24, 0.95)   # Botón suelto sobre el cielo y las nubes
 const C_QUIT := Color(0.75, 0.25, 0.22)
 const C_PLAY_TEXT := Color(0.08, 0.14, 0.08)
@@ -62,10 +61,9 @@ func _ready() -> void:
 	var logo := Logo.new()
 	logo.custom_minimum_size = Vector2(0, 130)
 	col.add_child(logo)
-	var tagline := HUD.make_label("Cuidá (o sacrificá) a tus aldeanos", 18, HUD.C_TEXT)
+	var tagline := UiStyle.label("Cuidá (o sacrificá) a tus aldeanos", 18, UiStyle.C_TEXT)
 	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tagline.add_theme_color_override("font_outline_color", C_OUTLINE)
-	tagline.add_theme_constant_override("outline_size", 6)
+	UiStyle.outline(tagline, 6, C_OUTLINE)
 	col.add_child(tagline)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 18)
@@ -80,10 +78,9 @@ func _ready() -> void:
 		screen.visible = false
 		col.add_child(screen)
 
-	_version = HUD.make_label("v" + World.VERSION, 14, HUD.C_TEXT)
+	_version = UiStyle.label("v" + World.VERSION, 14, UiStyle.C_TEXT)
 	_version.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	_version.add_theme_color_override("font_outline_color", C_OUTLINE)
-	_version.add_theme_constant_override("outline_size", 6)
+	UiStyle.outline(_version, 6, C_OUTLINE)
 	_version.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_version)
 	_version.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 12)   # (A la derecha va el contador de FPS)
@@ -167,12 +164,12 @@ func _build_main() -> Control:
 		_fill_cards()
 		_show(_slots))
 	col.add_child(play)
-	var options := HUD.make_button("Configuración", Color(1, 1, 1, 0.08))
+	var options := UiStyle.button("Configuración", Color(1, 1, 1, 0.08))
 	options.pressed.connect(func():
 		_options_panel.sync()
 		_show(_options))
 	col.add_child(options)
-	var quit := HUD.make_button("Salir", C_QUIT)
+	var quit := UiStyle.button("Salir", C_QUIT)
 	quit.pressed.connect(func():
 		get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST)
 		get_tree().quit())
@@ -185,7 +182,7 @@ func _build_slots() -> Control:
 	_cards = HBoxContainer.new()
 	_cards.add_theme_constant_override("separation", 14)
 	col.add_child(_cards)
-	var back := HUD.make_button("Volver", C_FLOATING)
+	var back := UiStyle.button("Volver", C_FLOATING)
 	back.custom_minimum_size = Vector2(170, 38)
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(func(): _show(_main))
@@ -198,12 +195,12 @@ func _build_options() -> Control:
 	col.add_theme_constant_override("separation", 12)
 	col.custom_minimum_size = Vector2(320, 0)
 	panel.add_child(col)
-	var title := HUD.make_label("Configuración", 20, HUD.C_TEXT)
+	var title := UiStyle.label("Configuración", 20, UiStyle.C_TEXT)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(title)
 	_options_panel = SettingsPanel.new()
 	col.add_child(_options_panel)
-	var back := HUD.make_button("Volver", Color(1, 1, 1, 0.08))
+	var back := UiStyle.button("Volver", Color(1, 1, 1, 0.08))
 	back.pressed.connect(func(): _show(_main))
 	col.add_child(back)
 	return panel
@@ -221,7 +218,7 @@ func _fill_cards() -> void:
 func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(CARD_W, 0)
-	card.add_theme_stylebox_override("panel", HUD.make_box(C_PANEL, 14, HUD.C_XP if latest else HUD.C_PANEL_BORDER,
+	card.add_theme_stylebox_override("panel", UiStyle.box(Color(UiStyle.C_PANEL, 0.94), 14, UiStyle.C_XP if latest else UiStyle.C_PANEL_BORDER,
 			2 if latest else 1, Vector4(12, 10, 12, 12)))
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
@@ -229,12 +226,12 @@ func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 
 	var head := HBoxContainer.new()
 	col.add_child(head)
-	head.add_child(HUD.make_label(tr("Partida %d") % slot, 16, HUD.C_TEXT))
+	head.add_child(UiStyle.label(tr("Partida %d") % slot, 16, UiStyle.C_TEXT))
 	if latest:
 		var spacer := Control.new()
 		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		head.add_child(spacer)
-		head.add_child(HUD.make_label("Última jugada", 11, HUD.C_XP))
+		head.add_child(UiStyle.label("Última jugada", 11, UiStyle.C_XP))
 
 	# Dañada: hay algo guardado pero no se puede leer (ver SaveSlots.summary); solo se puede borrar
 	var damaged: bool = info.get("damaged", false)
@@ -255,7 +252,7 @@ func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 
 	if damaged:
 		_preview_label(preview, "Dañada")
-		var why := HUD.make_label("No se pudo leer esta partida.", 13, HUD.C_WARN)
+		var why := UiStyle.label("No se pudo leer esta partida.", 13, UiStyle.C_WARN)
 		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		why.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		why.custom_minimum_size = Vector2(CARD_W - 24.0, 0)
@@ -267,7 +264,7 @@ func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 		_chip(stats, "villager", str(info.villagers), "Aldeanos")
 		_chip(stats, "island", "%d / %d" % [info.level + 1, World.ISLAND_LEVELS.size()], "Isla")
 		_chip(stats, "coin", str(info.offerings), "Ofrendas")
-		var last_played := HUD.make_label(_last_played(info), 12, HUD.C_MUTED)
+		var last_played := UiStyle.label(_last_played(info), 12, UiStyle.C_MUTED)
 		last_played.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Ya viene traducido
 		col.add_child(last_played)
 	col.add_child(_filler())
@@ -280,7 +277,7 @@ func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 		play.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		play.pressed.connect(_choose.bind(slot))
 		actions.add_child(play)
-	var delete_btn := HUD.make_button("Borrar", C_QUIT)
+	var delete_btn := UiStyle.button("Borrar", C_QUIT)
 	delete_btn.custom_minimum_size = Vector2(74, 38)
 	if damaged:
 		delete_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL   # Sola, ocupa todo el ancho
@@ -291,7 +288,7 @@ func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 	confirm.add_theme_constant_override("separation", 8)
 	confirm.visible = false
 	col.add_child(confirm)
-	var warn := HUD.make_label("¿Borrar esta partida? No se puede deshacer.", 13, HUD.C_WARN)
+	var warn := UiStyle.label("¿Borrar esta partida? No se puede deshacer.", 13, UiStyle.C_WARN)
 	warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	warn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	warn.custom_minimum_size = Vector2(CARD_W - 24.0, 0)
@@ -299,10 +296,10 @@ func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 	var answers := HBoxContainer.new()
 	answers.add_theme_constant_override("separation", 8)
 	confirm.add_child(answers)
-	var cancel := HUD.make_button("Cancelar", Color(1, 1, 1, 0.08))
+	var cancel := UiStyle.button("Cancelar", Color(1, 1, 1, 0.08))
 	cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	answers.add_child(cancel)
-	var wipe := HUD.make_button("Borrar", C_QUIT)
+	var wipe := UiStyle.button("Borrar", C_QUIT)
 	wipe.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	answers.add_child(wipe)
 
@@ -319,11 +316,10 @@ func _card(slot: int, info: Dictionary, latest: bool) -> Control:
 
 ## El cartel encima de la miniatura ("Vacía", "Dañada").
 func _preview_label(preview: Control, text: String) -> void:
-	var label := HUD.make_label(text, 16, HUD.C_TEXT)
+	var label := UiStyle.label(text, 16, UiStyle.C_TEXT)
 	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_color_override("font_outline_color", C_OUTLINE)
-	label.add_theme_constant_override("outline_size", 5)
+	UiStyle.outline(label, 5, C_OUTLINE)
 	preview.add_child(label)
 
 ## Ícono y número (aldeanos, tamaño de la isla, ofrendas).
@@ -331,7 +327,7 @@ func _chip(parent: Control, icon: String, value: String, tip: String) -> void:
 	var chip := PanelContainer.new()
 	chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	chip.tooltip_text = tip
-	chip.add_theme_stylebox_override("panel", HUD.make_box(Color(1, 1, 1, 0.06), 8, Color(0, 0, 0, 0), 0, Vector4(6, 5, 6, 5)))
+	chip.add_theme_stylebox_override("panel", UiStyle.box(Color(1, 1, 1, 0.06), 8, Color(0, 0, 0, 0), 0, Vector4(6, 5, 6, 5)))
 	parent.add_child(chip)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -339,7 +335,7 @@ func _chip(parent: Control, icon: String, value: String, tip: String) -> void:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	chip.add_child(row)
 	row.add_child(HudIcon.make(icon, 14))
-	row.add_child(HUD.make_label(value, 14, HUD.C_TEXT))
+	row.add_child(UiStyle.label(value, 14, UiStyle.C_TEXT))
 
 ## Cuándo se jugó por última vez ("Hoy, 14:32", "Ayer, 09:05" o la fecha) y cuánto en total.
 func _last_played(info: Dictionary) -> String:
@@ -367,12 +363,12 @@ func _last_played(info: Dictionary) -> String:
 # ---- Piezas ----
 func _panel() -> PanelContainer:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", HUD.make_box(C_PANEL, 16, HUD.C_PANEL_BORDER, 1, Vector4(20, 18, 20, 20)))
+	p.add_theme_stylebox_override("panel", UiStyle.window(0.94, Vector4(20, 18, 20, 20)))
 	return p
 
 ## Botón verde de jugar, con el texto oscuro (como "Continuar" en la pausa).
 func _play_button(text: String) -> Button:
-	var b := HUD.make_button(text, HUD.C_SHOP)
+	var b := UiStyle.button(text, UiStyle.C_SHOP)
 	b.add_theme_color_override("font_color", C_PLAY_TEXT)
 	b.add_theme_color_override("font_hover_color", C_PLAY_TEXT)
 	b.add_theme_color_override("font_pressed_color", C_PLAY_TEXT)
@@ -452,7 +448,7 @@ class SlotPreview extends Control:
 		if night:
 			tint = BLOOD_TINT if blood else NIGHT_TINT
 			sky_color = SKY_BLOOD if blood else SKY_NIGHT
-		draw_style_box(HUD.make_box(sky_color, 8), Rect2(Vector2.ZERO, size))
+		draw_style_box(UiStyle.box(sky_color, 8), Rect2(Vector2.ZERO, size))
 
 		if night:
 			for s: Vector2 in STARS:
@@ -466,7 +462,7 @@ class SlotPreview extends Control:
 			draw_circle(at, r * 1.7, Color(SUN, 0.25), true, -1.0, true)
 			draw_circle(at, r, SUN, true, -1.0, true)
 
-		var sea := HUD.make_box(SEA * tint, 8)
+		var sea := UiStyle.box(SEA * tint, 8)
 		sea.corner_radius_top_left = 0
 		sea.corner_radius_top_right = 0
 		draw_style_box(sea, Rect2(0.0, horizon, size.x, size.y - horizon))

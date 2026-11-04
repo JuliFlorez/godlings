@@ -12,12 +12,11 @@ var _t := 0.0
 func _ready() -> void:
 	layer = 100   # Arriba de todo, también de los menús
 	process_mode = Node.PROCESS_MODE_ALWAYS   # Sigue contando en pausa
-	_label = HUD.make_label("", 13, HUD.C_TEXT)
+	_label = UiStyle.label("", 13, UiStyle.C_TEXT)
 	_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	_label.add_theme_constant_override("outline_size", 4)
+	UiStyle.outline(_label, 4, Color(0, 0, 0, 0.8))
 	_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, MARGIN)
 	_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_label.grow_vertical = Control.GROW_DIRECTION_BEGIN

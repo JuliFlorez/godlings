@@ -65,10 +65,10 @@ func takes(v: Villager, p: Vector2) -> bool:
 		return false
 	var screen := get_viewport().get_canvas_transform() * deco.altar_top() + Vector2(0, -50)
 	if v.is_child():
-		Game.say("Es muy chico para eso", screen, HUD.C_WARN)
+		Game.say("Es muy chico para eso", screen, UiStyle.C_WARN)
 		return false
 	if victim or _cooldown > 0.0:
-		Game.say("Los braseros todavía no se prendieron", screen, HUD.C_WARN)
+		Game.say("Los braseros todavía no se prendieron", screen, UiStyle.C_WARN)
 		return false
 	_start(v)
 	return true

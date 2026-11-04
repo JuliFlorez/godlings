@@ -46,7 +46,7 @@ func _ready() -> void:
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", HUD.make_box(Color(0.06, 0.09, 0.16, 0.96), 16, HUD.C_PANEL_BORDER, 1, Vector4(18, 14, 18, 18)))
+	panel.add_theme_stylebox_override("panel", UiStyle.window(0.96, Vector4(18, 14, 18, 18)))
 	center.add_child(panel)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
@@ -55,21 +55,21 @@ func _ready() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
 	col.add_child(head)
-	head.add_child(HUD.make_label("Árbol genealógico", 20, HUD.C_TEXT))
-	_name = HUD.make_label("", 16, VillagerCard.C_FAMILY)
+	head.add_child(UiStyle.label("Árbol genealógico", 20, UiStyle.C_TEXT))
+	_name = UiStyle.label("", 16, VillagerCard.C_FAMILY)
 	_name.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Es un nombre
 	head.add_child(_name)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
-	_card_btn = VillagerCard.link_button(tr("Ver carnet"), HUD.C_TEXT, func():
+	_card_btn = VillagerCard.link_button(tr("Ver carnet"), UiStyle.C_TEXT, func():
 		var p := Genealogy.person(get_tree(), focus)
 		if p.get("villager") and hud:
 			close()
 			hud.select_villager(p.villager))
 	head.add_child(_card_btn)
 	head.add_child(VillagerCard.close_button(close))
-	col.add_child(HUD.make_label("Tocá a alguien para ver su familia.", 12, HUD.C_MUTED))
+	col.add_child(UiStyle.label("Tocá a alguien para ver su familia.", 12, UiStyle.C_MUTED))
 
 	var sep := HSeparator.new()
 	var line := StyleBoxLine.new()
@@ -305,7 +305,7 @@ class Person extends Control:
 		add_child(photo)
 		if info.is_empty():
 			photo.color = FamilyTree.C_UNKNOWN
-			var q := HUD.make_label("?", 30, HUD.C_MUTED)
+			var q := UiStyle.label("?", 30, UiStyle.C_MUTED)
 			q.size = photo.size
 			q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			photo.add_child(q)
@@ -325,7 +325,7 @@ class Person extends Control:
 			if info.dead:
 				rig.set_dead()
 				photo.modulate = Color(0.85, 0.85, 0.9)
-		var label := HUD.make_label(_short_name(), 12, HUD.C_TEXT if not info.get("dead", true) else HUD.C_MUTED)
+		var label := UiStyle.label(_short_name(), 12, UiStyle.C_TEXT if not info.get("dead", true) else UiStyle.C_MUTED)
 		label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Es un nombre
 		label.position = Vector2(0, FamilyTree.NAME_Y)
 		label.size = Vector2(FamilyTree.SLOT.x, 16)
@@ -356,7 +356,7 @@ class Person extends Control:
 	func _draw() -> void:
 		var r := Rect2(Vector2((FamilyTree.SLOT.x - FamilyTree.PHOTO) * 0.5, 0.0), Vector2.ONE * FamilyTree.PHOTO)
 		if is_focus:
-			draw_rect(r.grow(3.0), HUD.C_XP)
+			draw_rect(r.grow(3.0), UiStyle.C_XP)
 		elif _hover:
 			draw_rect(r.grow(2.0), Color(1, 1, 1, 0.8))
 		else:

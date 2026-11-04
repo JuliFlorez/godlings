@@ -79,7 +79,7 @@ func _init() -> void:
 	icon = "rain"
 	title = "Diluvio"
 	key = KEY_D
-	accent = HUD.C_RAIN
+	accent = UiStyle.C_RAIN
 	aims = false   # No se apunta: mientras llueve se pueden seguir agarrando aldeanos
 	price = 420
 	sacrifices = 10
@@ -124,7 +124,7 @@ func _ready() -> void:
 ## Recargándose no se puede desatar.
 func _can_arm() -> bool:
 	if _cooldown > 0.0:
-		Game.announce(tr("El diluvio se está recargando (%d s)") % ceili(_cooldown), HUD.C_WARN)
+		Game.announce(tr("El diluvio se está recargando (%d s)") % ceili(_cooldown), UiStyle.C_WARN)
 		return false
 	return true
 
@@ -136,7 +136,7 @@ func _on_armed(on: bool) -> void:
 		if _rain_sound.stream == null:
 			_rain_sound.stream = _make_rain()
 			_thunder.stream = Lightning._make_thunder()
-		Game.announce("¡Se largó el diluvio!", HUD.C_DEVOTION)
+		Game.announce("¡Se largó el diluvio!", UiStyle.C_DEVOTION)
 	else:
 		_cooldown = COOLDOWN
 

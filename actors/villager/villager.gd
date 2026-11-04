@@ -763,7 +763,7 @@ func stop_eating() -> void:
 func bonk(at: Vector2) -> void:
 	if rig:
 		rig.hit(at, Vector2.DOWN, 0.6)
-	Game.say("¡Bonk!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
+	Game.say("¡Bonk!", get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_TEXT)
 	add_mood(VillagerMood.MOOD_BONKED, "Le cayó un coco en la cabeza")
 
 # --- CHARLAS (lo que el resto del juego le pregunta al aldeano; ver VillagerChat) ---
@@ -1145,7 +1145,7 @@ func _grant_sacrifice_xp(offering := SACRIFICE_OFFERING, sacrifices := 1) -> voi
 	Game.add_xp(1)
 	Game.add_sacrifices(sacrifices)
 	Game.add_offerings(offering)
-	Game.say(tr("+%d ofrendas") % offering, get_global_transform_with_canvas().origin + Vector2(0, -60), HUD.C_OFFERING)
+	Game.say(tr("+%d ofrendas") % offering, get_global_transform_with_canvas().origin + Vector2(0, -60), UiStyle.C_OFFERING)
 
 ## Se murió: los que lo vieron se asustan (más si lo querían) y se quedan mirando; su pareja, sus
 ## amigos y su familia lloran un rato, pierden fe y se ponen tristes, y sus enemigos se alegran.
@@ -1168,7 +1168,7 @@ func _mourn() -> void:
 				o.say(Bubble.TEAR, MOURN_TIME, false)
 				o.add_faith(-VillagerFaith.FAITH_LOST_PARTNER)
 				o.add_mood(VillagerMood.MOOD_LOST_PARTNER, "Se le murió la pareja")
-				Game.say("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), HUD.C_MUTED)
+				Game.say("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), UiStyle.C_MUTED)
 			Relations.Kind.FRIEND:
 				o.say(Bubble.TEAR, MOURN_TIME * 0.6, false)
 				o.add_faith(-VillagerFaith.FAITH_LOST_FRIEND)
@@ -1411,15 +1411,15 @@ func cure() -> bool:
 	if spore_cured:
 		_spore.clear()
 		if not said:
-			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
+			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_SHOP)
 			said = true
 	elif zombie:
-		Game.say("Ya no tiene cura", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_MUTED)
+		Game.say("Ya no tiene cura", get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_MUTED)
 	var burns := _burn.has_burns()
 	if burns:
 		_burn.heal()
 		if not said and not zombie:
-			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_SHOP)
+			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_SHOP)
 	var cured := flu_cured or spore_cured or burns
 	if cured and not zombie:
 		_faith.thank(VillagerFaith.FAITH_CURED, true)
@@ -1498,7 +1498,7 @@ func give_shield(time := SHIELD_TIME, thank := true) -> void:
 		add_child(_aura)   # Después del Rig: va por delante del cuerpo
 	if thank:
 		Game.say("¡Bendecida!" if gender == Gender.FEMALE else "¡Bendecido!",
-				get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_HOLY)
+				get_global_transform_with_canvas().origin + Vector2(0, -80), UiStyle.C_HOLY)
 		_faith.thank(FAITH_SHIELDED, false)
 
 ## Lo vacunaste (ver Miracle): no se contagia de gripe ni de espora por un tiempo (time, en
@@ -1520,7 +1520,7 @@ func _ward_off(loud := false) -> void:
 	if loud:
 		_play_sfx(Miracle.sound_for("block"), VOICE_DB - 4.0, randf_range(0.95, 1.08))
 		Game.say("¡Protegida!" if gender == Gender.FEMALE else "¡Protegido!",
-				get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_HOLY)
+				get_global_transform_with_canvas().origin + Vector2(0, -80), UiStyle.C_HOLY)
 
 ## El escudo y la vacuna se van gastando.
 func _update_wards(dt: float) -> void:
@@ -1645,7 +1645,7 @@ func _come_back() -> void:
 ## los que lo vieron te creen más y a los herejes les da miedo (más si lo vieron). bonds: lo que
 ## tenía con los demás al morirse; alive: los vivos, por carnet.
 func _celebrate(bonds: Array, alive: Dictionary) -> void:
-	Game.say("¡Volvió a la vida!", get_global_transform_with_canvas().origin + Vector2(0, -90), HUD.C_HOLY)
+	Game.say("¡Volvió a la vida!", get_global_transform_with_canvas().origin + Vector2(0, -90), UiStyle.C_HOLY)
 	add_faith(FAITH_RISEN)
 	add_mood(MOOD_RISEN, "Volvió de la muerte")
 	say(Bubble.HEART, VillagerFaith.THANKS_TIME, false)

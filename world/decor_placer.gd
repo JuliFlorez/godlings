@@ -123,11 +123,11 @@ func _place() -> void:
 	var pos := _ghost.global_position
 	var screen := get_viewport().get_canvas_transform() * pos
 	if not _can_place(pos):
-		Game.say("Solo sobre la isla", screen, HUD.C_WARN)
+		Game.say("Solo sobre la isla", screen, UiStyle.C_WARN)
 		return
 	var price := Decoration.price_of(kind)
 	if not Game.spend_offerings(price):
-		Game.say("No te alcanzan las ofrendas", screen, HUD.C_WARN)
+		Game.say("No te alcanzan las ofrendas", screen, UiStyle.C_WARN)
 		stop()
 		return
 	var d := Decoration.new()
@@ -263,7 +263,7 @@ func _start_move(d: Decoration) -> void:
 func _drop() -> void:
 	var d := _moving
 	if not _can_place(d.global_position, d):
-		Game.say("Solo sobre la isla", get_viewport().get_canvas_transform() * d.global_position, HUD.C_WARN)
+		Game.say("Solo sobre la isla", get_viewport().get_canvas_transform() * d.global_position, UiStyle.C_WARN)
 		_cancel_move()
 		return
 	_moving = null
@@ -289,7 +289,7 @@ func _remove(d: Decoration) -> void:
 	_set_hover({})
 	var refund := maxi(1, int(Decoration.price_of(d.kind) * REFUND))
 	Game.add_offerings(refund)
-	Game.say(tr("+%d ofrendas") % refund, get_viewport().get_canvas_transform() * d.global_position + Vector2(0, -40), HUD.C_OFFERING)
+	Game.say(tr("+%d ofrendas") % refund, get_viewport().get_canvas_transform() * d.global_position + Vector2(0, -40), UiStyle.C_OFFERING)
 	_puff(d.global_position + Vector2(0, Decoration.LIFT))
 	# Fuera de Props: ya no cuenta para el espacio libre ni se puede volver a agarrar (ni
 	# comerle las bayas)

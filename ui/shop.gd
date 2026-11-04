@@ -14,9 +14,9 @@ enum Tab { ISLAND, EVIL, GOOD, SKY }
 const TABS := {
 	Tab.ISLAND: ["Isla", "island", Color(1.0, 0.86, 0.42),
 			"Decoraciones: se cobran recién al colocarlas. Las palmeras dan cocos y los arbustos, bayas para los que tienen hambre."],
-	Tab.EVIL: ["Poderes malos", "evil", HUD.C_EVIL, "Para castigar a tus aldeanos (y sacrificarlos). Cuestan ofrendas y sacrificios."],
-	Tab.GOOD: ["Poderes buenos", "holy", HUD.C_HOLY, "Para cuidar a tus aldeanos y juntarlos."],
-	Tab.SKY: ["Cielo y tiburones", "shark", HUD.C_DEVOTION,
+	Tab.EVIL: ["Poderes malos", "evil", UiStyle.C_EVIL, "Para castigar a tus aldeanos (y sacrificarlos). Cuestan ofrendas y sacrificios."],
+	Tab.GOOD: ["Poderes buenos", "holy", UiStyle.C_HOLY, "Para cuidar a tus aldeanos y juntarlos."],
+	Tab.SKY: ["Cielo y tiburones", "shark", UiStyle.C_DEVOTION,
 			"La Luna de Sangre se come a los que le soltás encima; los tiburones patrullan el agua. Cuestan ofrendas y sacrificios."],
 }
 const TAB_H := 34.0
@@ -58,7 +58,7 @@ func _ready() -> void:
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", HUD.make_box(Color(0.06, 0.09, 0.16, 0.96), 16, HUD.C_PANEL_BORDER, 1, Vector4(18, 16, 18, 18)))
+	panel.add_theme_stylebox_override("panel", UiStyle.window(0.96, Vector4(18, 16, 18, 18)))
 	center.add_child(panel)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
@@ -67,18 +67,18 @@ func _ready() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	col.add_child(head)
-	head.add_child(HUD.make_label("Tienda", 20, HUD.C_TEXT))
+	head.add_child(UiStyle.label("Tienda", 20, UiStyle.C_TEXT))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
 	head.add_child(HudIcon.make("coin", 18))
-	_balance = HUD.make_label("", 16, HUD.C_OFFERING)
+	_balance = UiStyle.label("", 16, UiStyle.C_OFFERING)
 	head.add_child(_balance)
 	var coin_gap := Control.new()
 	coin_gap.custom_minimum_size = Vector2(6, 0)
 	head.add_child(coin_gap)
-	head.add_child(HUD.sacrifice_icon(20))
-	_sacrifice_balance = HUD.make_label("", 16, HUD.C_TEXT)
+	head.add_child(HudIcon.sacrifice(20))
+	_sacrifice_balance = UiStyle.label("", 16, UiStyle.C_TEXT)
 	head.add_child(_sacrifice_balance)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(8, 0)
@@ -86,14 +86,14 @@ func _ready() -> void:
 	var close_btn := _flat_button("✕")
 	close_btn.pressed.connect(close)
 	head.add_child(close_btn)
-	col.add_child(HUD.make_label("Las ofrendas te las dejan rezando (y cada muerte); los sacrificios, cada muerte (el altar da más). Las cosas malas cuestan las dos.", 12, HUD.C_MUTED))
+	col.add_child(UiStyle.label("Las ofrendas te las dejan rezando (y cada muerte); los sacrificios, cada muerte (el altar da más). Las cosas malas cuestan las dos.", 12, UiStyle.C_MUTED))
 
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 6)
 	col.add_child(tabs)
 	for t: Tab in TABS:
 		_tab_btns[t] = _tab_button(tabs, t)
-	_desc = HUD.make_label("", 12, HUD.C_TEXT)
+	_desc = UiStyle.label("", 12, UiStyle.C_TEXT)
 	col.add_child(_desc)
 
 	# Las páginas, una encima de la otra: se ve la de la pestaña elegida
@@ -165,7 +165,7 @@ func _build_sky(page: Control) -> void:
 		var b := _card(shark_row, icon, tr("Tiburón %d") % (i + 1), Shark.PRICE, "Comprar", Shark.SACRIFICES)
 		var card := b.get_parent()
 		var price: Control = card.get_node("Price")
-		var status := HUD.make_label("", 12, HUD.C_TEXT)
+		var status := UiStyle.label("", 12, UiStyle.C_TEXT)
 		status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		card.add_child(status)
 		card.move_child(status, price.get_index())
@@ -194,13 +194,13 @@ func _set_tab(t: Tab) -> void:
 		var on := k == t
 		var c: Color = TABS[k][2]
 		var pad := Vector4(10 + TAB_ICON + 7, 2, 14, 2)
-		var box := HUD.make_box(Color(c, 0.24), 9, Color(c, 0.8), 2, pad) if on \
-				else HUD.make_box(Color(1, 1, 1, 0.06), 9, Color(1, 1, 1, 0.10), 1, pad)
+		var box := UiStyle.box(Color(c, 0.24), 9, Color(c, 0.8), 2, pad) if on \
+				else UiStyle.box(Color(1, 1, 1, 0.06), 9, Color(1, 1, 1, 0.10), 1, pad)
 		b.add_theme_stylebox_override("normal", box)
-		b.add_theme_stylebox_override("hover", box if on else HUD.make_box(Color(c, 0.14), 9, Color(c, 0.5), 1, pad))
+		b.add_theme_stylebox_override("hover", box if on else UiStyle.box(Color(c, 0.14), 9, Color(c, 0.5), 1, pad))
 		b.add_theme_stylebox_override("pressed", box)
 		for state in ["font_color", "font_hover_color", "font_pressed_color"]:
-			b.add_theme_color_override(state, c if on else HUD.C_MUTED)
+			b.add_theme_color_override(state, c if on else UiStyle.C_MUTED)
 		b.get_meta("icon").modulate = Color.WHITE if on else Color(1, 1, 1, 0.55)
 
 func close() -> void:
@@ -232,7 +232,7 @@ func _sync() -> void:
 		s.price.visible = not bought
 		s.status.visible = bought
 		s.status.text = "Activo" if on else "Apagado"
-		s.status.add_theme_color_override("font_color", HUD.C_SHOP if on else HUD.C_MUTED)
+		s.status.add_theme_color_override("font_color", UiStyle.C_SHOP if on else UiStyle.C_MUTED)
 		s.icon.modulate = Color.WHITE if on or not bought else Color(1, 1, 1, 0.45)
 		if bought:
 			b.text = "Desactivar" if on else "Activar"
@@ -283,7 +283,7 @@ func _row(parent: Control) -> HBoxContainer:
 	return row
 
 func _section(title: String) -> Label:
-	var l := HUD.make_label(title, 11, HUD.C_MUTED)
+	var l := UiStyle.label(title, 11, UiStyle.C_MUTED)
 	l.uppercase = true   # Mayúsculas al mostrar, así el texto sigue siendo la clave de traducción
 	return l
 
@@ -292,7 +292,7 @@ func _section(title: String) -> Label:
 func _card(parent: Control, preview: Control, title: String, price: int, action: String, sacrifice_cost := 0) -> Button:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(CARD_W, 0)
-	card.add_theme_stylebox_override("panel", HUD.make_box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1, Vector4(10, 10, 10, 10)))
+	card.add_theme_stylebox_override("panel", UiStyle.box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1, Vector4(10, 10, 10, 10)))
 	parent.add_child(card)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 5)
@@ -301,7 +301,7 @@ func _card(parent: Control, preview: Control, title: String, price: int, action:
 	preview.custom_minimum_size = PREVIEW_SIZE
 	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(preview)
-	var name_l := HUD.make_label(title, 13, HUD.C_TEXT)
+	var name_l := UiStyle.label(title, 13, UiStyle.C_TEXT)
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# Los nombres largos ("Arbusto de bayas") en dos renglones, así la tienda entra a lo ancho
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -315,15 +315,15 @@ func _card(parent: Control, preview: Control, title: String, price: int, action:
 	v.add_child(price_row)
 	if price >= 0:
 		price_row.add_child(HudIcon.make("coin", 12))
-		price_row.add_child(HUD.make_label(str(price), 12, HUD.C_OFFERING))
+		price_row.add_child(UiStyle.label(str(price), 12, UiStyle.C_OFFERING))
 		if sacrifice_cost > 0:
 			var gap := Control.new()
 			gap.custom_minimum_size = Vector2(3, 0)
 			price_row.add_child(gap)
-			price_row.add_child(HUD.sacrifice_icon(14))
-			price_row.add_child(HUD.make_label(str(sacrifice_cost), 12, HUD.C_TEXT))
+			price_row.add_child(HudIcon.sacrifice(14))
+			price_row.add_child(UiStyle.label(str(sacrifice_cost), 12, UiStyle.C_TEXT))
 	else:
-		price_row.add_child(HUD.make_label("—", 12, HUD.C_MUTED))
+		price_row.add_child(UiStyle.label("—", 12, UiStyle.C_MUTED))
 
 	var b := Button.new()
 	b.text = action
@@ -334,10 +334,10 @@ func _card(parent: Control, preview: Control, title: String, price: int, action:
 	for state in ["font_color", "font_hover_color", "font_pressed_color"]:
 		b.add_theme_color_override(state, ink)
 	b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.35))
-	b.add_theme_stylebox_override("normal", HUD.make_box(HUD.C_SHOP, 8, HUD.C_SHOP.lightened(0.3), 1))
-	b.add_theme_stylebox_override("hover", HUD.make_box(HUD.C_SHOP.lightened(0.15), 8, HUD.C_SHOP.lightened(0.5), 1))
-	b.add_theme_stylebox_override("pressed", HUD.make_box(HUD.C_SHOP.darkened(0.15), 8, HUD.C_SHOP.darkened(0.3), 1))
-	b.add_theme_stylebox_override("disabled", HUD.make_box(Color(1, 1, 1, 0.07), 8, Color(1, 1, 1, 0.08), 1))
+	b.add_theme_stylebox_override("normal", UiStyle.box(UiStyle.C_SHOP, 8, UiStyle.C_SHOP.lightened(0.3), 1))
+	b.add_theme_stylebox_override("hover", UiStyle.box(UiStyle.C_SHOP.lightened(0.15), 8, UiStyle.C_SHOP.lightened(0.5), 1))
+	b.add_theme_stylebox_override("pressed", UiStyle.box(UiStyle.C_SHOP.darkened(0.15), 8, UiStyle.C_SHOP.darkened(0.3), 1))
+	b.add_theme_stylebox_override("disabled", UiStyle.box(Color(1, 1, 1, 0.07), 8, Color(1, 1, 1, 0.08), 1))
 	v.add_child(b)
 	return b
 
@@ -346,9 +346,9 @@ func _flat_button(text: String) -> Button:
 	b.text = text
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(28, 28)
-	b.add_theme_stylebox_override("normal", HUD.make_box(Color(1, 1, 1, 0.08), 8))
-	b.add_theme_stylebox_override("hover", HUD.make_box(Color(1, 1, 1, 0.18), 8))
-	b.add_theme_stylebox_override("pressed", HUD.make_box(Color(1, 1, 1, 0.26), 8))
+	b.add_theme_stylebox_override("normal", UiStyle.box(Color(1, 1, 1, 0.08), 8))
+	b.add_theme_stylebox_override("hover", UiStyle.box(Color(1, 1, 1, 0.18), 8))
+	b.add_theme_stylebox_override("pressed", UiStyle.box(Color(1, 1, 1, 0.26), 8))
 	return b
 
 ## Vista previa de una decoración, con su mismo dibujo.

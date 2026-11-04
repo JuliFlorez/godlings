@@ -345,7 +345,7 @@ func _draw() -> void:
 		# Con su cartel abierto (ver HutCard): una flechita arriba, como la del carnet
 		var y := (HUT_CROSS.y + HUT_BONE.y) * HUT_SCALE - 12.0 - (0.5 + 0.5 * sin(World.anim_time * 6.0)) * NameTag.ARROW_BOB
 		var tri := PackedVector2Array([Vector2(-NameTag.ARROW.x, y - NameTag.ARROW.y), Vector2(NameTag.ARROW.x, y - NameTag.ARROW.y), Vector2(0, y)])
-		draw_colored_polygon(tri, HUD.C_XP)
+		draw_colored_polygon(tri, UiStyle.C_XP)
 		tri.append(tri[0])
 		draw_polyline(tri, NameTag.C_OUTLINE, 2.0, true)
 	if hover_coconut >= 0:
