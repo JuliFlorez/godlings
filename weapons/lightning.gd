@@ -8,7 +8,7 @@ class_name Lightning
 ## en el agua, la descarga se esparce y fríe a todos los que flotan alrededor (tiburones
 ## incluidos, ver Shark.zap). Si cae en una choza la hace pedazos (ver Decoration.smash); los
 ## de adentro salen enteros: el rayo se lo llevó la choza.
-## La nube, los rayos y la mira se dibujan en HUD.overlay (con un HUD.Painter): encima del
+## La nube, los rayos y la mira se dibujan en HUD.overlay (con un Painter): encima del
 ## mundo pero sin el tinte de la noche (si no, de noche el rayo se vería apagado).
 
 const COOLDOWN := 0.8
@@ -40,7 +40,7 @@ var _cloud := Vector2.ZERO               # Centro de la nube (mundo)
 var _cloud_a := 0.0                      # Aparece y se va con un fundido
 var _glow := 0.0                         # La nube se ilumina por dentro al descargar
 var _t := 0.0
-var _fx: HUD.Painter
+var _fx: Painter
 var _thunder: AudioStreamPlayer
 var _buzz: AudioStreamPlayer
 static var _thunder_wav: AudioStreamWAV
@@ -63,7 +63,7 @@ func _init() -> void:
 	hint = "Click para lanzar un rayo · click derecho, Esc o R para guardarlo."
 
 func _ready() -> void:
-	_fx = HUD.Painter.new()
+	_fx = Painter.new()
 	_fx.paint = _paint
 	var hud := get_tree().get_first_node_in_group("hud") as HUD
 	if hud:

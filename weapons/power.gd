@@ -9,7 +9,7 @@ class_name Power
 ## Cada poder es una clase hija que en _init() dice cómo es (su id, su tecla, lo que cuesta, sus
 ## textos...) y hace lo suyo en _use (el click), _on_armed (al sacarlo o guardarlo) y, si hace falta,
 ## _can_arm. World los crea en el orden de la barra (ver World._create_powers): un poder nuevo va
-## ahí, con su ícono en HUD.HudIcon y sus textos en I18n.EN.
+## ahí, con su ícono en HudIcon y sus textos en I18n.EN.
 
 signal armed_changed(on: bool)
 
@@ -18,7 +18,7 @@ const GROUP := "power"
 # ---- Cómo es (lo dice cada poder en su _init) ----
 ## Con lo que se guarda en la partida (ver Game.save_state).
 var id := ""
-## El dibujo de su slot y de su tarjeta en la tienda (ver HUD.HudIcon); si no dice, el de su id.
+## El dibujo de su slot y de su tarjeta en la tienda (ver HudIcon); si no dice, el de su id.
 var icon := ""
 ## Su nombre en la barra y en la tienda.
 var title := ""

@@ -71,7 +71,7 @@ var _cloud_shape := PackedVector2Array()   # La nube de arriba (respecto a _top)
 var _cloud_light := PackedVector2Array()   # Su copete, más claro
 var _ripple_t := 0.0
 var _funnel: Funnel
-var _fx: HUD.Painter
+var _fx: Painter
 var _wind: AudioStreamPlayer
 
 func _init() -> void:
@@ -90,7 +90,7 @@ func _init() -> void:
 	hint = "Mantené apretado el click en la isla o el agua para que baje el tornado, y llevalo con el mouse · click derecho, Esc o T para guardarlo."
 
 func _ready() -> void:
-	_fx = HUD.Painter.new()
+	_fx = Painter.new()
 	_fx.paint = _paint
 	var hud := get_tree().get_first_node_in_group("hud") as HUD
 	if hud:

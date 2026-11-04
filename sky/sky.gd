@@ -129,7 +129,7 @@ func _ready() -> void:
 	bank = CloudBank.new()
 	add_child(bank)
 	# El cielo de altura, sobre el fondo y debajo de todo lo demás
-	var high := HUD.Painter.new()
+	var high := Painter.new()
 	high.paint = _paint_high
 	add_child(high)
 	move_child(high, background.get_index() + 1)

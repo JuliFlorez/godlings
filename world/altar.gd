@@ -165,7 +165,7 @@ func _finish() -> void:
 ## El rayo de luz roja que baja del cielo hasta el altar (en el overlay del HUD, así de noche
 ## no se apaga).
 func _beam(hud: HUD) -> void:
-	var painter := HUD.Painter.new()
+	var painter := Painter.new()
 	var t0 := Time.get_ticks_msec()
 	painter.paint = func(ci: CanvasItem):
 		var k := 1.0 - (Time.get_ticks_msec() - t0) / 1000.0 / BEAM_TIME

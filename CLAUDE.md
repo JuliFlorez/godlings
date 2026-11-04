@@ -89,7 +89,7 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 Una clase hija de `Power` en `weapons/` que en `_init()` dice cómo es (id, nombre, tecla, si es
 bueno, color, precio y sacrificios, sus textos: ver los comentarios de `Power`) y hace lo suyo en
 `_use(at)` (el click), `_on_armed(on)` y, si hace falta, `_can_arm()` o `recharge()`. Se agrega en
-`World._create_powers`, en su lugar de la barra, con su ícono en `HUD.HudIcon` y sus textos en
+`World._create_powers`, en su lugar de la barra, con su ícono en `HudIcon` y sus textos en
 `I18n.EN`; la barra, la tienda, el guardado y la consola lo toman solos. Si es malo (cuesta
 sacrificios), su `locked_tooltip` es "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)" (o
 "Desbloqueala"). Si tiene variantes, seguí el patrón de `Charm` / `Miracle` (`Kind`, `KINDS` y

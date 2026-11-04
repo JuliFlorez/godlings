@@ -38,7 +38,7 @@ var _falling := []    # En camino: {from, to, t, wet, rock (polígono), spin, fi
 var _booms := []      # Explosiones: {pos, t, wet, puffs}
 var _shake := 0.0     # 1 recién explotó, 0 quieta
 var _t := 0.0
-var _fx: HUD.Painter
+var _fx: Painter
 var _whistle: AudioStreamPlayer
 var _boom: AudioStreamPlayer
 static var _whistle_wav: AudioStreamWAV
@@ -61,7 +61,7 @@ func _init() -> void:
 	hint = "Click en la isla o el agua para tirar un meteorito · click derecho, Esc o M para guardarlo."
 
 func _ready() -> void:
-	_fx = HUD.Painter.new()
+	_fx = Painter.new()
 	_fx.paint = _paint
 	var hud := get_tree().get_first_node_in_group("hud") as HUD
 	if hud:

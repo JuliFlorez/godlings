@@ -338,7 +338,7 @@ func _chip(parent: Control, icon: String, value: String, tip: String) -> void:
 	row.add_theme_constant_override("separation", 4)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	chip.add_child(row)
-	row.add_child(HUD.HudIcon.make(icon, 14))
+	row.add_child(HudIcon.make(icon, 14))
 	row.add_child(HUD.make_label(value, 14, HUD.C_TEXT))
 
 ## Cuándo se jugó por última vez ("Hoy, 14:32", "Ayer, 09:05" o la fecha) y cuánto en total.

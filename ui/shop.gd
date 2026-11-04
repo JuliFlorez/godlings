@@ -10,7 +10,7 @@ class_name Shop
 ## última que se miró, o en la del poder bloqueado que se tocó en la barra (ver HUD.open_shop).
 
 enum Tab { ISLAND, EVIL, GOOD, SKY }
-## Por pestaña: [título, ícono (ver HUD.HudIcon), color, lo que hay]
+## Por pestaña: [título, ícono (ver HudIcon), color, lo que hay]
 const TABS := {
 	Tab.ISLAND: ["Isla", "island", Color(1.0, 0.86, 0.42),
 			"Decoraciones: se cobran recién al colocarlas. Las palmeras dan cocos y los arbustos, bayas para los que tienen hambre."],
@@ -71,7 +71,7 @@ func _ready() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
-	head.add_child(HUD.HudIcon.make("coin", 18))
+	head.add_child(HudIcon.make("coin", 18))
 	_balance = HUD.make_label("", 16, HUD.C_OFFERING)
 	head.add_child(_balance)
 	var coin_gap := Control.new()
@@ -134,7 +134,7 @@ func _build_powers(evil_page: Control, good_page: Control) -> void:
 		if power.always:
 			continue   # La comida no se compra: está desde el principio
 		var icon := CenterContainer.new()
-		icon.add_child(HUD.HudIcon.make(power.icon_kind(), 40))
+		icon.add_child(HudIcon.make(power.icon_kind(), 40))
 		_power_btns[power] = _unlock_card(rows[power.good], icon, power.title, power.price, power.shop,
 				Game.unlock_power.bind(power), power.sacrifices)
 
@@ -146,11 +146,11 @@ func _build_sky(page: Control) -> void:
 	sky_col.add_child(_section("Cielo"))
 	var sky_row := _row(sky_col)
 	var moon_icon := CenterContainer.new()
-	moon_icon.add_child(HUD.HudIcon.make("blood_moon", 44))
+	moon_icon.add_child(HudIcon.make("blood_moon", 44))
 	_moon_btn = _unlock_card(sky_row, moon_icon, "Luna de Sangre", Moon.PRICE,
 			"De noche, tocá la luna 5 veces. Soltale aldeanos encima para alimentarla.", Game.unlock_blood_moon, Moon.SACRIFICES)
 	var sun_icon := CenterContainer.new()
-	sun_icon.add_child(HUD.HudIcon.make("blood_sun", 44))
+	sun_icon.add_child(HudIcon.make("blood_sun", 44))
 	sun_icon.modulate = Color(1, 1, 1, 0.45)
 	_card(sky_row, sun_icon, "Sol de Sangre", -1, "Próximamente").disabled = true
 
@@ -161,7 +161,7 @@ func _build_sky(page: Control) -> void:
 	var shark_row := _row(shark_col)
 	for i in Shark.MAX:
 		var icon := CenterContainer.new()
-		icon.add_child(HUD.HudIcon.make("shark", 40))
+		icon.add_child(HudIcon.make("shark", 40))
 		var b := _card(shark_row, icon, tr("Tiburón %d") % (i + 1), Shark.PRICE, "Comprar", Shark.SACRIFICES)
 		var card := b.get_parent()
 		var price: Control = card.get_node("Price")
@@ -268,7 +268,7 @@ func _tab_button(parent: Control, t: Tab) -> Button:
 	b.add_theme_font_size_override("font_size", 14)
 	b.pressed.connect(_set_tab.bind(t))
 	parent.add_child(b)
-	var icon := HUD.HudIcon.make(TABS[t][1], TAB_ICON)
+	var icon := HudIcon.make(TABS[t][1], TAB_ICON)
 	icon.position = Vector2(10, (TAB_H - TAB_ICON) * 0.5)
 	b.add_child(icon)
 	b.set_meta("icon", icon)
@@ -314,7 +314,7 @@ func _card(parent: Control, preview: Control, title: String, price: int, action:
 	price_row.add_theme_constant_override("separation", 4)
 	v.add_child(price_row)
 	if price >= 0:
-		price_row.add_child(HUD.HudIcon.make("coin", 12))
+		price_row.add_child(HudIcon.make("coin", 12))
 		price_row.add_child(HUD.make_label(str(price), 12, HUD.C_OFFERING))
 		if sacrifice_cost > 0:
 			var gap := Control.new()

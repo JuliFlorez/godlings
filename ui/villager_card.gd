@@ -504,7 +504,7 @@ func _build_creed(parent: Control) -> void:
 	var tribute_caption := HUD.make_label("Ofrendas", 13, HUD.C_MUTED)
 	tribute_caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
 	tribute_row.add_child(tribute_caption)
-	_tribute_coin = HUD.HudIcon.make("coin", 13)
+	_tribute_coin = HudIcon.make("coin", 13)
 	tribute_row.add_child(_tribute_coin)
 	_tribute = HUD.make_label("", 13, HUD.C_OFFERING)
 	_tribute.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_creed (lleva el número)
