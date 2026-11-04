@@ -275,15 +275,25 @@ leer o guardar.
       nodo) y 7 partes suyas se usan desde 6 archivos. `HEAD_TOP` y `FEET` quedaron en el aldeano
       (son medidas del cuerpo), igual que `body_center`, `body_distance` y `ground_point`, que se
       juntaron con `_body_segment`.
+- [x] Necesidades → tres componentes en vez del `villager_needs.gd` que proponía arriba:
+      `VillagerMood` (el ánimo, con los pesos `MOOD_*` de su bloque), `VillagerSleep` y
+      `VillagerHunger`, un commit cada uno. Son sistemas distintos, cada uno con su estado y su
+      `update`, y entre ellos se hablan por lo que reenvía el aldeano (`add_mood`, `hunger`,
+      `tiredness`). El ánimo usa 19 cosas del aldeano y lo usan 10 archivos; el sueño, 38 y 7; el
+      hambre, 34 y unos 10. Para estos tres el script de los anteriores pasó a ser uno solo que
+      sirve para cualquier sistema, y el chequeo ahora también busca declaraciones repetidas (gdlint
+      no las ve: encontró una antes de commitear), accesos a campos que se mudaron y asignaciones a
+      propiedades de solo lectura. Lo que arrancaba al azar en `_ready` (el ánimo, el cansancio y
+      el hambre del principio) ahora arranca en el componente; las partidas y los bebés lo pisan
+      después, igual que antes.
 - [ ] `enum Body` para los estados excluyentes: cambia el corazón de `_physics_process`, mejor
       después de probar en el juego lo de las fases 2 a 4.
-- [ ] Los demás sistemas, uno por vez: necesidades (hambre, sueño, ánimo) → social (charlas, fe,
-      miedo) → casa y familia.
+- [ ] Los demás sistemas, uno por vez: social (charlas, fe, miedo) → casa y familia.
 - [ ] Que cada uno se guarde solo (`to_dict()` / `from_dict()`): por ahora `World` sigue guardando
       los campos del aldeano (la gripe, por `flu`, `flu_t` y `set_flu`; la espora, por `spore` y
-      `set_spore`).
+      `set_spore`; el hambre, el ánimo y el sueño, por sus propiedades).
 
-`villager.gd` va de 4.001 a 2.828 líneas.
+`villager.gd` va de 4.001 a 2.430 líneas.
 
 ### Fase 5 · Interfaz (cuando haga falta)
 
