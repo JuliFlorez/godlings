@@ -64,11 +64,11 @@ const CREEDS := {
 }
 ## Su ánimo: [varón, aldeana, color]
 const MOODS := {
-	Villager.Mood.DEPRESSED: ["Deprimido", "Deprimida", HUD.C_WARN],
-	Villager.Mood.SAD: ["Triste", "Triste", Color(1.0, 0.7, 0.4)],
-	Villager.Mood.OK: ["Tranquilo", "Tranquila", HUD.C_MUTED],
-	Villager.Mood.CONTENT: ["Contento", "Contenta", Color(0.66, 0.88, 0.5)],
-	Villager.Mood.HAPPY: ["Feliz", "Feliz", HUD.C_SHOP],
+	VillagerMood.Mood.DEPRESSED: ["Deprimido", "Deprimida", HUD.C_WARN],
+	VillagerMood.Mood.SAD: ["Triste", "Triste", Color(1.0, 0.7, 0.4)],
+	VillagerMood.Mood.OK: ["Tranquilo", "Tranquila", HUD.C_MUTED],
+	VillagerMood.Mood.CONTENT: ["Contento", "Contenta", Color(0.66, 0.88, 0.5)],
+	VillagerMood.Mood.HAPPY: ["Feliz", "Feliz", HUD.C_SHOP],
 }
 const C_FAITH := HUD.C_HOLY
 const C_FEAR := HUD.C_EVIL

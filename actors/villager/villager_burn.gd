@@ -103,7 +103,7 @@ func put_out(steam := false) -> void:
 	if not on_fire:
 		return
 	on_fire = false
-	v.add_mood(Villager.MOOD_BURNED, "Se prendió fuego")
+	v.add_mood(VillagerMood.MOOD_BURNED, "Se prendió fuego")
 	_heat = 0.0
 	_flames.on = false
 	_sparks.emitting = false

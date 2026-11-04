@@ -174,7 +174,7 @@ static func make(a: Villager, b: Villager, k: Kind) -> Event:
 static func note_birth(a: Villager, b: Villager) -> void:
 	_note(Event.BIRTH, a, b)
 
-## Lo anota en el historial, y a los dos les cambia el ánimo (ver Villager.relation_mood).
+## Lo anota en el historial, y a los dos les cambia el ánimo (ver VillagerMood.relation_mood).
 static func _note(ev: Event, a: Villager, b: Villager) -> void:
 	a.relation_mood(ev)
 	b.relation_mood(ev)
