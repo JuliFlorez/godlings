@@ -190,8 +190,8 @@ func _mood_factors() -> Array:
 		out.append(["Le crecen hongos", VillagerSpore.MOOD_SPORE])
 	if v.fear > MOOD_FEAR_FROM:
 		out.append(["Tiene miedo", (v.fear - MOOD_FEAR_FROM) * MOOD_FEAR])
-	if v.tiredness >= Villager.EXHAUSTED_AT:
-		out.append(["Se cae de sueño", Villager.MOOD_EXHAUSTED])
-	elif v.tiredness >= Villager.SLEEPY_AT:
-		out.append(["Tiene sueño", Villager.MOOD_SLEEPY])
+	if v.tiredness >= VillagerSleep.EXHAUSTED_AT:
+		out.append(["Se cae de sueño", VillagerSleep.MOOD_EXHAUSTED])
+	elif v.tiredness >= VillagerSleep.SLEEPY_AT:
+		out.append(["Tiene sueño", VillagerSleep.MOOD_SLEEPY])
 	return out

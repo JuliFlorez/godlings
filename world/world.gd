@@ -708,7 +708,7 @@ func save_game() -> void:
 		var v := node as Villager
 		if v == null or not v.is_alive() or v.drowning:   # El que se está hundiendo no se guarda
 			continue
-		var feet := v.global_position - Vector2(0, v._sleep_drop)   # Si está acostado durmiendo, parado
+		var feet := v.global_position - Vector2(0, v.sleep_drop)   # Si está acostado durmiendo, parado
 		var standing := (v.is_idle() or v.asleep) and Geometry2D.is_point_in_polygon(feet, island_poly_global)
 		villagers.append({
 			"pos": feet if standing else _island_point(),

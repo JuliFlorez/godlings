@@ -263,36 +263,22 @@ var age := ADULT_AGE                  # Días vividos
 var lifespan := LIFESPAN.x            # A los cuántos días se muere de viejo
 var grey_age := GREY_AGE.x            # A los cuántos días le empiezan a salir canas
 
-# --- Sueño: el cansancio (0 descansado, 100 muerto de sueño) le va subiendo despierto y se le
-# va pasando durmiendo. De noche se va a dormir: a su choza si tiene, y si no se acuesta en el
-# piso donde esté (y se levanta de peor ánimo). Con sueño camina más lento, bosteza y anda de
-# peor ánimo; muerto de sueño se va a dormir la siesta aunque sea de día (a su choza, o donde
-# esté). Descansando de día en su choza también se le pasa un poco. Se despierta cuando aclara
-# (o cuando descansó, si era una siesta), si le agarra hambre de verdad, si viene el agua, si se
-# asusta o si lo agarrás. Dormido no charla ni reza. Se ve en el carnet y se guarda.
-const TIRED_RATE := 0.17          # Por segundo despierto: de descansado a muerto de sueño en unos 10 minutos
-const SLEEP_RECOVER := 1.0        # Por segundo durmiendo (una noche alcanza y sobra)...
-const REST_RECOVER := 0.4         # ...y descansando de día en su choza
-const TIRED_START := Vector2(0.0, 30.0)
-const SLEEPY_AT := 60.0           # Con sueño...
-const EXHAUSTED_AT := 90.0        # ...y muerto de sueño
-const NAP_UNTIL := 25.0           # La siesta dura hasta que el cansancio baja a esto
-const SLEEPY_SPEED := 0.85
-const YAWN_EVERY := Vector2(10.0, 18.0)
-const LIE_DOWN := 2.0             # Por segundo: lo que tarda en acostarse
-const MOOD_SLEEPY := -8.0
-const MOOD_EXHAUSTED := -18.0
-const MOOD_SLEPT_WELL := 4.0      # Durmió en su casa
-const MOOD_SLEPT_ROUGH := -5.0    # Durmió en el piso
-const MOOD_WOKEN := -3.0          # Lo despertaste
-var tiredness := 0.0
-var asleep := false               # Durmiendo afuera, acostado en el piso (adentro de su choza es inside)
-var _napping := false             # Durmiendo la siesta (de día)
-var _slept_inside := false        # Pasó la noche en su choza (al salir, durmió bien)
-var _sleep_k := 0.0               # Acostándose: 0 parado, 1 acostado
-var _sleep_drop := 0.0            # Lo que bajó para quedar acostado
-var _lie_side := 1.0              # Para qué lado se acuesta
-var _yawn := 0.0
+# --- Sueño (ver VillagerSleep): se cansa despierto, de noche se va a dormir y de día duerme la siesta ---
+var _sleep: VillagerSleep
+## Durmiendo afuera, acostado en el piso (adentro de su choza es inside; ver VillagerSleep).
+var asleep: bool:
+	get:
+		return _sleep.asleep
+## El cansancio: 0 descansado .. 100 muerto de sueño (ver VillagerSleep).
+var tiredness: float:
+	get:
+		return _sleep.tiredness
+	set(value):
+		_sleep.tiredness = value
+## Lo que bajó para quedar acostado durmiendo (parado, 0).
+var sleep_drop: float:
+	get:
+		return _sleep.sleep_drop
 
 # --- Charlas: cada tanto, dos que andan cerca y con ganas se juntan a charlar un rato. El que
 # la empieza va hasta el lado del otro, se miran y hablan por turnos (con un globito arriba de
@@ -437,6 +423,7 @@ var _resting := false
 @onready var rig: VillagerRig = get_node_or_null("Rig")
 
 func _init() -> void:
+	_sleep = VillagerSleep.new(self)
 	_mood = VillagerMood.new(self)
 	_burn = VillagerBurn.new(self)
 	_flu = VillagerFlu.new(self)
@@ -452,8 +439,6 @@ func _ready() -> void:
 	fear = randf_range(FEAR_START.x, FEAR_START.y)
 	hunger = randf_range(HUNGER_START.x, HUNGER_START.y)
 	_hungry_say = randf_range(HUNGRY_SAY_EVERY.x, HUNGRY_SAY_EVERY.y)
-	tiredness = randf_range(TIRED_START.x, TIRED_START.y)
-	_yawn = randf_range(YAWN_EVERY.x, YAWN_EVERY.y)
 	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
 	_home_check = randf_range(0.0, HOME_CHECK)
 	age = randf_range(SPAWN_AGE.x, SPAWN_AGE.y)   # Los bebés y las partidas guardadas traen la suya
@@ -652,7 +637,7 @@ func _physics_process(dt: float) -> void:
 		_corpse_physics(dt)
 		return
 	if asleep:
-		_sleep_ai(dt)
+		_sleep.sleep_ai(dt)
 		return
 
 	# --- IA normal caminando en la isla ---
@@ -690,7 +675,7 @@ func _physics_process(dt: float) -> void:
 			return
 		if _going_home and _walk_home(dt):
 			return
-		if _seek_sleep():
+		if _sleep.seek_sleep():
 			return
 		_seek_food(dt)
 		_seek_home(dt)
@@ -719,8 +704,8 @@ func _physics_process(dt: float) -> void:
 		pace *= STARVING_SPEED
 	elif is_sad():
 		pace *= VillagerMood.MOOD_SAD_SPEED
-	elif tiredness >= SLEEPY_AT:
-		pace *= SLEEPY_SPEED
+	elif tiredness >= VillagerSleep.SLEEPY_AT:
+		pace *= VillagerSleep.SLEEPY_SPEED
 	if is_elder():
 		pace *= ELDER_SPEED   # Hasta escapándose
 	velocity = _heading * pace * smoothstep(0.0, 1.0, _walk) + _separation() + shove_vel
@@ -1210,103 +1195,12 @@ func add_mood(amount: float, why := "") -> void:
 func relation_mood(ev: Relations.Event) -> void:
 	_mood.relation_mood(ev)
 
-# --- SUEÑO ---
-## Durmiendo: acostado en el piso, o en su choza de noche (o durmiendo la siesta).
+# --- SUEÑO (lo que el resto del juego le pregunta al aldeano; ver VillagerSleep) ---
 func is_sleeping() -> bool:
-	return asleep or (inside and (_night() >= SLEEP_AT or _napping))
+	return _sleep.is_sleeping()
 
-## El cansancio sube despierto y baja durmiendo (o descansando en su choza). Con sueño bosteza.
-func _update_sleep(dt: float) -> void:
-	if not is_alive() or is_zombie():
-		return   # (El zombi no se cansa)
-	if is_sleeping():
-		tiredness -= SLEEP_RECOVER * dt
-		_slept_inside = _slept_inside or inside
-	elif inside:
-		tiredness -= REST_RECOVER * dt
-	else:
-		tiredness += TIRED_RATE * (ELDER_TIRED if is_elder() else 1.0) * dt
-	tiredness = clampf(tiredness, 0.0, 100.0)
-	if tiredness < SLEEPY_AT or is_sleeping():
-		return
-	_yawn -= dt
-	if _yawn <= 0.0:
-		_yawn = randf_range(YAWN_EVERY.x, YAWN_EVERY.y)
-		if chat_with == null and bubble_t <= 0.0 and is_idle():
-			say(Bubble.SLEEP, 1.4, false)
-
-## Se puede quedar dormido: tranquilo en la isla, sin nada que hacer y sin hambre de verdad
-## (muerto de sueño, aunque tenga hambre; muerto de hambre, nunca).
-func _can_sleep() -> bool:
-	return is_idle() and chat_with == null and food == null and not on_fire and _flee <= 0.0 \
-			and _scram <= 0.0 and not is_scared() and pose == Pose.NONE and not starving() \
-			and (hunger < HUNGRY_AT or tiredness >= EXHAUSTED_AT) and not is_zombie() \
-			and not _going_home and not Storm.water_near(ground_point(), FLOOD_FLEE)
-
-## De noche, el que no tiene casa se acuesta donde está; de día, muerto de sueño se va a su
-## choza a dormir la siesta (o, si no tiene, se duerme donde está). true si se durmió.
-func _seek_sleep() -> bool:
-	if not _can_sleep():
-		return false
-	if _night() >= SLEEP_AT:
-		if _home_ok() and _can_go_home():
-			return false   # Se va a su choza (ver _seek_home)
-		_napping = tiredness >= EXHAUSTED_AT   # Muerto de sueño: aunque tenga hambre, duerme hasta descansar
-		fall_asleep()
-		return true
-	if tiredness < EXHAUSTED_AT:
-		return false
-	_napping = true
-	if _can_go_home():
-		_go_home()
-		return false
-	fall_asleep()
-	return true
-
-## Se acuesta en el piso y se duerme.
-func fall_asleep() -> void:
-	asleep = true
-	_sleep_k = 0.0
-	_sleep_drop = 0.0
-	_lie_side = -1.0 if randf() < 0.5 else 1.0
-	velocity = Vector2.ZERO
-	_resting = false
-
-## Durmiendo en el piso: se acuesta de a poco y le salen unas zetas. Se despierta cuando aclara
-## (o, si era una siesta, cuando descansó), si le agarra hambre de verdad (en la siesta, solo si
-## se muere de hambre), si se prende fuego o si se le viene el agua.
-func _sleep_ai(dt: float) -> void:
-	velocity = Vector2.ZERO
-	_sleep_k = move_toward(_sleep_k, 1.0, LIE_DOWN * dt)
-	rotation = lerp_angle(0.0, _lie_side * PI * 0.5, _sleep_k)
-	var drop := FEET_DROP * scale.y * _sleep_k
-	global_position.y += drop - _sleep_drop
-	_sleep_drop = drop
-	if bubble_t <= 0.0:
-		say(Bubble.SLEEP, 2.0, false)
-	var day := _night() < WAKE_AT
-	var hungry := starving() or (hunger >= HUNGRY_AT and not _napping)
-	if hungry or on_fire or Storm.water_near(ground_point(), FLOOD_FLEE) \
-			or (day and tiredness <= (NAP_UNTIL if _napping else SLEEPY_AT)):
-		if day and not _napping:
-			add_mood(MOOD_SLEPT_ROUGH, "Durmió en el piso")
-		wake_up()
-
-## Se despierta y, si estaba acostado en el piso, se levanta. stand: false si lo agarraron o se
-## lo llevó algo (ahí ya no está acostado donde estaba).
 func wake_up(stand := true) -> void:
-	if not asleep:
-		return
-	asleep = false
-	_napping = false
-	if stand:
-		global_position.y -= _sleep_drop
-		_pick_dir()
-		wander_timer = randf_range(1.0, 2.5)
-	_sleep_drop = 0.0
-	_sleep_k = 0.0
-	if bubble == Bubble.SLEEP:
-		bubble_t = 0.0
+	_sleep.wake_up(stand)
 
 # --- EDAD ---
 ## Todavía es chico (ver ADULT_AGE).
@@ -1553,8 +1447,7 @@ func lose_home() -> void:
 ## Sale por la puerta (o donde estaba, si le quitaron la choza).
 func _leave_home() -> void:
 	inside = false
-	_napping = false
-	_slept_inside = false
+	_sleep.left_home()
 	visible = true
 	$CollisionShape2D.set_deferred("disabled", false)
 	if _home_ok():
@@ -1580,10 +1473,10 @@ func _inside_ai(dt: float) -> void:
 	global_position = _door_spot()   # Si mueven la choza, va con ella
 	_inside_t -= dt
 	# De día sale cuando descansó (de la noche, o de la siesta: ahí no importa _inside_t)
-	var rested := tiredness <= (NAP_UNTIL if _napping else SLEEPY_AT)
-	if hunger >= HUNGRY_AT or (_night() < WAKE_AT and rested and (_inside_t <= 0.0 or _napping)):
-		if _slept_inside and hunger < HUNGRY_AT:
-			add_mood(MOOD_SLEPT_WELL, "Durmió bien")
+	var rested := _sleep.rested()
+	if hunger >= HUNGRY_AT or (_night() < WAKE_AT and rested and (_inside_t <= 0.0 or _sleep.napping)):
+		if _sleep.slept_inside and hunger < HUNGRY_AT:
+			add_mood(VillagerSleep.MOOD_SLEPT_WELL, "Durmió bien")
 		_leave_home()
 
 ## Qué tan de noche es (0 mediodía, 1 noche cerrada; ver Sky.night).
@@ -1742,7 +1635,7 @@ func ground_point() -> Vector2:
 	if dead and corpse_grounded and not in_water:
 		return global_position + Vector2(0, (FEET - 2.0 - FEET_DROP) * scale.y)   # Acostado
 	if asleep:
-		return global_position + Vector2(0, (FEET - 2.0) * scale.y - _sleep_drop)   # Acostándose a dormir
+		return global_position + Vector2(0, (FEET - 2.0) * scale.y - sleep_drop)   # Acostándose a dormir
 	return global_position + Vector2(0, (FEET - 2.0) * scale.y)   # (Los chicos son más bajos)
 
 ## Llamado mientras está agarrado: aparta a los aldeanos que toca.
@@ -1898,7 +1791,7 @@ func _die() -> void:
 	dead = true
 	corpse_grounded = false
 	corpse_timer = 0.0
-	floor_y = global_position.y + FEET_DROP - _sleep_drop   # Durmiendo ya estaba acostado
+	floor_y = global_position.y + FEET_DROP - sleep_drop   # Durmiendo ya estaba acostado
 	velocity = Vector2.ZERO
 	_drop_shield()   # Morirse se lleva el escudo y la vacuna
 	vaccine_t = 0.0
@@ -2472,7 +2365,7 @@ func _process(dt: float) -> void:
 	_update_family(dt)
 	_update_faith(dt)
 	_mood.update(dt)
-	_update_sleep(dt)
+	_sleep.update(dt)
 	_update_wards(dt)
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)
@@ -2541,7 +2434,7 @@ func _start_drag() -> void:
 		altar = null
 	if asleep:
 		wake_up(false)
-		add_mood(MOOD_WOKEN, "La despertaste" if gender == Gender.FEMALE else "Lo despertaste")
+		add_mood(VillagerSleep.MOOD_WOKEN, "La despertaste" if gender == Gender.FEMALE else "Lo despertaste")
 	dragging = true
 	grab_local = (get_global_mouse_position() - global_position).rotated(-rotation)
 	_prev_mouse = get_global_mouse_position()

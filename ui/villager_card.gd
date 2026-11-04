@@ -301,7 +301,7 @@ func _update_creed() -> void:
 	_sleep_bar.value = v.tiredness
 	_spore_bar.value = v.spore * 100.0
 	_spore_bar.get_parent().visible = v.spore > 0.0 and not v.dead
-	_sleep_bar.modulate = Color(1.0, 0.55, 0.5) if v.tiredness >= Villager.EXHAUSTED_AT else Color.WHITE
+	_sleep_bar.modulate = Color(1.0, 0.55, 0.5) if v.tiredness >= VillagerSleep.EXHAUSTED_AT else Color.WHITE
 	_mood_bar.value = v.mood
 	var m: Array = MOODS[v.mood_level()]
 	_mood_label.text = m[1] if v.gender == Villager.Gender.FEMALE else m[0]
