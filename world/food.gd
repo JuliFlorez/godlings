@@ -2,7 +2,7 @@ extends Node2D
 class_name Food
 ## Algo que se comen los aldeanos cuando tienen hambre (ver Villager.hunger): un medio coco
 ## (ver Coconut), el pan que les tirás (ver Manna) o una baya de un arbusto (ver
-## Decoration.BerryPick). El que tiene hambre lo busca (ver Villager._seek_food), lo reserva
+## Decoration.BerryPick). El que tiene hambre lo busca (ver VillagerHunger.seek_food), lo reserva
 ## (claim), camina hasta eat_spot, lo come a mordiscos (nibble) y al terminar (finish_eating)
 ## se le va el hambre que diga nutrition. Los que se pueden encontrar tirados en el piso están
 ## en el grupo "food" (ver available).
@@ -26,7 +26,7 @@ func available() -> bool:
 func is_free() -> bool:
 	return not _claimed
 
-## v viene a comérselo (ver Villager.go_eat).
+## v viene a comérselo (ver VillagerHunger.go_eat).
 func claim(v: Villager) -> void:
 	eater = v
 	_claimed = true

@@ -183,36 +183,22 @@ const MAX_SHOVE := 600.0
 var shove_vel := Vector2.ZERO
 var shove_timer := 0.0
 
-# --- Hambre y comida: el hambre (0 lleno, 100 la panza vacía) les va subiendo. Con un poco ya
-# comen lo que tengan cerca, y con hambre de verdad salen a buscar por toda la isla (y lo dicen
-# con un globito): un medio coco tirado, el pan que les tirás o las bayas de un arbusto (ver
-# Food). Muertos de hambre caminan más lento, no rezan, se enojan charlando y te creen cada vez
-# menos; con la panza vacía aguantan un rato y se mueren. Se ve en el carnet y se guarda.
-const HUNGER_RATE := 0.2         # Por segundo: de lleno a la panza vacía en algo más de 8 minutos
-const HUNGER_START := Vector2(5.0, 35.0)
-const SNACK_AT := 20.0           # Con esto ya come si tiene algo cerca...
-const SNACK_REACH := 220.0
-const HUNGRY_AT := 50.0          # ...y con esto sale a buscar por toda la isla (y lo dice)
-const STARVING_AT := 85.0        # Muerto de hambre
-const STARVING_SPEED := 0.7      # Veces speed
-const STARVE_TIME := 60.0        # Con la panza vacía aguanta esto
-const FAITH_DRIFT_STARVING := 0.1   # Fe que pierde de más por segundo, muerto de hambre
-const HUNGRY_SAY_EVERY := Vector2(8.0, 14.0)
-const FOOD_SEEK_EVERY := 0.6
-const FOOD_SPEED := 1.8          # Van a la comida más rápido que cuando pasean
-const EAT_REACH := 6.0
-const EAT_TIME := 1.8
-const FOOD_GIVE_UP := 10.0       # Si no llega en este tiempo (trabado en el borde), la deja
-const FOOD_COOLDOWN := 5.0       # ...y por un rato no busca otra
-var hunger := 0.0
-var food: Food
-var _eat_t := 0.0
-var _food_t := 0.0
-var _food_cooldown := 0.0
-var _food_seek := 0.0
-var _starve_t := 0.0
-var _hungry_say := 0.0
-var _rig_rest := Vector2.ZERO
+# --- Hambre y comida (ver VillagerHunger): le va subiendo el hambre y sale a buscar qué comer ---
+var _hunger: VillagerHunger
+## El hambre: 0 lleno .. 100 la panza vacía (ver VillagerHunger).
+var hunger: float:
+	get:
+		return _hunger.hunger
+	set(value):
+		_hunger.hunger = value
+## Lo que se va a comer (o se está comiendo); null si nada.
+var food: Food:
+	get:
+		return _hunger.food
+## Comiendo: lo que lleva masticando (0 si no come).
+var eat_t: float:
+	get:
+		return _hunger.eat_t
 
 # --- Casa y familia: cada uno se busca una choza donde vivir (ver Decoration "hut"): con su
 # pareja si tiene (en la de alguno de los dos, o en una con lugar para los dos) y si no, en
@@ -421,8 +407,10 @@ var _walk := 0.0                 # 0 = quieto, 1 = a paso normal
 var _heading := Vector2.ZERO     # Hacia dónde va de verdad (sigue a dir de a poco)
 var _resting := false
 @onready var rig: VillagerRig = get_node_or_null("Rig")
+var _rig_rest := Vector2.ZERO   # Dónde va el rig (comiendo, mastica para arriba y para abajo)
 
 func _init() -> void:
+	_hunger = VillagerHunger.new(self)
 	_sleep = VillagerSleep.new(self)
 	_mood = VillagerMood.new(self)
 	_burn = VillagerBurn.new(self)
@@ -437,8 +425,6 @@ func _ready() -> void:
 	_chat_cool = randf_range(2.0, CHAT_EVERY.y)
 	faith = randf_range(FAITH_START.x, FAITH_START.y)   # Las partidas guardadas traen la suya
 	fear = randf_range(FEAR_START.x, FEAR_START.y)
-	hunger = randf_range(HUNGER_START.x, HUNGER_START.y)
-	_hungry_say = randf_range(HUNGRY_SAY_EVERY.x, HUNGRY_SAY_EVERY.y)
 	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
 	_home_check = randf_range(0.0, HOME_CHECK)
 	age = randf_range(SPAWN_AGE.x, SPAWN_AGE.y)   # Los bebés y las partidas guardadas traen la suya
@@ -660,7 +646,7 @@ func _physics_process(dt: float) -> void:
 	rotation = lerp_angle(rotation, 0.0, 10.0 * dt)
 	shove_vel = shove_vel.move_toward(Vector2.ZERO, SHOVE_FRICTION * dt)
 	shove_timer = maxf(0.0, shove_timer - dt)
-	_food_cooldown = maxf(0.0, _food_cooldown - dt)
+	_hunger.cool_down(dt)
 	if on_fire and food != null:
 		food.release_eater()   # Prendido fuego no se queda comiendo
 	if is_zombie():
@@ -669,7 +655,7 @@ func _physics_process(dt: float) -> void:
 			return
 	else:
 		_spore.avoid_zombies(dt)
-		if food != null and _food_ai(dt):
+		if food != null and _hunger.food_ai(dt):
 			return
 		if chat_with != null and _chat_ai(dt):
 			return
@@ -677,7 +663,7 @@ func _physics_process(dt: float) -> void:
 			return
 		if _sleep.seek_sleep():
 			return
-		_seek_food(dt)
+		_hunger.seek_food(dt)
 		_seek_home(dt)
 		_seek_chat(dt)
 	# Asustado (ve venir un meteorito) se queda quieto mirándolo, y rezando o agachado de miedo
@@ -701,7 +687,7 @@ func _physics_process(dt: float) -> void:
 	elif flu == VillagerFlu.Stage.SICK:
 		pace *= VillagerFlu.FLU_SPEED
 	elif starving():
-		pace *= STARVING_SPEED
+		pace *= VillagerHunger.STARVING_SPEED
 	elif is_sad():
 		pace *= VillagerMood.MOOD_SAD_SPEED
 	elif tiredness >= VillagerSleep.SLEEPY_AT:
@@ -766,68 +752,23 @@ func _physics_process(dt: float) -> void:
 func is_alive() -> bool:
 	return not dead and not eaten and not is_queued_for_deletion()
 
-# --- COMIDA ---
 ## Parado o caminando en la isla (no agarrado, volando, en el agua, en un tornado, adentro de su
 ## choza ni muerto).
 func is_idle() -> bool:
 	return not (dragging or falling or in_water or eaten or dead or tornado or inside or asleep or altar)
 
-## Con hambre (aunque sea un poco), libre y tranquilo en la isla.
-func wants_food() -> bool:
-	return food == null and chat_with == null and is_idle() and not on_fire and _food_cooldown <= 0.0 \
-			and hunger >= SNACK_AT and not _going_home and not is_zombie()
-
-## Muerto de hambre (ver STARVING_AT).
+# --- COMIDA (lo que el resto del juego le pregunta al aldeano; ver VillagerHunger) ---
 func starving() -> bool:
-	return hunger >= STARVING_AT and not dead
+	return _hunger.starving()
 
-## Comió: se le va el hambre.
 func feed(amount: float) -> void:
-	add_mood(minf(amount, hunger) * VillagerMood.MOOD_ATE)
-	hunger = maxf(0.0, hunger - amount)
-	_starve_t = 0.0
+	_hunger.feed(amount)
 
-## Va a comerse f (lo reserva, así no va otro).
 func go_eat(f: Food) -> void:
-	food = f
-	f.claim(self)
-	_eat_t = 0.0
-	_food_t = 0.0
-	_resting = false
-
-## Con hambre, busca lo más cerca para comer: algo tirado (un medio coco, el pan que le
-## tiraste) o una baya de un arbusto. Con poca hambre, solo si está cerca.
-func _seek_food(dt: float) -> void:
-	if not wants_food():
-		return
-	_food_seek -= dt
-	if _food_seek > 0.0:
-		return
-	_food_seek = FOOD_SEEK_EVERY
-	var best_d := INF if hunger >= HUNGRY_AT else SNACK_REACH
-	var best: Food = null
-	var bush: Decoration = null
-	for node in get_tree().get_nodes_in_group("food"):
-		var f := node as Food
-		if f and f.available() and f.point().distance_to(global_position) < best_d:
-			best = f
-			best_d = f.point().distance_to(global_position)
-	for node in get_tree().get_nodes_in_group("berry_bush"):
-		var b := node as Decoration
-		var d := b.global_position.distance_to(global_position)
-		if b.free_berry() >= 0 and d < best_d:
-			bush = b
-			best_d = d
-	if bush:
-		best = bush.pick_berry()
-	if best:
-		go_eat(best)
+	_hunger.go_eat(f)
 
 func stop_eating() -> void:
-	food = null
-	_eat_t = 0.0
-	if rig:
-		rig.position = _rig_rest
+	_hunger.stop_eating()
 
 ## Le cayó un coco en la cabeza.
 func bonk(at: Vector2) -> void:
@@ -835,77 +776,6 @@ func bonk(at: Vector2) -> void:
 		rig.hit(at, Vector2.DOWN, 0.6)
 	Game.say("¡Bonk!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
 	add_mood(VillagerMood.MOOD_BONKED, "Le cayó un coco en la cabeza")
-
-## Camina hasta su comida y se la come. false si ya no tiene.
-func _food_ai(dt: float) -> bool:
-	if not is_instance_valid(food) or food.eater != self:
-		stop_eating()
-		return false
-	var to := food.eat_spot(self) - global_position
-	if _eat_t > 0.0 or to.length() <= EAT_REACH:
-		# Comiendo: quieto, mirando la comida y masticando
-		velocity = Vector2.ZERO
-		if rig:
-			rig.set_facing_left(food.point().x < global_position.x)
-			rig.position = _rig_rest + Vector2(0, -absf(sin(_eat_t * 12.0)) * 2.5)
-		_eat_t += dt
-		food.nibble(_eat_t / EAT_TIME)
-		if _eat_t >= EAT_TIME:
-			var f := food
-			stop_eating()
-			f.finish_eating(self)
-			_pick_dir()
-			wander_timer = randf_range(1.5, 3.0)
-		return true
-
-	_food_t += dt
-	if _food_t > FOOD_GIVE_UP:
-		food.release_eater()
-		_food_cooldown = FOOD_COOLDOWN
-		return false
-	dir = to.normalized()
-	_update_sprite_flip()
-	velocity = (dir * speed * FOOD_SPEED + shove_vel).limit_length(maxf(to.length() / dt, shove_vel.length()))
-	var prev_pos := global_position
-	move_and_slide()
-	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
-		if shove_timer > 0.0:
-			_fall_from_shove()
-			return true
-		global_position = prev_pos
-		# El lugar para comer queda fuera de la isla: come estirándose desde el borde
-		if to.length() < 24.0:
-			_eat_t = 0.001
-	return true
-
-## Le sube el hambre; con hambre lo dice cada tanto, y con la panza vacía aguanta un rato
-## (parado en la isla, como con la gripe) y se muere.
-func _update_hunger(dt: float) -> void:
-	if not is_alive() or is_zombie():
-		return   # (El zombi no tiene hambre: lo alimenta el hongo)
-	hunger = minf(100.0, hunger + HUNGER_RATE * dt)
-	if hunger < 100.0:
-		_starve_t = 0.0
-	elif (is_idle() or asleep) and not on_fire:
-		_starve_t += dt
-		if _starve_t >= STARVE_TIME:
-			_die_of_hunger()
-			return
-	if hunger >= HUNGRY_AT and food == null:
-		_hungry_say -= dt * (2.0 if starving() else 1.0)
-		if _hungry_say <= 0.0:
-			_hungry_say = randf_range(HUNGRY_SAY_EVERY.x, HUNGRY_SAY_EVERY.y)
-			if chat_with == null and bubble_t <= 0.0 and is_idle():
-				say(Bubble.HUNGRY, 1.6, false)
-
-func _die_of_hunger() -> void:
-	Game.say("Murió de hambre", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_WARN)
-	if food:
-		food.release_eater()
-	_gentle_death = true
-	_die()
-	swing_vel = (1.0 if randf() < 0.5 else -1.0) * randf_range(2.5, 4.0)   # Se cae para un costado
-	corpse_vel = Vector2.ZERO
 
 # --- CHARLAS ---
 ## Tranquilo en la isla: sin quemarse, asustarse, comer, escaparse del agua o de tu mano, ni
@@ -1381,7 +1251,7 @@ func _seek_home(dt: float) -> void:
 func _can_go_home() -> bool:
 	return _home_ok() and not _going_home and is_idle() and not on_fire and food == null \
 			and chat_with == null and _flee <= 0.0 and _scram <= 0.0 and pose == Pose.NONE \
-			and hunger < HUNGRY_AT and not home.moving and not is_zombie()
+			and hunger < VillagerHunger.HUNGRY_AT and not home.moving and not is_zombie()
 
 func _go_home() -> void:
 	_going_home = true
@@ -1474,8 +1344,8 @@ func _inside_ai(dt: float) -> void:
 	_inside_t -= dt
 	# De día sale cuando descansó (de la noche, o de la siesta: ahí no importa _inside_t)
 	var rested := _sleep.rested()
-	if hunger >= HUNGRY_AT or (_night() < WAKE_AT and rested and (_inside_t <= 0.0 or _sleep.napping)):
-		if _sleep.slept_inside and hunger < HUNGRY_AT:
+	if hunger >= VillagerHunger.HUNGRY_AT or (_night() < WAKE_AT and rested and (_inside_t <= 0.0 or _sleep.napping)):
+		if _sleep.slept_inside and hunger < VillagerHunger.HUNGRY_AT:
 			add_mood(VillagerSleep.MOOD_SLEPT_WELL, "Durmió bien")
 		_leave_home()
 
@@ -1554,7 +1424,7 @@ func _update_faith(dt: float) -> void:
 	pose = Pose.NONE
 	if not is_alive() or is_zombie():
 		return   # (El zombi ya no cree en nada ni le tiene miedo a nada)
-	add_faith(-(FAITH_DRIFT + (FAITH_DRIFT_STARVING if starving() else 0.0)) * dt)
+	add_faith(-(FAITH_DRIFT + (VillagerHunger.FAITH_DRIFT_STARVING if starving() else 0.0)) * dt)
 	add_fear(-FEAR_FADE * (FEAR_FADE_CHAT if chat_with else 1.0) * dt)
 	if _creepy_sky():
 		add_fear(FEAR_CREEPY * dt)
@@ -2220,8 +2090,7 @@ func _come_back() -> void:
 	_flu.heal()
 	_spore.clear()
 	_spore.spore_fx = 0.0
-	hunger = minf(hunger, RISEN_HUNGER)
-	_starve_t = 0.0
+	_hunger.heal()
 	_burn.heal()
 	if _waterline:
 		for param: String in ["burnt", "embers", "sick", "spore"]:
@@ -2361,7 +2230,7 @@ func _process(dt: float) -> void:
 	_burn.update(dt)
 	_flu.update(dt)
 	_spore.update(dt)
-	_update_hunger(dt)
+	_hunger.update(dt)
 	_update_family(dt)
 	_update_faith(dt)
 	_mood.update(dt)

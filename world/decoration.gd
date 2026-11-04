@@ -8,7 +8,7 @@ class_name Decoration
 ## HutCard), y el meteorito, el rayo y el tornado las rompen en pedacitos (ver smash). De noche las antorchas iluminan la isla alrededor (PointLight2D); la
 ## lluvia del diluvio las apaga hasta que para (ver Storm). A las palmeras les crecen cocos y
 ## a los arbustos de bayas, bayas: los aldeanos con hambre las vienen a comer solos (ver
-## BerryPick y Villager._seek_food).
+## BerryPick y VillagerHunger.seek_food).
 ## El origen del nodo queda LIFT px arriba de la base, igual que el centro de un aldeano,
 ## para que el orden por Y (quién tapa a quién) sea parejo entre ambos.
 

@@ -132,7 +132,7 @@ func sleep_ai(dt: float) -> void:
 	if v.bubble_t <= 0.0:
 		v.say(Villager.Bubble.SLEEP, 2.0, false)
 	var day := v._night() < Villager.WAKE_AT
-	var hungry := v.starving() or (v.hunger >= Villager.HUNGRY_AT and not napping)
+	var hungry := v.starving() or (v.hunger >= VillagerHunger.HUNGRY_AT and not napping)
 	if hungry or v.on_fire or Storm.water_near(v.ground_point(), Villager.FLOOD_FLEE) \
 			or (day and rested()):
 		if day and not napping:
@@ -144,5 +144,5 @@ func sleep_ai(dt: float) -> void:
 func _can_sleep() -> bool:
 	return v.is_idle() and v.chat_with == null and v.food == null and not v.on_fire and v._flee <= 0.0 \
 			and v._scram <= 0.0 and not v.is_scared() and v.pose == Villager.Pose.NONE and not v.starving() \
-			and (v.hunger < Villager.HUNGRY_AT or tiredness >= EXHAUSTED_AT) and not v.is_zombie() \
+			and (v.hunger < VillagerHunger.HUNGRY_AT or tiredness >= EXHAUSTED_AT) and not v.is_zombie() \
 			and not v._going_home and not Storm.water_near(v.ground_point(), Villager.FLOOD_FLEE)

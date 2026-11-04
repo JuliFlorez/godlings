@@ -182,7 +182,7 @@ func _mood_factors() -> Array:
 		out.append(["No tiene casa", MOOD_HOMELESS])
 	if v.starving():
 		out.append(["Se muere de hambre", MOOD_STARVING])
-	elif v.hunger >= Villager.HUNGRY_AT:
+	elif v.hunger >= VillagerHunger.HUNGRY_AT:
 		out.append(["Tiene hambre", MOOD_HUNGRY])
 	if v.flu == VillagerFlu.Stage.SICK:
 		out.append(["Tiene gripe", MOOD_SICK])

@@ -455,8 +455,8 @@ func _process(dt: float) -> void:
 		_mouth.target = 1.0
 	elif villager.is_zombie():
 		_mouth.target = villager.zombie_mouth()
-	elif villager.food and villager._eat_t > 0.0:
-		_mouth.target = absf(sin(villager._eat_t * 12.0)) * 0.45
+	elif villager.food and villager.eat_t > 0.0:
+		_mouth.target = absf(sin(villager.eat_t * 12.0)) * 0.45
 	else:
 		_mouth.target = villager.talk_mouth()
 	if is_instance_valid(_blink):
