@@ -4,6 +4,9 @@
 # - godot: con Godot de verdad (sin pantalla): compila todos los scripts (tools/ci/check_scripts.gd),
 #   corre los tests (tools/ci/run_tests.gd y tests/) y juega una partida sola un rato
 #   (tools/ci/smoke.gd). Falla si Godot escribe algún error de script.
+# - screens: con Godot dibujando de verdad (en una pantalla virtual) saca capturas de la interfaz
+#   (tools/ci/screenshots.gd) y las deja en el artefacto "capturas" de cada corrida, para verla sin
+#   abrir el juego y comparar antes y después de tocarla.
 name: Chequeos
 
 on:
@@ -60,3 +63,45 @@ jobs:
         run: |
           "$GODOT" --headless --path . --fixed-fps 60 --script res://tools/ci/smoke.gd 2>&1 | tee smoke.log
           ! grep -E "$ERRORS" smoke.log
+
+  screens:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GODOT_VERSION: 4.7.2-stable
+      ERRORS: "SCRIPT ERROR|Parse Error|Compile Error|Failed to load script"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Bajar Godot
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/godot.zip" \
+            "https://github.com/godotengine/godot-builds/releases/download/$GODOT_VERSION/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          mv "$RUNNER_TEMP/godot/Godot_v${GODOT_VERSION}_linux.x86_64" "$RUNNER_TEMP/godot/godot"
+          echo "GODOT=$RUNNER_TEMP/godot/godot" >> "$GITHUB_ENV"
+
+      # Una pantalla virtual (xvfb) con OpenGL por software (Mesa), para dibujar sin placa de video
+      - name: Pantalla virtual
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb libgl1-mesa-dri libglx-mesa0
+
+      - name: Importar el proyecto
+        run: |
+          "$GODOT" --headless --path . --import 2>&1 | tee import.log || true
+
+      - name: Capturas de la interfaz
+        run: |
+          xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --fixed-fps 60 --audio-driver Dummy \
+            --rendering-driver opengl3 --script res://tools/ci/screenshots.gd -- --out="$PWD/capturas" 2>&1 | tee screens.log
+          ! grep -E "$ERRORS" screens.log
+          ls capturas
+
+      - name: Subir las capturas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas
+          path: capturas/
+          retention-days: 14
