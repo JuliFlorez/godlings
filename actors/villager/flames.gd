@@ -26,7 +26,7 @@ func _process(dt: float) -> void:
 		queue_redraw()
 
 func _draw() -> void:
-	var t := Time.get_ticks_msec() / 1000.0
+	var t := World.anim_time
 	var up: float = -(get_parent() as Node2D).global_rotation
 	draw_circle(Vector2(0, -6), 34.0 * amount, GLOW, true, -1.0, true)
 	for tg in _tongues:

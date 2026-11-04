@@ -64,7 +64,7 @@ func _draw() -> void:
 	draw_set_transform(Vector2(-w * 0.12, -h * 0.2))
 	draw_colored_polygon(_mound(w * 0.65, h * 0.7), ASH_TOP)
 	draw_set_transform(Vector2.ZERO)
-	var t := Time.get_ticks_msec() / 1000.0
+	var t := World.anim_time
 	for i in _specks.size():
 		var s := _specks[i]
 		var p := Vector2(s.x * w, -s.y * h * pow(1.0 - s.x * s.x, 0.6))

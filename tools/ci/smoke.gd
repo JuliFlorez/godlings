@@ -7,7 +7,7 @@ extends SceneTree
 ## (SCRIPT ERROR), y este script sale con 1 si la partida no arranca o no se carga igual.
 ## Correr con: godot --headless --path . --fixed-fps 60 --script res://tools/ci/smoke.gd
 
-const SLOT := 2                 # La ranura de prueba (en la CI no hay partidas: arranca una nueva)
+const SLOT := 9                 # La ranura de prueba: fuera de las del menú, así no pisa una de verdad
 const FPS := 60                 # Cuadros por segundo (ver --fixed-fps)
 const LAND_TIMEOUT := 1200      # Cuadros para llegar a la isla
 const ROUND_TIME := 40          # Segundos que juega cada vuelta
@@ -24,6 +24,7 @@ var _saved := {}                # Lo que había al guardar (ver _snapshot)
 
 func _initialize() -> void:
 	print("Prueba de humo: arranca el mundo")
+	SaveSlots.delete(SLOT)   # Que la primera vuelta sea una partida nueva
 	change_scene_to_file("res://world/world.tscn")
 
 func _process(_delta: float) -> bool:

@@ -280,7 +280,7 @@ func _process(dt: float) -> void:
 		# Se prende a medida que oscurece; de día no ilumina nada
 		var night: float = _sky.night if _sky else 0.0
 		var dark := smoothstep(0.55, 0.95, night)
-		var t := Time.get_ticks_msec() / 1000.0 + variant * 10.0
+		var t := World.anim_time + variant * 10.0
 		var flick := 1.0 + sin(t * 17.0) * 0.06 + sin(t * 29.0) * 0.04
 		_light.energy = TORCH_LIGHT_ENERGY * dark * flick * _lit
 		_light.enabled = dark > 0.01 and _lit > 0.01
@@ -324,7 +324,7 @@ func _draw() -> void:
 		lit = _glow
 	elif ritual:
 		lit = ritual.flames(_lit)
-	paint(self, kind, variant, Time.get_ticks_msec() / 1000.0, ALL_FRUIT if ghost else _fruit_size,
+	paint(self, kind, variant, World.anim_time, ALL_FRUIT if ghost else _fruit_size,
 			lit, hut_name, Vector2(0, LIFT))
 	if kind == "altar":
 		# La sangre de los sacrificios: una mancha más con cada uno, chorreando por adelante
@@ -336,14 +336,14 @@ func _draw() -> void:
 	draw_set_transform(Vector2(0, LIFT))
 	if kind == "hut" and _sleepers > 0 and _glow > 0.5:
 		# Durmiendo: zetas que suben del techo
-		var t := Time.get_ticks_msec() / 1000.0
+		var t := World.anim_time
 		for i in 3:
 			var k := fposmod(t * 0.4 + i / 3.0, 1.0)
 			var c := Vector2(22.0 + k * 16.0 + sin(k * 6.0 + i) * 3.0, HUT_TOP * HUT_SCALE + 8.0 - k * 30.0)
 			SpeechBubble._text(self, "z", c, 10.0 + k * 7.0, Color(1, 1, 1, 0.9 * (1.0 - k)))
 	if kind == "hut" and not ghost and _hud and _hud.selected_hut() == self:
 		# Con su cartel abierto (ver HutCard): una flechita arriba, como la del carnet
-		var y := (HUT_CROSS.y + HUT_BONE.y) * HUT_SCALE - 12.0 - (0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 6.0)) * NameTag.ARROW_BOB
+		var y := (HUT_CROSS.y + HUT_BONE.y) * HUT_SCALE - 12.0 - (0.5 + 0.5 * sin(World.anim_time * 6.0)) * NameTag.ARROW_BOB
 		var tri := PackedVector2Array([Vector2(-NameTag.ARROW.x, y - NameTag.ARROW.y), Vector2(NameTag.ARROW.x, y - NameTag.ARROW.y), Vector2(0, y)])
 		draw_colored_polygon(tri, HUD.C_XP)
 		tri.append(tri[0])

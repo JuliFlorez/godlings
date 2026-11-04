@@ -92,6 +92,10 @@ var slot := 0
 var playing := false
 ## Segundos jugados en esta partida (se guarda con ella; ver Relations.history).
 static var play_time := 0.0
+## El reloj de lo que se anima al dibujarse (la palmera que se mece, la antorcha, las llamas, las
+## vistas de la tienda...): avanza con cada cuadro, así que en la pausa se queda quieto como todo, y
+## con --fixed-fps es el mismo en cada corrida (ver tools/ci/screenshots.gd). No es de la partida.
+static var anim_time := 0.0
 
 ## Menú de inicio: la cámara arranca INTRO_HEIGHT px más arriba, con el colchón de nubes
 ## (ver CloudBank) abajo de la pantalla. Al elegir partida baja: primero acelerando hasta
@@ -295,6 +299,7 @@ func _on_blood_moon_changed(active: bool) -> void:
 			_blood_music.stop())
 
 func _process(dt: float) -> void:
+	anim_time += dt
 	if not playing:
 		return
 	_update_home(dt)

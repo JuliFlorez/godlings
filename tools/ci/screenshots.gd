@@ -8,7 +8,7 @@ extends SceneTree
 ## el reloj, como las llamas o las frutas, cambia un poco).
 ## Correr con: godot --path . --fixed-fps 60 --script res://tools/ci/screenshots.gd -- --out=carpeta
 
-const SLOT := 2                 # La ranura de prueba (en la CI no hay partidas: arranca una nueva)
+const SLOT := 9                 # La ranura de prueba: fuera de las del menú, así no pisa una de verdad
 const FPS := 60
 const SEED := 1
 
@@ -19,6 +19,7 @@ var _count := 0
 
 func _initialize() -> void:
 	seed(SEED)
+	SaveSlots.delete(SLOT)   # Siempre una partida nueva
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.trim_prefix("--out=")

@@ -97,8 +97,11 @@ jobs:
         run: |
           "$GODOT" --headless --path . --import 2>&1 | tee import.log || true
 
+      # Antes de cada corrida se borran los datos del juego (partidas y opciones): que las dos
+      # arranquen igual
       - name: Capturas de la interfaz
         run: |
+          rm -rf "$HOME/.local/share/godot/app_userdata"
           xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path . --fixed-fps 60 --audio-driver Dummy \
             --rendering-driver opengl3 --script res://tools/ci/screenshots.gd -- --out="$PWD/capturas" 2>&1 | tee screens.log
           ! grep -E "$ERRORS" screens.log
@@ -115,6 +118,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/antes/tools/ci"
           cp tools/ci/screenshots.gd "$RUNNER_TEMP/antes/tools/ci/"
           "$GODOT" --headless --path "$RUNNER_TEMP/antes" --import > /dev/null 2>&1 || true
+          rm -rf "$HOME/.local/share/godot/app_userdata"
           xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path "$RUNNER_TEMP/antes" --fixed-fps 60 \
             --audio-driver Dummy --rendering-driver opengl3 --script res://tools/ci/screenshots.gd \
             -- --out="$PWD/capturas_antes" > screens_antes.log 2>&1
