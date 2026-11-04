@@ -255,7 +255,7 @@ func _person(id: int, saved_name: String, alive: Dictionary, col: Color) -> Butt
 			hud.select_villager(v))
 	return b
 
-## El color de cada cosa, el mismo del cartel que sale cuando pasa (ver Villager._finish_chat).
+## El color de cada cosa, el mismo del cartel que sale cuando pasa (ver VillagerChat._finish_chat).
 static func _color(ev: Relations.Event) -> Color:
 	match ev:
 		Relations.Event.FRIENDS:

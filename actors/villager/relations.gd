@@ -1,7 +1,7 @@
 extends RefCounted
 class_name Relations
 ## Lo que se quieren (o no) los aldeanos entre sí. Cada dos aldeanos tienen una afinidad de
-## -100 a 100 que sube o baja con cada charla (ver Villager._finish_chat): pasando FRIEND_AT
+## -100 a 100 que sube o baja con cada charla (ver VillagerChat._finish_chat): pasando FRIEND_AT
 ## se hacen amigos, por debajo de ENEMY_AT enemigos, y dos amigos solteros que se gustan,
 ## pasando COUPLE_AT, se ponen de novios. Para dejar de ser amigos o enemigos tiene que
 ## cambiar bastante (FRIEND_KEEP, ENEMY_KEEP): así no van y vienen con cada charla.

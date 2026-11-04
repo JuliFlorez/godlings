@@ -200,7 +200,7 @@ func _spore_turned(stage: Infection) -> void:
 			if v.inside:
 				v._leave_home()
 			if v.chat_with:
-				v._end_chat()
+				v.end_chat()
 			if v.food:
 				v.food.release_eater()
 			v._going_home = false
@@ -331,7 +331,7 @@ func get_bitten(z: Villager) -> void:
 		return
 	v.wake_up()
 	if v.chat_with:
-		v._end_chat()
+		v.end_chat()
 	if v.food:
 		v.food.release_eater()
 	v._going_home = false
@@ -384,7 +384,7 @@ func avoid_zombies(dt: float) -> void:
 			if v.food:
 				v.food.release_eater()
 			if v.chat_with:
-				v._end_chat()
+				v.end_chat()
 			return
 	v._scram = maxf(v._scram, Villager.SCRAM_TIME)
 	var away := (v.global_position - near.global_position).normalized()
@@ -395,7 +395,7 @@ func avoid_zombies(dt: float) -> void:
 	if v.food:
 		v.food.release_eater()
 	if v.chat_with:
-		v._end_chat()
+		v.end_chat()
 
 ## Le revienta el tallo de la cabeza: suelta una nube de esporas que contagia a los que están
 ## cerca (y a los que ya la tenían los apura), la nube queda flotando un rato (ver Spore.Cloud) y

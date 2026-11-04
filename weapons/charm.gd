@@ -299,7 +299,7 @@ func _land_apple(s: Shot) -> void:
 	near.shuffle()
 	for i in range(0, near.size() - 1, 2):
 		if randf() < FIGHT_CHANCE:
-			near[i + 1]._get_pushed_by(near[i])
+			near[i + 1].get_pushed_by(near[i])
 	var news := Relations.news(Relations.Event.ENEMIES) if any else ["¡Discordia!", Relations.color(Relations.Kind.ENEMY)]
 	_popup(news[0], p, news[1])
 

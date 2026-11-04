@@ -219,7 +219,7 @@ func _simulate_chats(n: int) -> Array:
 		var v := node as Villager
 		if v and v.is_alive():
 			alive.append(v)
-			v._chat_cool = 0.0
+			v.clear_chat_cool()
 	if alive.size() < 2:
 		return [0, 0, 0, 0]
 	for i in n:

@@ -180,6 +180,7 @@ const BODY_BOTTOM := 31.0
 const SHOVE_TIME := 0.4          # Tras un empujón, salir de la isla = caerse
 const SHOVE_FRICTION := 1500.0   # Frenado del empujón (px/s²)
 const MAX_SHOVE := 600.0
+const FIGHT_SHOVE := 170.0
 var shove_vel := Vector2.ZERO
 var shove_timer := 0.0
 
@@ -266,39 +267,12 @@ var sleep_drop: float:
 	get:
 		return _sleep.sleep_drop
 
-# --- Charlas: cada tanto, dos que andan cerca y con ganas se juntan a charlar un rato. El que
-# la empieza va hasta el lado del otro, se miran y hablan por turnos (con un globito arriba de
-# la cabeza y un bla-bla con su voz). Según cómo les fue se quieren más o menos (ver
-# Relations): así se hacen amigos, enemigos o pareja, y los enemigos a veces terminan a los
-# empujones. Cuando alguien se muere, su pareja y sus amigos lloran. Se ve en el carnet.
-enum Bubble { NONE, DOTS, QUESTION, EXCLAIM, MUSIC, SUN, LAUGH, HEART, SMILE, ANGER, TEAR, HUNGRY, SLEEP }
-const CHAT_EVERY := Vector2(12.0, 25.0) # Después de una charla, hasta tener ganas de otra
-const CHAT_SEEK := 130.0                # Hasta dónde busca con quién charlar
-const CHAT_SEEK_EVERY := 0.5
-const CHAT_GAP := 40.0                  # Charlando, uno al lado del otro (entre centros)
-const CHAT_REACH := 3.0
-const CHAT_APPROACH := 5.0              # Si no llega al lado del otro en este tiempo, lo deja
-const CHAT_TURNS := Vector2i(3, 6)
-const CHAT_TURN := Vector2(0.8, 1.2)    # Lo que dura el globito de cada uno
-const CHAT_PAUSE := 0.3                 # Entre un turno y otro
-const CHAT_MOOD := 3.0                  # Ganando o perdiendo más que esto, se les nota
-const REACT_TIME := 1.6                 # La cara que ponen al terminar
-const MOURN_TIME := 4.0
-const FIGHT_CHANCE := 0.5               # Enemigos que se pelearon: alguno empuja al otro
-const FIGHT_SHOVE := 170.0
-const BABBLE_DB := -16.0
-var chat_with: Villager
-var bubble := Bubble.NONE               # Lo que dice (ver SpeechBubble)
-var bubble_t := 0.0
-var _chat_lead := false                 # La empezó él: la lleva él
-var _chat_talking := false              # Ya están uno al lado del otro (si no, va yendo)
-var _chat_t := 0.0
-var _chat_turn := 0
-var _chat_len := 0
-var _chat_delta := 0.0                  # Cómo les va a ir (ver Relations.chat_delta)
-var _chat_cool := 0.0                   # Hasta tener ganas de charlar
-var _chat_seek := 0.0
-var _talking := 0.0                     # Hablando: mueve la boca
+# --- Charlas (ver VillagerChat): dos que andan cerca se juntan a charlar; así se hacen amigos, enemigos o pareja ---
+var _chat: VillagerChat
+## Con quién está charlando (o yendo a charlar); null si con nadie.
+var chat_with: Villager:
+	get:
+		return _chat.chat_with
 
 # --- Fe y miedo: cuánto creen en vos (el dios de la isla) y cuánto te temen, de 0 a 100. Con
 # eso son devotos, fanáticos, herejes o aterrados (ver creed). La fe sube con los milagros
@@ -394,6 +368,14 @@ const VOICE_DB := -4.0
 const VOICE_PITCH := { Gender.MALE: Vector2(0.9, 1.25), Gender.FEMALE: Vector2(1.2, 1.5) }
 var _voice: AudioStreamPlayer
 var _voice_pitch := 1.0
+# Globitos: lo que dice o la cara que pone, arriba de la cabeza (ver say)
+enum Bubble { NONE, DOTS, QUESTION, EXCLAIM, MUSIC, SUN, LAUGH, HEART, SMILE, ANGER, TEAR, HUNGRY, SLEEP }
+const REACT_TIME := 1.6                 # La cara que ponen al terminar
+const MOURN_TIME := 4.0
+const BABBLE_DB := -16.0
+var bubble := Bubble.NONE               # Lo que dice (ver SpeechBubble)
+var bubble_t := 0.0
+var _talking := 0.0                     # Hablando: mueve la boca
 
 # IA y animaciones
 var wander_timer := 0.0
@@ -410,6 +392,7 @@ var _resting := false
 var _rig_rest := Vector2.ZERO   # Dónde va el rig (comiendo, mastica para arriba y para abajo)
 
 func _init() -> void:
+	_chat = VillagerChat.new(self)
 	_hunger = VillagerHunger.new(self)
 	_sleep = VillagerSleep.new(self)
 	_mood = VillagerMood.new(self)
@@ -422,7 +405,6 @@ func _ready() -> void:
 	speed *= randf_range(PACE.x, PACE.y)
 	_pick_dir()
 	wander_timer = randf_range(1.5, 4.0)
-	_chat_cool = randf_range(2.0, CHAT_EVERY.y)
 	faith = randf_range(FAITH_START.x, FAITH_START.y)   # Las partidas guardadas traen la suya
 	fear = randf_range(FEAR_START.x, FEAR_START.y)
 	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
@@ -657,7 +639,7 @@ func _physics_process(dt: float) -> void:
 		_spore.avoid_zombies(dt)
 		if food != null and _hunger.food_ai(dt):
 			return
-		if chat_with != null and _chat_ai(dt):
+		if chat_with != null and _chat.chat_ai(dt):
 			return
 		if _going_home and _walk_home(dt):
 			return
@@ -665,7 +647,7 @@ func _physics_process(dt: float) -> void:
 			return
 		_hunger.seek_food(dt)
 		_seek_home(dt)
-		_seek_chat(dt)
+		_chat.seek_chat(dt)
 	# Asustado (ve venir un meteorito) se queda quieto mirándolo, y rezando o agachado de miedo
 	# también; prendido fuego (o escapándose del agua o de tu mano) corre sin parar
 	var hurry := on_fire or _flee > 0.0 or _scram > 0.0
@@ -777,214 +759,26 @@ func bonk(at: Vector2) -> void:
 	Game.say("¡Bonk!", get_global_transform_with_canvas().origin + Vector2(0, -70), HUD.C_TEXT)
 	add_mood(VillagerMood.MOOD_BONKED, "Le cayó un coco en la cabeza")
 
-# --- CHARLAS ---
-## Tranquilo en la isla: sin quemarse, asustarse, comer, escaparse del agua o de tu mano, ni
-## rezarte o agacharse de miedo.
+# --- CHARLAS (lo que el resto del juego le pregunta al aldeano; ver VillagerChat) ---
 func can_chat() -> bool:
-	return is_idle() and not on_fire and not is_scared() and _flee <= 0.0 and food == null \
-			and _scram <= 0.0 and pose == Pose.NONE and not _going_home and not is_zombie()
+	return _chat.can_chat()
 
 func wants_chat() -> bool:
-	return chat_with == null and _chat_cool <= 0.0 and can_chat()
+	return _chat.wants_chat()
 
-## Con ganas de charlar, busca a alguien cerca que también tenga ganas: más seguido a su
-## pareja y sus amigos, poco a sus enemigos.
-func _seek_chat(dt: float) -> void:
-	if not wants_chat():
-		return
-	_chat_seek -= dt
-	if _chat_seek > 0.0:
-		return
-	_chat_seek = CHAT_SEEK_EVERY
-	var best: Villager
-	var best_w := 0.0
-	for node in get_tree().get_nodes_in_group("villager"):
-		var o := node as Villager
-		if o == null or o == self or not o.wants_chat():
-			continue
-		var d := o.global_position.distance_to(global_position)
-		if d > CHAT_SEEK:
-			continue
-		var w := Relations.chat_weight(self, o) * (1.5 - d / CHAT_SEEK) * randf()
-		if w > best_w:
-			best = o
-			best_w = w
-	if best:
-		_start_chat(best)
+func end_chat() -> void:
+	_chat.end_chat()
 
-func _start_chat(o: Villager) -> void:
-	chat_with = o
-	o.chat_with = self
-	_chat_lead = true
-	o._chat_lead = false
-	_chat_talking = false
-	_chat_t = 0.0
-	_chat_turn = 0
-	_chat_len = randi_range(CHAT_TURNS.x, CHAT_TURNS.y)
-	_chat_delta = Relations.chat_delta(self, o)
+func join_chat(o: Villager) -> void:
+	_chat.join_chat(o)
 
-## Charlando con chat_with: el que la empezó va hasta el lado del otro, y ahí se quedan
-## mirándose y hablando por turnos (lo lleva el que la empezó). false si se cortó.
-func _chat_ai(dt: float) -> bool:
-	var o := chat_with
-	if not is_instance_valid(o) or o.chat_with != self or not can_chat() or not o.can_chat():
-		_end_chat()
-		return false
-	if not _chat_lead:
-		_stand_facing(o)   # Espera (o charla) parado, mirándolo
-		return true
-	if not _chat_talking:
-		_chat_t += dt
-		if _chat_t > CHAT_APPROACH:
-			_end_chat()
-			return false
-		if _walk_to_chat(o, dt):
-			_chat_talking = true
-			_chat_t = CHAT_PAUSE
-		return true
-	_stand_facing(o)
-	_chat_t -= dt
-	if _chat_t > 0.0:
-		return true
-	if _chat_turn >= _chat_len:
-		_finish_chat(o)
-		return true
-	# Hablan por turnos: primero el que la empezó
-	var speaker: Villager = self if _chat_turn % 2 == 0 else o
-	_chat_turn += 1
-	var time := randf_range(CHAT_TURN.x, CHAT_TURN.y)
-	speaker.say(_chat_topic(o), time)
-	_chat_t = time + CHAT_PAUSE
-	return true
+func leave_chat() -> void:
+	_chat.leave_chat()
 
-## Va caminando hasta quedar al lado del otro (del lado de donde viene; si ahí no hay isla,
-## del otro). true al llegar.
-func _walk_to_chat(o: Villager, dt: float) -> bool:
-	var side := 1.0 if global_position.x >= o.global_position.x else -1.0
-	var spot := o.global_position + Vector2(CHAT_GAP * side, 0.0)
-	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(spot, island_poly):
-		spot = o.global_position - Vector2(CHAT_GAP * side, 0.0)
-	var to := spot - global_position
-	if to.length() <= CHAT_REACH:
-		return true
-	dir = to.normalized()
-	_update_sprite_flip()
-	velocity = (dir * speed + shove_vel).limit_length(maxf(to.length() / dt, shove_vel.length()))
-	var prev_pos := global_position
-	move_and_slide()
-	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
-		if shove_timer > 0.0:
-			_fall_from_shove()
-			return false
-		global_position = prev_pos
-		# Trabado en la orilla: si ya está cerca, charlan desde ahí
-		return global_position.distance_to(o.global_position) < CHAT_GAP * 1.8
-	return false
+func clear_chat_cool() -> void:
+	_chat.clear_chat_cool()
 
-## Parado mirando al otro (solo se mueve si lo empujan).
-func _stand_facing(o: Villager) -> void:
-	if rig:
-		rig.set_facing_left(o.global_position.x < global_position.x)
-	_hold_still()
-
-## Quieto donde está: solo se mueve si lo empujan (y si lo empujan fuera de la isla, se cae).
-func _hold_still() -> void:
-	_walk = 0.0   # Al terminar arranca a caminar de a poco
-	velocity = shove_vel
-	if velocity == Vector2.ZERO:
-		return
-	var prev_pos := global_position
-	move_and_slide()
-	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
-		if shove_timer > 0.0:
-			_fall_from_shove()
-		else:
-			global_position = prev_pos
-
-## De qué habla: según lo que son y si la charla viene bien o mal.
-func _chat_topic(o: Villager) -> Bubble:
-	if mood_level() == VillagerMood.Mood.DEPRESSED and randf() < 0.4:
-		return [Bubble.TEAR, Bubble.DOTS].pick_random()   # Deprimido no tiene ganas de nada
-	var bad := _chat_delta < -CHAT_MOOD and randf() < 0.6
-	match Relations.kind(self, o):
-		Relations.Kind.COUPLE:
-			if bad:
-				return Bubble.ANGER
-			return [Bubble.HEART, Bubble.HEART, Bubble.MUSIC, Bubble.LAUGH].pick_random()
-		Relations.Kind.FRIEND:
-			if bad:
-				return [Bubble.ANGER, Bubble.EXCLAIM].pick_random()
-			return [Bubble.LAUGH, Bubble.LAUGH, Bubble.MUSIC, Bubble.SUN, Bubble.EXCLAIM].pick_random()
-		Relations.Kind.ENEMY:
-			if bad or randf() < 0.5:
-				return Bubble.ANGER
-			return [Bubble.EXCLAIM, Bubble.QUESTION].pick_random()
-	if bad:
-		return [Bubble.ANGER, Bubble.EXCLAIM, Bubble.QUESTION].pick_random()
-	return [Bubble.DOTS, Bubble.QUESTION, Bubble.SUN, Bubble.EXCLAIM, Bubble.MUSIC, Bubble.LAUGH].pick_random()
-
-## Terminó la charla: se quieren más o menos según cómo les fue, lo muestran con una cara (y
-## si cambió lo que son, con un cartel), y cada uno sigue con lo suyo.
-func _finish_chat(o: Villager) -> void:
-	var ev := Relations.change(self, o, _chat_delta)
-	var k := Relations.kind(self, o)
-	if absf(_chat_delta) > CHAT_MOOD:   # Cómo les fue también les cambia el ánimo
-		var why := "Charló lindo" if _chat_delta > 0.0 else "Discutió"
-		add_mood(_chat_delta * VillagerMood.MOOD_CHAT, why)
-		o.add_mood(_chat_delta * VillagerMood.MOOD_CHAT, why)
-	var face := Bubble.NONE
-	if ev == Relations.Event.BROKE_UP:
-		face = Bubble.TEAR
-	elif _chat_delta > CHAT_MOOD:
-		face = Bubble.HEART if k == Relations.Kind.COUPLE else Bubble.SMILE
-	elif _chat_delta < -CHAT_MOOD:
-		face = Bubble.ANGER
-	if face != Bubble.NONE:
-		say(face, REACT_TIME, false)
-		o.say(face, REACT_TIME, false)
-	var n := Relations.news(ev)
-	var news: String = n[0]
-	var color: Color = n[1]
-	# Los enemigos que se pelearon a veces terminan a los empujones
-	# (más si andan tristes)
-	if k == Relations.Kind.ENEMY and _chat_delta < 0.0 and randf() < FIGHT_CHANCE * lerpf(1.6, 0.6, (mood + o.mood) / 200.0):
-		var pusher: Villager = self if randf() < 0.5 else o
-		var pushed: Villager = o if pusher == self else self
-		pushed._get_pushed_by(pusher)
-		pushed.add_mood(VillagerMood.MOOD_SHOVED, "Se peleó a los empujones")
-		if news == "":
-			news = "¡Pelea!"
-			color = HUD.C_WARN
-	if news != "":
-		var mid := (get_global_transform_with_canvas().origin + o.get_global_transform_with_canvas().origin) * 0.5
-		Game.say(news, mid + Vector2(0, -100), color)
-	_end_chat()
-	_wander_off()
-	o._wander_off()
-
-## Se terminó (o se cortó) la charla: un rato sin ganas de otra, los dos.
-func _end_chat() -> void:
-	var o := chat_with
-	chat_with = null
-	_chat_cool = randf_range(CHAT_EVERY.x, CHAT_EVERY.y)
-	if is_instance_valid(o) and o.chat_with == self:
-		o.chat_with = null
-		o._chat_cool = randf_range(CHAT_EVERY.x, CHAT_EVERY.y)
-
-func _wander_off() -> void:
-	_resting = false
-	_pick_dir()
-	wander_timer = randf_range(1.5, 3.0)
-
-## Un enemigo lo empujó (y capaz que lo tira de la isla).
-func _get_pushed_by(o: Villager) -> void:
-	var push := Vector2(1.0 if global_position.x >= o.global_position.x else -1.0, 0.0)
-	get_shoved(Vector2.ZERO, push * FIGHT_SHOVE)
-	if rig:
-		rig.hit(body_center(), push, 0.8)
-	_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
-	_voice.play()
-
+# --- GLOBITOS ---
 ## Dice algo (o pone una cara, si no talk): un globito arriba de la cabeza durante time
 ## segundos. Hablando mueve la boca con un bla-bla en su tono de voz.
 func say(b: Bubble, time: float, talk := true) -> void:
@@ -1004,50 +798,6 @@ func say(b: Bubble, time: float, talk := true) -> void:
 ## Hablando abre y cierra la boca (0..1, ver VillagerRig).
 func talk_mouth() -> float:
 	return absf(sin(_talking * 18.0)) * 0.55 if _talking > 0.0 else 0.0
-
-## Se murió: los que lo vieron se asustan (más si lo querían) y se quedan mirando; su pareja, sus
-## amigos y su familia lloran un rato, pierden fe y se ponen tristes, y sus enemigos se alegran.
-## Y deja de contar para los demás.
-func _mourn() -> void:
-	var at := body_center()
-	var scary := FEAR_DEATH * (FEAR_DEATH_GENTLE if _gentle_death else 1.0)
-	for node in get_tree().get_nodes_in_group("villager"):
-		var o := node as Villager
-		if o == null or o == self or not o.is_alive() or o.is_zombie():
-			continue   # (El zombi ya no siente nada)
-		var k := Relations.kind(self, o)
-		var seen := o._witness(at)
-		if seen > 0.0:
-			var loved := k == Relations.Kind.COUPLE or k == Relations.Kind.FRIEND
-			o.add_fear((scary + (FEAR_LOVED if loved else 0.0)) * seen)
-			o.scare(WITNESS_STARE, at)
-		match k:
-			Relations.Kind.COUPLE:
-				o.say(Bubble.TEAR, MOURN_TIME, false)
-				o.add_faith(-FAITH_LOST_PARTNER)
-				o.add_mood(VillagerMood.MOOD_LOST_PARTNER, "Se le murió la pareja")
-				Game.say("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), HUD.C_MUTED)
-			Relations.Kind.FRIEND:
-				o.say(Bubble.TEAR, MOURN_TIME * 0.6, false)
-				o.add_faith(-FAITH_LOST_FRIEND)
-				o.add_mood(VillagerMood.MOOD_LOST_FRIEND, "Se le murió un amigo")
-			Relations.Kind.ENEMY:
-				o.add_mood(VillagerMood.MOOD_ENEMY_DIED, "Se murió un enemigo")
-				if o.bubble_t <= 0.0:
-					o.say(Bubble.LAUGH, REACT_TIME, false)
-			_:
-				if seen > 0.0:
-					o.add_mood(VillagerMood.MOOD_SAW_DEATH * seen, "Vio morir a alguien")
-		# Su familia
-		var female := gender == Gender.FEMALE
-		if o.id_number in parents:
-			o.say(Bubble.TEAR, MOURN_TIME, false)
-			o.add_mood(VillagerMood.MOOD_LOST_CHILD, "Se le murió una hija" if female else "Se le murió un hijo")
-		elif id_number in o.parents:
-			o.say(Bubble.TEAR, MOURN_TIME * 0.8, false)
-			o.add_mood(VillagerMood.MOOD_LOST_PARENT, "Se le murió la mamá" if female else "Se le murió el papá")
-	_bonds_at_death = Relations.snapshot(self)   # Por si vuelve a la vida (ver resurrect)
-	Relations.forget(self)
 
 # --- ÁNIMO (lo que el resto del juego le pregunta al aldeano; ver VillagerMood) ---
 func mood_level() -> VillagerMood.Mood:
@@ -1302,7 +1052,7 @@ func enter_home() -> void:
 	velocity = Vector2.ZERO
 	_inside_t = randf_range(REST_INSIDE.x, REST_INSIDE.y)
 	if chat_with:
-		_end_chat()
+		end_chat()
 	if food:
 		food.release_eater()
 
@@ -1538,6 +1288,15 @@ func get_shoved(offset: Vector2, vel: Vector2) -> void:
 		shove_vel = vel
 	shove_timer = SHOVE_TIME
 
+## Un enemigo lo empujó (y capaz que lo tira de la isla).
+func get_pushed_by(o: Villager) -> void:
+	var push := Vector2(1.0 if global_position.x >= o.global_position.x else -1.0, 0.0)
+	get_shoved(Vector2.ZERO, push * FIGHT_SHOVE)
+	if rig:
+		rig.hit(body_center(), push, 0.8)
+	_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
+	_voice.play()
+
 func _fall_from_shove() -> void:
 	var push := shove_vel
 	shove_vel = Vector2.ZERO
@@ -1570,7 +1329,7 @@ func lay_on_altar(a: Altar) -> void:
 	if food:
 		food.release_eater()
 	if chat_with:
-		_end_chat()
+		end_chat()
 	set_physics_process(false)
 	velocity = Vector2.ZERO
 	rotation = (1.0 if randf() < 0.5 else -1.0) * PI * 0.5
@@ -1602,7 +1361,7 @@ func witness_ritual(time: float, at: Vector2) -> void:
 	if not is_idle() or on_fire or is_zombie():
 		return
 	if chat_with:
-		_end_chat()
+		end_chat()
 	if food:
 		food.release_eater()
 	match creed():
@@ -1668,6 +1427,50 @@ func _die() -> void:
 	_grant_sacrifice_xp()
 	if rig:
 		rig.set_dead()
+
+## Se murió: los que lo vieron se asustan (más si lo querían) y se quedan mirando; su pareja, sus
+## amigos y su familia lloran un rato, pierden fe y se ponen tristes, y sus enemigos se alegran.
+## Y deja de contar para los demás.
+func _mourn() -> void:
+	var at := body_center()
+	var scary := FEAR_DEATH * (FEAR_DEATH_GENTLE if _gentle_death else 1.0)
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o == null or o == self or not o.is_alive() or o.is_zombie():
+			continue   # (El zombi ya no siente nada)
+		var k := Relations.kind(self, o)
+		var seen := o._witness(at)
+		if seen > 0.0:
+			var loved := k == Relations.Kind.COUPLE or k == Relations.Kind.FRIEND
+			o.add_fear((scary + (FEAR_LOVED if loved else 0.0)) * seen)
+			o.scare(WITNESS_STARE, at)
+		match k:
+			Relations.Kind.COUPLE:
+				o.say(Bubble.TEAR, MOURN_TIME, false)
+				o.add_faith(-FAITH_LOST_PARTNER)
+				o.add_mood(VillagerMood.MOOD_LOST_PARTNER, "Se le murió la pareja")
+				Game.say("Perdió a su pareja", o.get_global_transform_with_canvas().origin + Vector2(0, -100), HUD.C_MUTED)
+			Relations.Kind.FRIEND:
+				o.say(Bubble.TEAR, MOURN_TIME * 0.6, false)
+				o.add_faith(-FAITH_LOST_FRIEND)
+				o.add_mood(VillagerMood.MOOD_LOST_FRIEND, "Se le murió un amigo")
+			Relations.Kind.ENEMY:
+				o.add_mood(VillagerMood.MOOD_ENEMY_DIED, "Se murió un enemigo")
+				if o.bubble_t <= 0.0:
+					o.say(Bubble.LAUGH, REACT_TIME, false)
+			_:
+				if seen > 0.0:
+					o.add_mood(VillagerMood.MOOD_SAW_DEATH * seen, "Vio morir a alguien")
+		# Su familia
+		var female := gender == Gender.FEMALE
+		if o.id_number in parents:
+			o.say(Bubble.TEAR, MOURN_TIME, false)
+			o.add_mood(VillagerMood.MOOD_LOST_CHILD, "Se le murió una hija" if female else "Se le murió un hijo")
+		elif id_number in o.parents:
+			o.say(Bubble.TEAR, MOURN_TIME * 0.8, false)
+			o.add_mood(VillagerMood.MOOD_LOST_PARENT, "Se le murió la mamá" if female else "Se le murió el papá")
+	_bonds_at_death = Relations.snapshot(self)   # Por si vuelve a la vida (ver resurrect)
+	Relations.forget(self)
 
 func _corpse_physics(dt: float) -> void:
 	velocity = Vector2.ZERO
@@ -2100,7 +1903,7 @@ func _come_back() -> void:
 	if food:
 		food.release_eater()
 	if chat_with:
-		_end_chat()
+		end_chat()
 	_going_home = false
 	_walk = 0.0
 	_heading = Vector2.ZERO
@@ -2223,6 +2026,31 @@ func _update_sprite_flip() -> void:
 	if rig and abs(dir.x) > 0.05:
 		rig.set_facing_left(dir.x < 0.0)
 
+## Parado mirando al otro (solo se mueve si lo empujan).
+func _stand_facing(o: Villager) -> void:
+	if rig:
+		rig.set_facing_left(o.global_position.x < global_position.x)
+	_hold_still()
+
+## Quieto donde está: solo se mueve si lo empujan (y si lo empujan fuera de la isla, se cae).
+func _hold_still() -> void:
+	_walk = 0.0   # Al terminar arranca a caminar de a poco
+	velocity = shove_vel
+	if velocity == Vector2.ZERO:
+		return
+	var prev_pos := global_position
+	move_and_slide()
+	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
+		if shove_timer > 0.0:
+			_fall_from_shove()
+		else:
+			global_position = prev_pos
+
+func _wander_off() -> void:
+	_resting = false
+	_pick_dir()
+	wander_timer = randf_range(1.5, 3.0)
+
 # --- MECÁNICA DE ARRASTRE (DRAG & DROP) ---
 func _process(dt: float) -> void:
 	if dragging:
@@ -2239,7 +2067,7 @@ func _process(dt: float) -> void:
 	_update_waterline()
 	_scared = maxf(0.0, _scared - dt)
 	_tornado_cool = maxf(0.0, _tornado_cool - dt)
-	_chat_cool = maxf(0.0, _chat_cool - dt)
+	_chat.update(dt)
 	_talking = maxf(0.0, _talking - dt)
 	_spore.groaning = maxf(0.0, _spore.groaning - dt)
 	bubble_t = maxf(0.0, bubble_t - dt)
