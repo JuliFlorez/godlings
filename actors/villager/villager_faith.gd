@@ -50,6 +50,14 @@ func _init(villager: Villager) -> void:
 	faith = randf_range(FAITH_START.x, FAITH_START.y)   # Las partidas guardadas traen la suya
 	fear = randf_range(FEAR_START.x, FEAR_START.y)
 
+## Para la partida guardada (ver Villager.to_dict).
+func to_dict() -> Dictionary:
+	return {"faith": faith, "fear": fear}
+
+func from_dict(d: Dictionary) -> void:
+	faith = d.get("faith", faith)
+	fear = d.get("fear", fear)
+
 ## Devoto, fanático, hereje o aterrado, según cuánto cree en vos y cuánto te teme.
 func creed() -> Creed:
 	if faith >= BELIEVES_AT:

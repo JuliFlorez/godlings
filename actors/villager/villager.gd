@@ -1737,6 +1737,47 @@ func _wander_off() -> void:
 	_pick_dir()
 	wander_timer = randf_range(1.5, 3.0)
 
+# --- PARTIDA GUARDADA ---
+## Lo que se guarda de él con la partida (ver World.save_game): su carnet, cómo es, el escudo y la
+## vacuna, y lo de cada sistema (cada componente con sus claves, las mismas de siempre, así se siguen
+## cargando las partidas de antes). Dónde está parado y en qué choza vive los pone World.
+func to_dict() -> Dictionary:
+	var d := {"id": id_number, "first_name": first_name, "last_name": last_name, "gender": gender}
+	d.merge(_flu.to_dict())
+	d.merge(_spore.to_dict())
+	d.merge({"shield": shield_t, "vaccine": vaccine_t})
+	d.merge(_faith.to_dict())
+	d.merge(_hunger.to_dict())
+	d.merge(_mood.to_dict())
+	d.merge(_sleep.to_dict())
+	d["looks"] = [skin_tone, skin_warm, hair_color, height]
+	d.merge(_age.to_dict())
+	d["parents"] = parents
+	return d
+
+## Sigue como se guardó (ver to_dict), en el orden de siempre: la espora antes que el escudo (si no,
+## no la dejaría volver a meterse) y cómo es antes que la edad (que le da el tamaño).
+func from_dict(d: Dictionary) -> void:
+	id_number = d.get("id", id_number)
+	first_name = d.get("first_name", "")
+	last_name = d.get("last_name", "")
+	gender = d.get("gender", Gender.MALE)
+	_flu.from_dict(d)
+	_spore.from_dict(d)
+	if d.get("shield", 0.0) > 0.0:
+		give_shield(d.shield, false)
+	if d.get("vaccine", 0.0) > 0.0:
+		vaccinate(d.vaccine, false)
+	_faith.from_dict(d)
+	_hunger.from_dict(d)
+	_mood.from_dict(d)
+	_sleep.from_dict(d)
+	var looks: Array = d.get("looks", [])
+	if looks.size() == 4:
+		set_looks(looks[0], looks[1], looks[2], looks[3])
+	_age.from_dict(d)
+	parents.assign(d.get("parents", []))
+
 # --- MECÁNICA DE ARRASTRE (DRAG & DROP) ---
 func _process(dt: float) -> void:
 	if dragging:

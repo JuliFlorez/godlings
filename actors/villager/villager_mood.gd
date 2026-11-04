@@ -88,6 +88,13 @@ func _init(villager: Villager) -> void:
 	_mood_say = randf_range(MOOD_SAY_EVERY.x, MOOD_SAY_EVERY.y)
 	_mood_check = randf_range(0.0, MOOD_CHECK)
 
+## Para la partida guardada (ver Villager.to_dict).
+func to_dict() -> Dictionary:
+	return {"mood": mood}
+
+func from_dict(d: Dictionary) -> void:
+	mood = d.get("mood", mood)
+
 ## Deprimido, triste, tranquilo, contento o feliz.
 func mood_level() -> Mood:
 	var level := 0

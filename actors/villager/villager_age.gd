@@ -37,6 +37,30 @@ func _init(villager: Villager) -> void:
 	lifespan = randf_range(LIFESPAN.x, LIFESPAN.y)
 	grey_age = randf_range(GREY_AGE.x, GREY_AGE.y)
 
+## Para la partida guardada (ver Villager.to_dict): los días vividos, a los cuántos se muere de
+## viejo y a los cuántos le salen canas.
+func to_dict() -> Dictionary:
+	return {"days": age, "lifespan_days": lifespan, "grey_days": grey_age}
+
+## Sigue como se guardó, con el tamaño y las canas que le tocan (ver set_age). Las partidas de antes
+## tenían la edad en segundos (años de 20 s): pasa a días en la misma etapa de la vida (los 15 años
+## de grande son los ADULT_AGE días de ahora).
+func from_dict(d: Dictionary) -> void:
+	var days := age   # Si no trae la suya, la que le tocó al crearlo
+	if d.has("days"):
+		days = d.days
+		lifespan = d.get("lifespan_days", lifespan)
+		grey_age = d.get("grey_days", grey_age)
+	elif d.has("age"):
+		var to_days := ADULT_AGE / (15.0 * 20.0)
+		if d.has("lifespan"):
+			days = d.age * to_days
+			lifespan = d.lifespan * to_days
+			grey_age = clampf(d.get("grey_age", 0.0) * 20.0 * to_days, GREY_AGE.x, GREY_AGE.y)
+		elif d.age < 15.0 * 20.0:
+			days = d.age * to_days   # Y antes los grandes no envejecían: los chicos sí traen la suya
+	set_age(days)
+
 ## Todavía es chico (ver ADULT_AGE).
 func is_child() -> bool:
 	return age < ADULT_AGE

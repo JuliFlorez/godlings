@@ -72,6 +72,13 @@ var v: Villager
 func _init(villager: Villager) -> void:
 	v = villager
 
+## Para la partida guardada (ver Villager.to_dict): cuánto lo domina el hongo.
+func to_dict() -> Dictionary:
+	return {"spore": spore}
+
+func from_dict(d: Dictionary) -> void:
+	set_spore(d.get("spore", 0.0))
+
 ## En qué etapa de la espora está (ver Infection).
 func infection() -> Infection:
 	if spore <= 0.0:

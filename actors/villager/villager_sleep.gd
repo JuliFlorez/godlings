@@ -41,6 +41,13 @@ func _init(villager: Villager) -> void:
 	tiredness = randf_range(TIRED_START.x, TIRED_START.y)
 	_yawn = randf_range(YAWN_EVERY.x, YAWN_EVERY.y)
 
+## Para la partida guardada (ver Villager.to_dict).
+func to_dict() -> Dictionary:
+	return {"tired": tiredness}
+
+func from_dict(d: Dictionary) -> void:
+	tiredness = d.get("tired", tiredness)
+
 ## Durmiendo: acostado en el piso, o en su choza de noche (o durmiendo la siesta).
 func is_sleeping() -> bool:
 	return asleep or (v.inside and (v._night() >= VillagerHome.SLEEP_AT or napping))

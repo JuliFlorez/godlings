@@ -40,6 +40,13 @@ func _init(villager: Villager) -> void:
 	hunger = randf_range(HUNGER_START.x, HUNGER_START.y)
 	_hungry_say = randf_range(HUNGRY_SAY_EVERY.x, HUNGRY_SAY_EVERY.y)
 
+## Para la partida guardada (ver Villager.to_dict).
+func to_dict() -> Dictionary:
+	return {"hunger": hunger}
+
+func from_dict(d: Dictionary) -> void:
+	hunger = d.get("hunger", hunger)
+
 ## Muerto de hambre (ver STARVING_AT).
 func starving() -> bool:
 	return hunger >= STARVING_AT and not v.dead

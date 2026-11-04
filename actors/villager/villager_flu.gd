@@ -34,6 +34,13 @@ var v: Villager
 func _init(villager: Villager) -> void:
 	v = villager
 
+## Para la partida guardada (ver Villager.to_dict): la etapa y lo que le falta.
+func to_dict() -> Dictionary:
+	return {"flu": flu, "flu_t": flu_t}
+
+func from_dict(d: Dictionary) -> void:
+	set_flu(d.get("flu", Stage.HEALTHY) as Stage, d.get("flu_t", 0.0))
+
 ## Enfermo de verdad (con síntomas, contagia y no reza).
 func is_sick() -> bool:
 	return flu == Stage.SICK and not v.dead

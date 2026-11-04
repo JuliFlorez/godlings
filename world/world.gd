@@ -710,29 +710,10 @@ func save_game() -> void:
 			continue
 		var feet := v.global_position - Vector2(0, v.sleep_drop)   # Si está acostado durmiendo, parado
 		var standing := (v.is_idle() or v.asleep) and Geometry2D.is_point_in_polygon(feet, island_poly_global)
-		villagers.append({
-			"pos": feet if standing else _island_point(),
-			"id": v.id_number,
-			"first_name": v.first_name,
-			"last_name": v.last_name,
-			"gender": v.gender,
-			"flu": v.flu,
-			"flu_t": v.flu_t,
-			"spore": v.spore,
-			"shield": v.shield_t,
-			"vaccine": v.vaccine_t,
-			"faith": v.faith,
-			"fear": v.fear,
-			"hunger": v.hunger,
-			"mood": v.mood,
-			"tired": v.tiredness,
-			"looks": [v.skin_tone, v.skin_warm, v.hair_color, v.height],
-			"days": v.age,
-			"lifespan_days": v.lifespan,
-			"grey_days": v.grey_age,
-			"parents": v.parents,
-			"home": deco_index.get(v.home, -1) if v.has_home() else -1,
-		})
+		var entry := v.to_dict()   # Lo de cada sistema (ver Villager.to_dict); dónde está y su choza, de acá
+		entry["pos"] = feet if standing else _island_point()
+		entry["home"] = deco_index.get(v.home, -1) if v.has_home() else -1
+		villagers.append(entry)
 		ids.append(v.id_number)
 
 	var sky := $Sky
@@ -792,42 +773,7 @@ func _load_game() -> bool:
 	for d: Dictionary in cfg.get_value("island", "villagers", []):
 		var v := add_villager(d.get("pos", _island_point()))
 		loaded.append(v)
-		v.id_number = d.get("id", v.id_number)
-		v.first_name = d.get("first_name", "")
-		v.last_name = d.get("last_name", "")
-		v.gender = d.get("gender", Villager.Gender.MALE)
-		v.set_flu(d.get("flu", VillagerFlu.Stage.HEALTHY) as VillagerFlu.Stage, d.get("flu_t", 0.0))
-		v.set_spore(d.get("spore", 0.0))
-		# Después de la espora (si no, el escudo no la dejaría volver a meterse)
-		if d.get("shield", 0.0) > 0.0:
-			v.give_shield(d.shield, false)
-		if d.get("vaccine", 0.0) > 0.0:
-			v.vaccinate(d.vaccine, false)
-		v.faith = d.get("faith", v.faith)
-		v.fear = d.get("fear", v.fear)
-		v.hunger = d.get("hunger", v.hunger)
-		v.mood = d.get("mood", v.mood)
-		v.tiredness = d.get("tired", v.tiredness)
-		var looks: Array = d.get("looks", [])
-		if looks.size() == 4:
-			v.set_looks(looks[0], looks[1], looks[2], looks[3])
-		var age := v.age   # La que le tocó al crearlo
-		if d.has("days"):
-			age = d.days
-			v.lifespan = d.get("lifespan_days", v.lifespan)
-			v.grey_age = d.get("grey_days", v.grey_age)
-		elif d.has("age"):
-			# Partidas de antes, con la edad en segundos (años de 20 s): pasa a días en la misma etapa
-			# de la vida (los 15 años de grande son los ADULT_AGE días de ahora)
-			var to_days := VillagerAge.ADULT_AGE / (15.0 * 20.0)
-			if d.has("lifespan"):
-				age = d.age * to_days
-				v.lifespan = d.lifespan * to_days
-				v.grey_age = clampf(d.get("grey_age", 0.0) * 20.0 * to_days, VillagerAge.GREY_AGE.x, VillagerAge.GREY_AGE.y)
-			elif d.age < 15.0 * 20.0:
-				age = d.age * to_days   # Y antes los grandes no envejecían: los chicos sí traen la suya
-		v.set_age(age)
-		v.parents.assign(d.get("parents", []))
+		v.from_dict(d)   # Lo de cada sistema (ver Villager.from_dict); la choza, de acá
 		var h: int = d.get("home", -1)
 		if h >= 0 and h < decos.size() and decos[h] != null and decos[h].kind == "hut":
 			v.home = decos[h]
