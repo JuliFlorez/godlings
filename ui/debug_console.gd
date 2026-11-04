@@ -178,7 +178,7 @@ func run(text: String) -> void:
 			var n := clampi(arg if arg >= 0 else 80, 0, 100)
 			_ok(tr("%d aldeanos con hambre %d") % [_set_all("hunger", n), n])
 		"edad", "age", "días", "años", "envejecer":
-			var n := arg if arg >= 0 else int(Villager.ELDER_AGE)
+			var n := arg if arg >= 0 else int(VillagerAge.ELDER_AGE)
 			var count := 0
 			for node in get_tree().get_nodes_in_group("villager"):
 				var v := node as Villager

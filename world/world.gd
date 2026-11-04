@@ -811,7 +811,7 @@ func _load_game() -> bool:
 		var looks: Array = d.get("looks", [])
 		if looks.size() == 4:
 			v.set_looks(looks[0], looks[1], looks[2], looks[3])
-		var age := v.age   # La que le tocó en _ready
+		var age := v.age   # La que le tocó al crearlo
 		if d.has("days"):
 			age = d.days
 			v.lifespan = d.get("lifespan_days", v.lifespan)
@@ -819,11 +819,11 @@ func _load_game() -> bool:
 		elif d.has("age"):
 			# Partidas de antes, con la edad en segundos (años de 20 s): pasa a días en la misma etapa
 			# de la vida (los 15 años de grande son los ADULT_AGE días de ahora)
-			var to_days := Villager.ADULT_AGE / (15.0 * 20.0)
+			var to_days := VillagerAge.ADULT_AGE / (15.0 * 20.0)
 			if d.has("lifespan"):
 				age = d.age * to_days
 				v.lifespan = d.lifespan * to_days
-				v.grey_age = clampf(d.get("grey_age", 0.0) * 20.0 * to_days, Villager.GREY_AGE.x, Villager.GREY_AGE.y)
+				v.grey_age = clampf(d.get("grey_age", 0.0) * 20.0 * to_days, VillagerAge.GREY_AGE.x, VillagerAge.GREY_AGE.y)
 			elif d.age < 15.0 * 20.0:
 				age = d.age * to_days   # Y antes los grandes no envejecían: los chicos sí traen la suya
 		v.set_age(age)

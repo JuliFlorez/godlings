@@ -4,7 +4,7 @@ shader_type canvas_item;
 // amarilla o rojiza) y el pelo de otro color. La piel son los marrones anaranjados no muy
 // saturados (así la pintura roja de la cara y las hojas no cambian) y el pelo, lo casi negro y
 // sin color (también se tiñen un poco las pupilas, que casi no se nota).
-// Con los años le salen canas (ver Villager.greyness): mechones que se ponen blancos, primero
+// Con los años le salen canas (ver VillagerAge.greyness): mechones que se ponen blancos, primero
 // en los costados, hasta que queda todo el pelo blanco. Las pupilas no (son tan negras como el
 // pelo, pero se nota mucho).
 // Aldeano flotando: lo que queda debajo de la línea del agua (coords globales) no se ve.

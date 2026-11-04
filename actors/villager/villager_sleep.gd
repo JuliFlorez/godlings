@@ -89,7 +89,7 @@ func update(dt: float) -> void:
 	elif v.inside:
 		tiredness -= REST_RECOVER * dt
 	else:
-		tiredness += TIRED_RATE * (Villager.ELDER_TIRED if v.is_elder() else 1.0) * dt
+		tiredness += TIRED_RATE * (VillagerAge.ELDER_TIRED if v.is_elder() else 1.0) * dt
 	tiredness = clampf(tiredness, 0.0, 100.0)
 	if tiredness < SLEEPY_AT or is_sleeping():
 		return

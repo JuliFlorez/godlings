@@ -784,7 +784,7 @@ func _birth(world: World, a: Villager, b: Villager) -> void:
 	baby.home = self
 	baby.enter_home()   # Nace adentro
 	for p: Villager in [a, b]:
-		p.baby_cool = Villager.BABY_COOLDOWN
+		p.baby_cool = VillagerAge.BABY_COOLDOWN
 	Relations.note_birth(a, b)
 	Game.say("¡Nació un bebé!", get_global_transform_with_canvas().origin + Vector2(0, HUT_TOP * HUT_SCALE), Relations.color(Relations.Kind.COUPLE))
 	for i in 4:

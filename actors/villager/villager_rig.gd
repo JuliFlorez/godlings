@@ -48,7 +48,7 @@ const BREATH_RATE := 2.4      # rad/s
 const LOOK := 0.12            # Parado: inclina la cabeza para un lado y otro (rad)
 const LOOK_TIME := Vector2(1.5, 4.0)
 const TURN_TIME := 0.18       # Segundos en darse vuelta
-const STOOP_HEAD := 30.0      # Bien viejo (ver Villager.oldness): la cabeza se le hunde entre los hombros...
+const STOOP_HEAD := 30.0      # Bien viejo (ver VillagerAge.oldness): la cabeza se le hunde entre los hombros...
 const STOOP_STEP := 0.5       # ...y arrastra los pies (levanta menos el pie y el cuerpo)
 
 # Manos: el dibujo las tiene abiertas con la palma al frente (pose T). Con los brazos
