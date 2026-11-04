@@ -1,8 +1,9 @@
 extends SceneTree
 ## Prueba de humo para la CI (ver .github/workflows/checks.yml): arranca el mundo, empieza una
-## partida nueva y la juega sola un rato, pasando por los sistemas del aldeano y por todos los
-## poderes; la guarda, vuelve a cargar el mundo, carga la partida (y se fija que cada aldeano vuelva
-## como se guardó) y sigue un rato más, ahora con el diluvio.
+## partida nueva, aprieta las teclas como el jugador (y se fija que cada una haga lo suyo) y la juega
+## sola un rato, pasando por los sistemas del aldeano y por todos los poderes; la guarda, vuelve a
+## cargar el mundo, carga la partida (y se fija que cada aldeano vuelva como se guardó) y sigue un
+## rato más, ahora con el diluvio.
 ## Lo demás no lo juzga (eso se ve jugando): la CI falla si en la salida aparece un error de script
 ## (SCRIPT ERROR), y este script sale con 1 si la partida no arranca o no se carga igual.
 ## Correr con: godot --headless --path . --fixed-fps 60 --script res://tools/ci/smoke.gd
@@ -49,6 +50,10 @@ func _process(_delta: float) -> bool:
 			if _world.playing:
 				print("Prueba de humo: llegó a la isla con %d aldeanos" % _villagers().size())
 				_setup()
+				if _round == 1:
+					var wrong := _keys()
+					if wrong != "":
+						return _fail(wrong)
 				_next()
 			elif _frame > LAND_TIMEOUT:
 				return _fail("no llegó a la isla")
@@ -96,6 +101,74 @@ func _setup() -> void:
 	Game.fill_devotion()
 	_world.debug_spawn_villagers(12)
 	print("Prueba de humo: %d aldeanos, todo desbloqueado, chozas y un altar" % _villagers().size())
+
+## Aprieta las teclas como el jugador (ver Controls): seleccionar, editar la isla, el historial y
+## cerrarlo, sacar un poder y guardarlo, el zoom, la consola y la pausa. Lo que no hizo lo que tenía
+## que hacer ("" si todo anduvo).
+func _keys() -> String:
+	var hud := get_first_node_in_group("hud") as HUD
+	_press(KEY_S)
+	if not hud.select_mode:
+		return "la tecla de seleccionar no pasó a seleccionar"
+	_press(KEY_S)
+	if hud.select_mode:
+		return "la tecla de seleccionar no volvió a arrastrar"
+	_press(KEY_I)
+	if not hud.edit_mode:
+		return "la tecla de editar la isla no la puso a editar"
+	_press(KEY_I)
+	if hud.edit_mode:
+		return "la tecla de editar la isla no volvió a arrastrar"
+	_press(KEY_H)
+	if not (hud._history and hud._history.visible):
+		return "la tecla del historial no lo abrió"
+	_press(KEY_ESCAPE)
+	if hud._history.visible:
+		return "Esc no cerró el historial"
+	var gun: Power = null
+	for p in Power.all():
+		if p.id == "gun":
+			gun = p
+	_press(KEY_G)
+	if not gun.armed:
+		return "la tecla de la pistola no la sacó"
+	_press(KEY_ESCAPE)
+	if gun.armed:
+		return "Esc no guardó la pistola"
+	var zoom: float = _world._zoom_target
+	_press(KEY_EQUAL)
+	if _world._zoom_target <= zoom:
+		return "la tecla de acercar no acercó"
+	_press(KEY_0)
+	if not _world._homing:
+		return "la tecla de volver al tamaño normal no volvió"
+	var console: DebugConsole = null
+	for c in hud.get_children():
+		if c is DebugConsole:
+			console = c
+	if console:   # (Solo en el editor y en exports de debug)
+		_press(KEY_F1)
+		if not console.visible:
+			return "F1 no abrió la consola"
+		_press(KEY_F1)
+		if console.visible:
+			return "F1 no cerró la consola"
+	_press(KEY_ESCAPE)
+	if not paused:
+		return "Esc no abrió la pausa"
+	_press(KEY_ESCAPE)
+	if paused:
+		return "Esc no cerró la pausa"
+	print("Prueba de humo: las teclas hacen lo suyo")
+	return ""
+
+## Aprieta y suelta una tecla, como el jugador (pasa por _input, la interfaz y _unhandled_input).
+func _press(k: Key) -> void:
+	for down: bool in [true, false]:
+		var ev := InputEventKey.new()
+		ev.keycode = k
+		ev.pressed = down
+		root.push_input(ev)
 
 ## Les pasa de todo: gripe, espora, un zombi, hambre, sueño, tristeza, miedo, vejez y fuego.
 func _afflictions() -> void:

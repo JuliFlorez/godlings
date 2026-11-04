@@ -64,25 +64,22 @@ func _ready() -> void:
 	_pause.locale_changed.connect(_on_locale_changed)
 	add_child(_pause)
 
-	# Consola de trucos (F1): solo en el editor y en exports de debug
+	# Consola de trucos (ver Controls.CONSOLE): solo en el editor y en exports de debug
 	if OS.is_debug_build():
 		add_child(DebugConsole.new())
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventKey and event.pressed and not event.echo) or get_tree().paused:
+	if not event is InputEventKey or get_tree().paused:
 		return
-	match event.keycode:
-		KEY_S:
-			set_select_mode(not select_mode)
-			get_viewport().set_input_as_handled()
-		KEY_H:
-			if visible:   # En el menú de inicio no (todavía no hay partida)
-				toggle_history()
-				get_viewport().set_input_as_handled()
-		KEY_I:
-			if visible:
-				set_edit_mode(not edit_mode)
-				get_viewport().set_input_as_handled()
+	if event.is_action_pressed(Controls.SELECT_MODE):
+		set_select_mode(not select_mode)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(Controls.HISTORY) and visible:   # En el menú de inicio no (todavía no hay partida)
+		toggle_history()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(Controls.EDIT_ISLAND) and visible:
+		set_edit_mode(not edit_mode)
+		get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	if _flash_amount > 0.0:
@@ -305,12 +302,12 @@ func _hint_text() -> String:
 	var full := _capacity >= 0 and _population >= _capacity
 	var island_maxed := Game.island_level >= Game.island_max
 	if _placing:
-		return tr("Click en la isla para colocar · click derecho o Esc para terminar.")
+		return tr("Click en la isla para colocar · click derecho o %s para terminar.") % Controls.label(Controls.BACK)
 	if aimed_hint != "":
 		return aimed_hint
 	match _decor_edit:
 		DecorPlacer.Edit.MOVING:
-			return tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
+			return tr("Soltala sobre la isla · click derecho o %s para dejarla donde estaba.") % Controls.label(Controls.BACK)
 		DecorPlacer.Edit.HOVER:
 			return tr("Arrastrá para moverla · click derecho para quitarla (devuelve la mitad).")
 		DecorPlacer.Edit.COCONUT:
@@ -320,9 +317,11 @@ func _hint_text() -> String:
 		DecorPlacer.Edit.HUT:
 			return tr("Click para ponerle nombre al cartel de la choza.")
 	if select_mode:
-		return tr("Click en un aldeano para ver su carnet y ponerle nombre, o en una choza para escribir su cartel · S para volver a arrastrar.")
+		return tr("Click en un aldeano para ver su carnet y ponerle nombre, o en una choza para escribir su cartel · %s para volver a arrastrar.") \
+				% Controls.label(Controls.SELECT_MODE)
 	if edit_mode:
-		return tr("Arrastrá una decoración para moverla · click derecho para quitarla (devuelve la mitad) · I para volver a arrastrar aldeanos.")
+		return tr("Arrastrá una decoración para moverla · click derecho para quitarla (devuelve la mitad) · %s para volver a arrastrar aldeanos.") \
+				% Controls.label(Controls.EDIT_ISLAND)
 	if out_hint != "":
 		return out_hint
 	if full and not island_maxed:

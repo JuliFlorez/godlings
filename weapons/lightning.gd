@@ -1,6 +1,6 @@
 extends Power
 class_name Lightning
-## Rayo: se desbloquea en la tienda y después se saca desde el HUD o con la tecla R
+## Rayo: se desbloquea en la tienda y después se saca desde el HUD o con su tecla
 ## (Esc o click derecho lo guardan). Mientras está afuera, una nube de tormenta sigue al
 ## mouse por arriba y cada click descarga un rayo justo ahí.
 ## Los aldeanos alcanzados se electrocutan (ver VillagerBurn.zap): se les ve el esqueleto,
@@ -50,17 +50,16 @@ static var _spark_ramp: Gradient
 func _init() -> void:
 	id = "lightning"
 	title = "Rayo"
-	key = KEY_R
 	accent = UiStyle.C_ZAP
 	price = 180
 	sacrifices = 4
-	tooltip = "Sacar o guardar el rayo [R]"
+	tooltip = "Sacar o guardar el rayo"
 	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)"
 	need = "Desbloqueá el rayo en la tienda"
-	unlocked_text = "¡Rayo desbloqueado! Sacalo con R"
+	unlocked_text = "¡Rayo desbloqueado! Sacalo con %s"
 	done = "Desbloqueado"
 	shop = "Fulmina aldeanos y salta a los que están cerca. En el agua fríe a todos los que flotan."
-	hint = "Click para lanzar un rayo · click derecho, Esc o R para guardarlo."
+	hint = "Click para lanzar un rayo · click derecho, %s o %s para guardarlo."
 
 func _ready() -> void:
 	_fx = Painter.new()

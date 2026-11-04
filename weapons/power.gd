@@ -1,15 +1,15 @@
 extends Node2D
 class_name Power
-## Un arma o poder de la barra de abajo (ver HUD): se desbloquea en la tienda (ver Shop) y se saca o
-## se guarda con su tecla o tocando su slot. Mientras está afuera el click es para él (ver aiming):
-## el izquierdo lo usa y el derecho (o Esc) lo guarda, y sacarlo guarda a los demás (ver World). El
-## diluvio no se apunta (aims = false): su tecla lo desata o lo calma, y ni guarda a los demás ni
-## ellos a él.
+## Un arma o poder de la barra de abajo (ver PowerBar): se desbloquea en la tienda (ver Shop) y se
+## saca o se guarda con su tecla (ver action) o tocando su slot. Mientras está afuera el click es
+## para él (ver aiming): el izquierdo lo usa y el derecho (o Esc) lo guarda, y sacarlo guarda a los
+## demás (ver World). El diluvio no se apunta (aims = false): su tecla lo desata o lo calma, y ni
+## guarda a los demás ni ellos a él.
 ##
-## Cada poder es una clase hija que en _init() dice cómo es (su id, su tecla, lo que cuesta, sus
-## textos...) y hace lo suyo en _use (el click), _on_armed (al sacarlo o guardarlo) y, si hace falta,
-## _can_arm. World los crea en el orden de la barra (ver World._create_powers): un poder nuevo va
-## ahí, con su ícono en HudIcon y sus textos en I18n.EN.
+## Cada poder es una clase hija que en _init() dice cómo es (su id, lo que cuesta, sus textos...) y
+## hace lo suyo en _use (el click), _on_armed (al sacarlo o guardarlo) y, si hace falta, _can_arm.
+## World los crea en el orden de la barra (ver World._create_powers): un poder nuevo va ahí, con su
+## tecla en Controls.KEYS ("power_" + su id), su ícono en HudIcon y sus textos en I18n.EN.
 
 signal armed_changed(on: bool)
 
@@ -22,8 +22,6 @@ var id := ""
 var icon := ""
 ## Su nombre en la barra y en la tienda.
 var title := ""
-## La tecla que lo saca y lo guarda.
-var key := KEY_NONE
 ## Bueno (la pestaña de la aureola) o malo (la de los cuernos; los malos cuestan también sacrificios).
 var good := false
 ## Su color: el del slot mientras está afuera y el del cartel al desbloquearlo.
@@ -39,11 +37,13 @@ var always := false
 var aims := true
 ## Con él afuera, los que te temen se agachan (ver Villager; con la comida, no).
 var scares := true
-## Sus textos, en español (son las claves de traducción, ver I18n): el tooltip del slot y el de
-## bloqueado (con lo que cuesta: "...(%d ofrendas)" o, si es malo, "...(%d ofrendas y %d
-## sacrificios)"), el cartel si lo querés sacar sin haberlo comprado y el de cuando se compra, lo que
-## dice la tienda una vez comprado ("Desbloqueado" o "Desbloqueada") y su descripción, y la pista de
-## abajo mientras está afuera (con un %d si gasta devoción, ver cost).
+## Sus textos, en español (son las claves de traducción, ver I18n): el tooltip del slot (sin la
+## tecla: se la agrega slot_tooltip) y el de bloqueado (con lo que cuesta: "...(%d ofrendas)" o, si
+## es malo, "...(%d ofrendas y %d sacrificios)"), el cartel si lo querés sacar sin haberlo comprado y
+## el de cuando se compra (con %s donde va su tecla: "Sacala con %s"), lo que dice la tienda una vez
+## comprado ("Desbloqueado" o "Desbloqueada") y su descripción, y la pista de abajo mientras está
+## afuera: con un %d si gasta devoción (ver cost) y al final las teclas que lo guardan, "click
+## derecho, %s o %s para guardarlo" (Esc y la suya; el que no se apunta, solo la suya).
 var tooltip := ""
 var locked_tooltip := ""
 var need := ""
@@ -74,11 +74,11 @@ func set_armed(on: bool) -> void:
 		Input.set_default_cursor_shape(Input.CURSOR_CROSS if on else Input.CURSOR_ARROW)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == key:
+	if event is InputEventKey:
+		if event.is_action_pressed(action()):
 			set_armed(not armed)
 			get_viewport().set_input_as_handled()
-		elif aims and armed and event.keycode == KEY_ESCAPE:
+		elif aims and armed and event.is_action_pressed(Controls.BACK):
 			set_armed(false)
 			get_viewport().set_input_as_handled()
 		return
@@ -95,9 +95,32 @@ func _unhandled_input(event: InputEvent) -> void:
 func icon_kind() -> String:
 	return icon if icon != "" else id
 
-## La pista de abajo mientras está afuera (con lo que gasta cada vez, si gasta).
+## La acción de su tecla, la que lo saca y lo guarda (ver Controls.KEYS).
+func action() -> StringName:
+	return StringName("power_" + id)
+
+## Su tecla, como la nombran los textos ("G").
+func key_label() -> String:
+	return Controls.label(action())
+
+## El tooltip de su slot, con su tecla.
+func slot_tooltip() -> String:
+	return Controls.tip(tooltip, action())
+
+## El cartel de cuando se compra, con su tecla ("¡Rayo desbloqueado! Sacalo con R").
+func unlocked_message() -> String:
+	return tr(unlocked_text) % key_label()
+
+## La pista de abajo mientras está afuera: con lo que gasta cada vez (si gasta) y las teclas que lo
+## guardan (Esc, si se apunta, y la suya).
 func hint_text() -> String:
-	return tr(hint) % int(cost) if cost > 0.0 else tr(hint)
+	var args := []
+	if cost > 0.0:
+		args.append(int(cost))
+	if aims:
+		args.append(Controls.label(Controls.BACK))
+	args.append(key_label())
+	return tr(hint) % args
 
 ## Lo que le falta para poder usarlo otra vez (1: listo; mientras tanto el slot tiene una barrita
 ## que se va llenando, ver HUD).

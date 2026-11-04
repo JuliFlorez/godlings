@@ -4,68 +4,65 @@ class_name Charm
 ## desde el HUD o con su tecla (Esc o click derecho los guardan). Como la pistola, cada click
 ## dispara desde la esquina de abajo a la derecha hacia el mouse, pero lo que sale es un
 ## proyectil que vuela en arco; si apuntaste a un aldeano, lo sigue hasta darle.
-## - Arco de Cupido [A] (bueno): la flecha (con un corazón de punta) deja flechado al que le
+## - Arco de Cupido (bueno): la flecha (con un corazón de punta) deja flechado al que le
 ##   da, con un aro rosa a los pies; la siguiente que le da a otro los enamora, aunque no se
 ##   gustaran. Si alguno tenía pareja la deja, y el ex queda enemigo del nuevo, de celos.
-## - Manzana de la Discordia [E] (malo): una manzana dorada que cae en la isla, y todos los
+## - Manzana de la Discordia (malo): una manzana dorada que cae en la isla, y todos los
 ##   que estaban cerca se pelean por ella: quedan enemigos entre todos (las parejas se separan)
 ##   y se empujan.
-## - Pelota de la Amistad [B] (bueno): rebota de aldeano en aldeano, siempre al más cercano
+## - Pelota de la Amistad (bueno): rebota de aldeano en aldeano, siempre al más cercano
 ##   que todavía no tocó (hasta MAX_TOUCH), y los que tocó quedan amigos entre todos (los
 ##   enemigos hacen las paces; las parejas siguen siendo pareja).
 ## World crea uno de cada tipo (kind).
 
 enum Kind { CUPID, DISCORD, FRIENDSHIP }
-## Por tipo: su id, su nombre, su tecla, si es bueno, su precio, su color (el de la relación que arma)
+## Por tipo: su id, su nombre, si es bueno, su precio, su color (el de la relación que arma)
 ## y lo que dicen la barra y la tienda (ver Power y kind).
 const KINDS := {
 	Kind.CUPID: {
 		"id": "cupid",
 		"title": "Cupido",
 		"good": true,
-		"key": KEY_A,
 		"price": 110,
 		"sacrifices": 0,
 		"color": Color(1.0, 0.52, 0.74),
-		"tip": "Sacar o guardar el arco de Cupido [A]",
+		"tip": "Sacar o guardar el arco de Cupido",
 		"locked_tip": "Desbloquealo en la tienda (%d ofrendas)",
 		"need": "Desbloqueá el arco de Cupido en la tienda",
-		"unlocked": "¡Arco de Cupido desbloqueado! Sacalo con A",
+		"unlocked": "¡Arco de Cupido desbloqueado! Sacalo con %s",
 		"done": "Desbloqueado",
 		"shop": "Flechá a un aldeano y después a otro: se enamoran. Si tenían pareja la dejan, y el ex queda celoso.",
-		"hint": "Flechá a un aldeano y después a otro para que se enamoren · click derecho, Esc o A para guardarlo.",
+		"hint": "Flechá a un aldeano y después a otro para que se enamoren · click derecho, %s o %s para guardarlo.",
 	},
 	Kind.DISCORD: {
 		"id": "discord",
 		"title": "Discordia",
 		"good": false,
-		"key": KEY_E,
 		"price": 100,
 		"sacrifices": 3,   # Es mala: cuesta también sacrificios (ver Game.buy)
 		"color": Color(1.0, 0.45, 0.4),
-		"tip": "Sacar o guardar la manzana de la discordia [E]",
+		"tip": "Sacar o guardar la manzana de la discordia",
 		"locked_tip": "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)",
 		"need": "Desbloqueá la manzana de la discordia en la tienda",
-		"unlocked": "¡Manzana de la discordia desbloqueada! Sacala con E",
+		"unlocked": "¡Manzana de la discordia desbloqueada! Sacala con %s",
 		"done": "Desbloqueada",
 		"shop": "Una manzana dorada: los que estén cerca de donde cae se pelean por ella y quedan enemigos.",
-		"hint": "Tirá la manzana cerca de varios aldeanos: se pelean por ella · click derecho, Esc o E para guardarla.",
+		"hint": "Tirá la manzana cerca de varios aldeanos: se pelean por ella · click derecho, %s o %s para guardarla.",
 	},
 	Kind.FRIENDSHIP: {
 		"id": "friendship",
 		"title": "Amistad",
 		"good": true,
-		"key": KEY_B,
 		"price": 80,
 		"sacrifices": 0,
 		"color": Color(0.46, 0.84, 0.52),
-		"tip": "Sacar o guardar la pelota de la amistad [B]",
+		"tip": "Sacar o guardar la pelota de la amistad",
 		"locked_tip": "Desbloqueala en la tienda (%d ofrendas)",
 		"need": "Desbloqueá la pelota de la amistad en la tienda",
-		"unlocked": "¡Pelota de la amistad desbloqueada! Sacala con B",
+		"unlocked": "¡Pelota de la amistad desbloqueada! Sacala con %s",
 		"done": "Desbloqueada",
 		"shop": "Rebota de aldeano en aldeano y todos los que toca se hacen amigos (los enemigos hacen las paces).",
-		"hint": "Tirale la pelota a un aldeano: rebota entre los que están cerca y se hacen amigos · click derecho, Esc o B para guardarla.",
+		"hint": "Tirale la pelota a un aldeano: rebota entre los que están cerca y se hacen amigos · click derecho, %s o %s para guardarla.",
 	},
 }
 
@@ -106,7 +103,6 @@ var kind := Kind.CUPID:
 		id = info.id
 		title = info.title
 		good = info.good
-		key = info.key
 		accent = info.color
 		price = info.price
 		sacrifices = info.sacrifices

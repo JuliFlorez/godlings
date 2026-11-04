@@ -75,7 +75,7 @@ func close() -> void:
 	get_tree().paused = false
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE):
+	if not event.is_action_pressed(Controls.BACK):
 		return
 	if visible:
 		close()

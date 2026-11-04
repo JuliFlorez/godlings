@@ -52,11 +52,11 @@ func _ready() -> void:
 
 	# Modo del click: arrastrar aldeanos, seleccionarlos (carnet) o editar la isla
 	var mode_row := _toolbar_panel(bars)
-	_drag_btn = _tool_slot(mode_row, "hand", "Arrastrar", "", true, "Agarrá y tirá aldeanos [S]")
+	_drag_btn = _tool_slot(mode_row, "hand", "Arrastrar", "", true, "")   # (Los tooltips, con su tecla: ver refresh)
 	_drag_btn.pressed.connect(hud.set_drag_mode)
-	_select_btn = _tool_slot(mode_row, "select", "Seleccionar", "S", true, "Click en un aldeano para ver su carnet, o en una choza para ponerle nombre [S]")
+	_select_btn = _tool_slot(mode_row, "select", "Seleccionar", Controls.label(Controls.SELECT_MODE), true, "")
 	_select_btn.pressed.connect(hud.set_select_mode.bind(true))
-	_edit_btn = _tool_slot(mode_row, "edit", "Editar isla", "I", true, "Mover y quitar decoraciones, sin agarrar aldeanos [I]")
+	_edit_btn = _tool_slot(mode_row, "edit", "Editar isla", Controls.label(Controls.EDIT_ISLAND), true, "")
 	_edit_btn.pressed.connect(hud.set_edit_mode.bind(true))
 	mode_row.get_parent().size_flags_vertical = Control.SIZE_SHRINK_END   # Abajo, a la par de los poderes
 
@@ -120,12 +120,17 @@ func _on_power_armed(on: bool, power: Power) -> void:
 func refresh() -> void:
 	for power in powers:
 		var slot: Button = _power_slots[power]
-		_sync_weapon(slot, power.unlocked, power.armed, slot.get_meta("active"), power.tooltip, power.locked_tooltip,
+		_sync_weapon(slot, power.unlocked, power.armed, slot.get_meta("active"), power.slot_tooltip(), power.locked_tooltip,
 				power.price, power.sacrifices)
 	var dragging := not hud.select_mode and not hud.edit_mode
 	for b: Array in [[_drag_btn, dragging], [_select_btn, hud.select_mode], [_edit_btn, hud.edit_mode]]:
 		b[0].add_theme_stylebox_override("normal", _slot_mode if b[1] else _slot_idle)
 		b[0].add_theme_stylebox_override("hover", _slot_mode if b[1] else _slot_hover)
+	# Con su tecla, que sale de Controls (y acá, así siguen al idioma)
+	_drag_btn.tooltip_text = Controls.tip("Agarrá y tirá aldeanos", Controls.SELECT_MODE)
+	_select_btn.tooltip_text = Controls.tip("Click en un aldeano para ver su carnet, o en una choza para ponerle nombre",
+			Controls.SELECT_MODE)
+	_edit_btn.tooltip_text = Controls.tip("Mover y quitar decoraciones, sin agarrar aldeanos", Controls.EDIT_ISLAND)
 
 ## Slot de un arma o poder de la tienda: resaltado mientras está afuera; bloqueado se ve
 ## apagado, con el cartel "En la tienda" (y lo que cuesta: las cosas malas, también sacrificios).
@@ -136,7 +141,7 @@ func _sync_weapon(slot: Button, unlocked: bool, out: bool, active: StyleBoxFlat,
 	slot.get_meta("lock").visible = not unlocked
 	slot.get_meta("icon").modulate = Color.WHITE if unlocked else Color(1, 1, 1, 0.45)
 	if unlocked:
-		slot.tooltip_text = tr(tip)
+		slot.tooltip_text = tip   # (Ya traducido y con la tecla, ver Power.slot_tooltip)
 	elif sacrifice_cost > 0:
 		slot.tooltip_text = tr(locked_tip) % [price, sacrifice_cost]   # El texto "... ofrendas y %d sacrificios)"
 	else:
@@ -180,8 +185,8 @@ func _tab_button(parent: Control, kind: String, tip: String) -> Button:
 ## El slot de un poder: lo saca o lo guarda, y bloqueado lleva a la tienda (a la pestaña de los
 ## poderes buenos o de los malos). Abajo tiene una barrita que se llena mientras se recarga.
 func _power_slot(power: Power) -> Button:
-	var slot := _tool_slot(_power_row, power.icon_kind(), power.title, OS.get_keycode_string(power.key), true,
-			power.tooltip)
+	var slot := _tool_slot(_power_row, power.icon_kind(), power.title, power.key_label(), true,
+			power.slot_tooltip())
 	_tool_slots[slot] = power.good
 	var active := UiStyle.box(Color(power.accent, 0.32), 12, power.accent.lightened(0.3), 2)
 	slot.set_meta("active", active)

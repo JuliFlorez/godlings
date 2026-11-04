@@ -1,6 +1,6 @@
 extends Power
 class_name Gun
-## Pistola: se desbloquea en la tienda y después se saca desde el HUD o con la tecla G
+## Pistola: se desbloquea en la tienda y después se saca desde el HUD o con su tecla
 ## (Esc o click derecho la guardan).
 ## Apunta desde la esquina inferior derecha hacia el mouse; cada click dispara.
 ## Los aldeanos alcanzados mueren y caen en ragdoll (ver Villager.shoot); los tiburones
@@ -28,16 +28,15 @@ var _sound: AudioStreamPlayer
 func _init() -> void:
 	id = "gun"
 	title = "Pistola"
-	key = KEY_G
 	accent = UiStyle.C_GUN
 	price = 100
 	sacrifices = 2
-	tooltip = "Sacar o guardar la pistola [G]"
+	tooltip = "Sacar o guardar la pistola"
 	locked_tooltip = "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)"
 	need = "Desbloqueá la pistola en la tienda"
-	unlocked_text = "¡Pistola desbloqueada! Sacala con G"
+	unlocked_text = "¡Pistola desbloqueada! Sacala con %s"
 	done = "Desbloqueada"
-	hint = "Click para disparar · click derecho, Esc o G para guardarla."
+	hint = "Click para disparar · click derecho, %s o %s para guardarla."
 
 func _ready() -> void:
 	visible = false

@@ -132,7 +132,7 @@ func _process(dt: float) -> void:
 		_update()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if visible and event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+	if visible and event.is_action_pressed(Controls.BACK):
 		close()
 		get_viewport().set_input_as_handled()
 

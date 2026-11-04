@@ -1,6 +1,6 @@
 extends Power
 class_name Tornado
-## Tornado: se desbloquea en la tienda y después se saca desde el HUD o con la tecla T
+## Tornado: se desbloquea en la tienda y después se saca desde el HUD o con su tecla
 ## (Esc o click derecho lo guardan). Manteniendo apretado el click en la isla o en el agua
 ## baja un tornado que sigue al mouse mientras dure (MAX_TIME); al soltar se disuelve.
 ## Chupa a los aldeanos que agarra (vivos o cadáveres, y también a los que pasan volando por
@@ -77,17 +77,16 @@ var _wind: AudioStreamPlayer
 func _init() -> void:
 	id = "tornado"
 	title = "Tornado"
-	key = KEY_T
 	accent = UiStyle.C_TORNADO
 	price = 340
 	sacrifices = 8
-	tooltip = "Sacar o guardar el tornado [T]"
+	tooltip = "Sacar o guardar el tornado"
 	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)"
 	need = "Desbloqueá el tornado en la tienda"
-	unlocked_text = "¡Tornado desbloqueado! Sacalo con T"
+	unlocked_text = "¡Tornado desbloqueado! Sacalo con %s"
 	done = "Desbloqueado"
 	shop = "Mantené el click y llevalo con el mouse: levanta aldeanos, cocos y tiburones, los hace girar y los revolea."
-	hint = "Mantené apretado el click en la isla o el agua para que baje el tornado, y llevalo con el mouse · click derecho, Esc o T para guardarlo."
+	hint = "Mantené apretado el click en la isla o el agua para que baje el tornado, y llevalo con el mouse · click derecho, %s o %s para guardarlo."
 
 func _ready() -> void:
 	_fx = Painter.new()

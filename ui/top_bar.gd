@@ -120,7 +120,6 @@ func _ready() -> void:
 	_history_btn = _action_button(shop_row, UiStyle.C_HISTORY)
 	_history_btn.custom_minimum_size.y = PANEL_BUTTON_H
 	_history_btn.text = "Historial"
-	_history_btn.tooltip_text = "Quién se hizo amigo, enemigo o pareja de quién [H]"
 	_history_btn.pressed.connect(hud.toggle_history)
 
 	_hint = Label.new()
@@ -175,6 +174,8 @@ func refresh(population: int, capacity: int, spawn_cost: float) -> void:
 
 	_offer_value.text = str(Game.offerings)
 	_sacrifice_value.text = str(Game.sacrifices)
+	# Con su tecla, que sale de Controls (y acá, así sigue al idioma)
+	_history_btn.tooltip_text = Controls.tip("Quién se hizo amigo, enemigo o pareja de quién", Controls.HISTORY)
 
 ## La pista de abajo del panel (ver HUD._hint_text); vacía, no se ve.
 func set_hint(text: String) -> void:

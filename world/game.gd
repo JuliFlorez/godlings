@@ -184,7 +184,7 @@ static func unlock_power(power: Power) -> bool:
 	if power.unlocked or not buy(power.price, power.sacrifices):
 		return false
 	power.unlocked = true
-	announce(power.unlocked_text, power.unlock_color())
+	announce(power.unlocked_message(), power.unlock_color())
 	events.changed.emit()
 	return true
 

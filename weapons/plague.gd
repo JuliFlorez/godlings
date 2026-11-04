@@ -24,17 +24,16 @@ static var _wav: AudioStreamWAV
 func _init() -> void:
 	id = "plague"
 	title = "Peste"
-	key = KEY_P
 	accent = UiStyle.C_PLAGUE
 	price = 200
 	sacrifices = 5
-	tooltip = "Sacar o guardar la peste [P]"
+	tooltip = "Sacar o guardar la peste"
 	locked_tooltip = "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)"
 	need = "Desbloqueá la peste en la tienda"
-	unlocked_text = "¡Peste desbloqueada! Sacala con P"
+	unlocked_text = "¡Peste desbloqueada! Sacala con %s"
 	done = "Desbloqueada"
 	shop = "Una nube de miasma que enferma de gripe a los que alcanza. Después se contagian solos."
-	hint = "Click sobre los aldeanos para enfermarlos de gripe · click derecho, Esc o P para guardarla."
+	hint = "Click sobre los aldeanos para enfermarlos de gripe · click derecho, %s o %s para guardarla."
 
 func _ready() -> void:
 	z_index = 30   # Encima de los aldeanos

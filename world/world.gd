@@ -158,6 +158,7 @@ func _apply_view() -> void:
 
 func _ready() -> void:
 	Game.reset()   # Una partida nueva (la guardada se carga al elegirla, ver _start_slot)
+	Controls.setup()   # Las teclas (ver Controls)
 	# Capas sobre la isla y el tiburón: primero el piso, después lo que tiene altura
 	ground = Node2D.new()
 	ground.name = "Ground"
@@ -345,20 +346,18 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and _panning:
 		_view = _clamp_view(_view + event.relative, zoom)
 		_apply_view()
-	elif event is InputEventKey and event.pressed:
+	elif event is InputEventKey:
+		# (Las del zoom se repiten mientras estén apretadas)
 		var mid := get_viewport_rect().size * 0.5
-		match event.keycode:
-			KEY_EQUAL, KEY_PLUS, KEY_KP_ADD:
-				_zoom_to(_zoom_target * ZOOM_STEP, mid)
-			KEY_MINUS, KEY_KP_SUBTRACT:
-				_zoom_to(_zoom_target / ZOOM_STEP, mid)
-			KEY_0, KEY_KP_0:
-				_zoom_target = 1.0
-				_homing = true
-			KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN:
-				pass   # Las mira _update_pan mientras estén apretadas
-			_:
-				return
+		if event.is_action_pressed(Controls.ZOOM_IN, true):
+			_zoom_to(_zoom_target * ZOOM_STEP, mid)
+		elif event.is_action_pressed(Controls.ZOOM_OUT, true):
+			_zoom_to(_zoom_target / ZOOM_STEP, mid)
+		elif event.is_action_pressed(Controls.ZOOM_RESET, true):
+			_zoom_target = 1.0
+			_homing = true
+		elif not Controls.PAN.any(func(a: StringName): return event.is_action_pressed(a, true)):
+			return   # (Las de mover la cámara las mira _update_pan mientras estén apretadas)
 		get_viewport().set_input_as_handled()
 
 func _zoom_to(target: float, anchor: Vector2) -> void:
@@ -366,7 +365,7 @@ func _zoom_to(target: float, anchor: Vector2) -> void:
 	_zoom_anchor = anchor
 	_homing = false
 
-## Tecla 0: vuelve de a poco al tamaño normal y al centro.
+## Volver al tamaño normal (Controls.ZOOM_RESET): de a poco, y al centro.
 func _update_home(dt: float) -> void:
 	if not _homing:
 		return
@@ -386,8 +385,8 @@ func _update_pan(dt: float) -> void:
 	var dir := Vector2.ZERO
 	var focus := get_viewport().gui_get_focus_owner()
 	if not (focus is LineEdit or focus is TextEdit):
-		dir = Vector2(float(Input.is_key_pressed(KEY_RIGHT)) - float(Input.is_key_pressed(KEY_LEFT)),
-				float(Input.is_key_pressed(KEY_DOWN)) - float(Input.is_key_pressed(KEY_UP))).normalized()
+		dir = Vector2(Input.get_action_strength(Controls.PAN_RIGHT) - Input.get_action_strength(Controls.PAN_LEFT),
+				Input.get_action_strength(Controls.PAN_DOWN) - Input.get_action_strength(Controls.PAN_UP)).normalized()
 	if dir != Vector2.ZERO:
 		_homing = false
 	_pan_vel = _pan_vel.lerp(dir * PAN_SPEED, 1.0 - exp(-PAN_SMOOTH * dt))

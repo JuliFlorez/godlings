@@ -63,7 +63,7 @@ func _ready() -> void:
 	_line.gui_input.connect(_on_input_key)
 	col.add_child(_line)
 
-	_print("[color=#ffd75a]%s[/color] — %s" % [tr("Consola de trucos"), tr("escribí [b]ayuda[/b] o [b]help[/b]. F1 para cerrar.")])
+	_print("[color=#ffd75a]%s[/color] — %s" % [tr("Consola de trucos"), tr("escribí [b]ayuda[/b] o [b]help[/b]. %s para cerrar.") % Controls.label(Controls.CONSOLE)])
 
 func _process(_dt: float) -> void:
 	if infinite:
@@ -72,12 +72,7 @@ func _process(_dt: float) -> void:
 		Game.fill_devotion()   # (Avisa que cambió: el HUD se actualiza)
 
 func _input(event: InputEvent) -> void:
-	if not (event is InputEventKey and event.pressed and not event.echo):
-		return
-	if event.keycode == KEY_F1 or event.physical_keycode == KEY_QUOTELEFT:
-		toggle()
-		get_viewport().set_input_as_handled()
-	elif visible and event.keycode == KEY_ESCAPE:
+	if event.is_action_pressed(Controls.CONSOLE) or (visible and event.is_action_pressed(Controls.BACK)):
 		toggle()
 		get_viewport().set_input_as_handled()
 

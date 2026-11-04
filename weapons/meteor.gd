@@ -1,6 +1,6 @@
 extends Power
 class_name Meteor
-## Meteorito: se desbloquea en la tienda y después se saca desde el HUD o con la tecla M
+## Meteorito: se desbloquea en la tienda y después se saca desde el HUD o con su tecla
 ## (Esc o click derecho lo guardan). Cada click en la isla o en el agua hace caer un
 ## meteorito en llamas que explota al llegar: los aldeanos de cerca mueren chamuscados y
 ## salen volando, los de más lejos salen despedidos vivos (ver Villager.blast), y en la isla
@@ -48,17 +48,16 @@ static var _fire_ramp: Gradient
 func _init() -> void:
 	id = "meteor"
 	title = "Meteorito"
-	key = KEY_M
 	accent = UiStyle.C_METEOR
 	price = 260
 	sacrifices = 6
-	tooltip = "Sacar o guardar el meteorito [M]"
+	tooltip = "Sacar o guardar el meteorito"
 	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)"
 	need = "Desbloqueá el meteorito en la tienda"
-	unlocked_text = "¡Meteorito desbloqueado! Sacalo con M"
+	unlocked_text = "¡Meteorito desbloqueado! Sacalo con %s"
 	done = "Desbloqueado"
 	shop = "Explota y deja un cráter: mata a los que están cerca y hace volar a los demás."
-	hint = "Click en la isla o el agua para tirar un meteorito · click derecho, Esc o M para guardarlo."
+	hint = "Click en la isla o el agua para tirar un meteorito · click derecho, %s o %s para guardarlo."
 
 func _ready() -> void:
 	_fx = Painter.new()

@@ -129,7 +129,7 @@ func _input(event: InputEvent) -> void:
 		return
 	if _mode == Mode.DESCENT:
 		skip_requested.emit()
-	elif _mode == Mode.MENU and event.keycode == KEY_ESCAPE and _current != _main:
+	elif _mode == Mode.MENU and event.is_action_pressed(Controls.BACK) and _current != _main:
 		_show(_main)
 
 func _show(screen: Control) -> void:

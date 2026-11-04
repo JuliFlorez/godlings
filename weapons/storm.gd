@@ -1,7 +1,7 @@
 extends Power
 class_name Storm
-## Diluvio: se desbloquea en la tienda y se desata desde el HUD o con la tecla D (otra vez D
-## lo calma antes de tiempo). Se nubla, llueve a cántaros, cada tanto truena y el mar sube:
+## Diluvio: se desbloquea en la tienda y se desata desde el HUD o con su tecla (otra vez la
+## misma lo calma antes de tiempo). Se nubla, llueve a cántaros, cada tanto truena y el mar sube:
 ## el agua va tapando la isla desde la orilla (Flood). A los que alcanza se los lleva flotando
 ## hacia afuera y, si nadie los rescata (o el agua no baja a tiempo), se ahogan como en el mar;
 ## los demás se apartan del agua (ver Villager._swept_by_flood). La lluvia apaga a los que se
@@ -78,18 +78,17 @@ func _init() -> void:
 	id = "storm"
 	icon = "rain"
 	title = "Diluvio"
-	key = KEY_D
 	accent = UiStyle.C_RAIN
 	aims = false   # No se apunta: mientras llueve se pueden seguir agarrando aldeanos
 	price = 420
 	sacrifices = 10
-	tooltip = "Desatar o calmar el diluvio [D]"
+	tooltip = "Desatar o calmar el diluvio"
 	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas y %d sacrificios)"
 	need = "Desbloqueá el diluvio en la tienda"
-	unlocked_text = "¡Diluvio desbloqueado! Desatalo con D"
+	unlocked_text = "¡Diluvio desbloqueado! Desatalo con %s"
 	done = "Desbloqueado"
 	shop = "Una tormenta que inunda la orilla: el agua se lleva a los que alcanza. La lluvia apaga el fuego."
-	hint = "¡Diluvio! Rescatá a los que se lleva el agua: arrastralos a lo seco · D para calmarlo."
+	hint = "¡Diluvio! Rescatá a los que se lleva el agua: arrastralos a lo seco · %s para calmarlo."
 
 ## Lo de la partida que guarda en estáticos (ver Game.reset).
 static func clear() -> void:

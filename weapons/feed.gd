@@ -1,6 +1,6 @@
 extends Power
 class_name Feed
-## Comida: se saca desde el HUD o con la tecla F (Esc o click derecho la guardan). Está desde el
+## Comida: se saca desde el HUD o con su tecla (Esc o click derecho la guardan). Está desde el
 ## principio, no hay que comprarla. Cada click en la isla gasta un poco de devoción y baja del
 ## cielo un pan (ver Manna) que se come el que tenga hambre; si hacés click sobre un aldeano,
 ## es para él.
@@ -17,15 +17,14 @@ static var _wav: AudioStreamWAV
 func _init() -> void:
 	id = "feed"
 	title = "Comida"
-	key = KEY_F
 	good = true
 	accent = UiStyle.C_FEED
 	always = true
 	unlocked = true
 	scares = false
 	cost = COST
-	tooltip = "Tirarles comida [F]"
-	hint = "Click en la isla para tirarles comida, o sobre un aldeano para dársela a él (−%d devoción) · click derecho, Esc o F para guardarla."
+	tooltip = "Tirarles comida"
+	hint = "Click en la isla para tirarles comida, o sobre un aldeano para dársela a él (−%d devoción) · click derecho, %s o %s para guardarla."
 
 func _ready() -> void:
 	z_index = 30   # Encima de los aldeanos

@@ -4,7 +4,9 @@
 El juego está escrito en español y cada texto es su propia clave de traducción (ver I18n). Este
 script lee todos los .gd y avisa:
 - los textos que no están en I18n.EN (les falta la traducción al inglés);
-- las claves de I18n.EN que ya no aparecen en el código (sobran: el texto cambió o se fue).
+- las claves de I18n.EN que ya no aparecen en el código (sobran: el texto cambió o se fue);
+- las traducciones que no tienen los mismos %d / %s / %.1f... que su texto, en el mismo orden (si
+  no, el texto en inglés falla al mostrarse).
 
 Cuenta como texto un literal entre comillas que tenga letras y además un espacio, una tilde, una
 ñ o ¡¿; o cualquier literal con letras que vaya a tr(), popup_text(), .text, .tooltip_text,
@@ -38,6 +40,8 @@ LETTERS = re.compile(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]")
 ## Lo que no es texto: los %d / %s / %.1f / %% y las etiquetas BBCode ([b], [color=#fff]...)
 NOT_TEXT = re.compile(r"%[-+ 0#]*\d*(\.\d+)?[sdifxXc%]|\[/?[a-z_]+(=[^\]]*)?\]")
 SPANISH = re.compile(r"[ÁÉÍÓÚÑáéíóúñ¡¿]")
+## Lo que se reemplaza al formatear (texto % valores): %d, %s, %.1f... (%% es un % y no cuenta)
+FORMAT = re.compile(r"%[-+ 0#]*\d*(\.\d+)?([sdifxXc%])")
 ## Lo que viene justo antes de un literal que seguro se muestra
 SINK = re.compile(r"(\btr|\bpopup_text|\bmake_label|\bmake_button)\(\s*$"
                   r"|\.(text|tooltip_text|placeholder_text)\s*\+?=\s*$"
@@ -70,8 +74,13 @@ def en_keys() -> dict:
     for n, line in enumerate(I18N.read_text(encoding="utf-8").splitlines(), 1):
         m = re.match(r"^\s*" + STR + r"\s*:\s*" + STR, line)
         if m:
-            keys[m.group(1)] = n
+            keys[m.group(1)] = (n, m.group(2))
     return keys
+
+
+def formats(text: str) -> list:
+    """Los %d / %s... de un texto, en orden (sin los %%)."""
+    return [m.group(2) for m in FORMAT.finditer(text) if m.group(2) != "%"]
 
 
 def main() -> int:
@@ -99,7 +108,8 @@ def main() -> int:
                 if shown or looks:
                     missing.setdefault(text, []).append(f"{rel}:{n}")
 
-    unused = sorted((n, k) for k, n in keys.items() if k not in seen)
+    unused = sorted((n, k) for k, (n, _en) in keys.items() if k not in seen)
+    mismatched = sorted((n, k, en) for k, (n, en) in keys.items() if formats(k) != formats(en))
 
     if missing:
         print(f"Textos sin traducción en ui/i18n.gd ({len(missing)}): agregalos a I18n.EN")
@@ -110,7 +120,11 @@ def main() -> int:
         print(f"Claves de I18n.EN que ya no están en el código ({len(unused)}): sacalas")
         for n, k in unused:
             print(f"  ui/i18n.gd:{n}: {k!r}")
-    if missing or unused:
+    if mismatched:
+        print(f"Traducciones con otros %d / %s que su texto ({len(mismatched)}): que coincidan, en orden")
+        for n, k, en in mismatched:
+            print(f"  ui/i18n.gd:{n}: {k!r} -> {en!r}")
+    if missing or unused or mismatched:
         return 1
     print(f"Traducciones al día: {len(keys)} claves.")
     return 0

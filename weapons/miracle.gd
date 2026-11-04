@@ -3,71 +3,68 @@ class_name Miracle
 ## Milagros: poderes buenos que se desbloquean en la tienda y que, cada vez que se usan, gastan
 ## devoción. Se sacan desde el HUD o con su tecla (Esc o click derecho los guardan), y cada click
 ## baja la luz sobre el aldeano (o el cadáver) que está ahí:
-## - Resurrección [L]: sobre un cadáver reciente (quedan unos segundos tirados, ver
+## - Resurrección: sobre un cadáver reciente (quedan unos segundos tirados, ver
 ##   Villager.CORPSE_TIME) baja un haz de luz del cielo, el cuerpo sube flotando, se endereza y
 ##   vuelve a la vida, sano (ver Villager.resurrect). Su familia y sus amigos te creen muchísimo
 ##   más, los devotos que lo ven se arrodillan y a los herejes les da miedo. A los que se murieron
 ##   de viejos no: ya les había llegado la hora. Tampoco a los que no dejaron cuerpo (hechos
 ##   cenizas, comidos o ahogados).
-## - Escudo [O]: una bendición, un aura dorada que lo protege un rato de los rayos, de las
+## - Escudo: una bendición, un aura dorada que lo protege un rato de los rayos, de las
 ##   mordidas de zombi (ni lo persiguen) y de los contagios de gripe y de espora (ver
 ##   Villager.give_shield y Aura).
-## - Vacuna [V]: cae del cielo una gota de luz que lo deja inmune a la espora y a la gripe por un
+## - Vacuna: cae del cielo una gota de luz que lo deja inmune a la espora y a la gripe por un
 ##   tiempo largo, pero cuesta mucha devoción. No cura: al que ya está enfermo hay que curarlo
 ##   antes (ver Villager.vaccinate).
 ## Mientras están afuera, la resurrección marca los cadáveres a los que todavía llega (con lo que
 ## les queda) y la vacuna, a los que ya están vacunados. World crea uno de cada tipo (kind).
 
 enum Kind { RESURRECT, SHIELD, VACCINE }
-## Por tipo: su id, su nombre, su tecla, su precio (ofrendas, en la tienda), lo que gasta cada vez
+## Por tipo: su id, su nombre, su precio (ofrendas, en la tienda), lo que gasta cada vez
 ## (devoción), su color y lo que dicen la barra y la tienda (ver Power y kind).
 const KINDS := {
 	Kind.RESURRECT: {
 		"id": "resurrect",
 		"title": "Resurrección",
-		"key": KEY_L,
 		"price": 350,
 		"cost": 35.0,
 		"color": Color(1.0, 0.94, 0.66),
-		"tip": "Sacar o guardar la resurrección [L]",
+		"tip": "Sacar o guardar la resurrección",
 		"locked_tip": "Desbloqueala en la tienda (%d ofrendas)",
 		"need": "Desbloqueá la resurrección en la tienda",
-		"unlocked": "¡Resurrección desbloqueada! Sacala con L",
+		"unlocked": "¡Resurrección desbloqueada! Sacala con %s",
 		"done": "Desbloqueada",
 		"shop": "Sobre un cadáver reciente: vuelve a la vida, sano. Su familia te cree muchísimo más y a los herejes les da miedo. Gasta bastante devoción.",
-		"hint": "Click sobre un cadáver reciente para devolverle la vida (−%d devoción) · click derecho, Esc o L para guardarla.",
+		"hint": "Click sobre un cadáver reciente para devolverle la vida (−%d devoción) · click derecho, %s o %s para guardarla.",
 		"aim": "Apuntá a un cadáver",
 	},
 	Kind.SHIELD: {
 		"id": "shield",
 		"title": "Escudo",
-		"key": KEY_O,
 		"price": 150,
 		"cost": 8.0,
 		"color": Color(1.0, 0.8, 0.32),
-		"tip": "Sacar o guardar el escudo [O]",
+		"tip": "Sacar o guardar el escudo",
 		"locked_tip": "Desbloquealo en la tienda (%d ofrendas)",
 		"need": "Desbloqueá el escudo en la tienda",
-		"unlocked": "¡Escudo desbloqueado! Sacalo con O",
+		"unlocked": "¡Escudo desbloqueado! Sacalo con %s",
 		"done": "Desbloqueado",
 		"shop": "Una bendición: un aura que protege a un aldeano un rato de los rayos, las mordidas de zombi y los contagios.",
-		"hint": "Click sobre un aldeano para bendecirlo con un escudo (−%d devoción) · click derecho, Esc u O para guardarlo.",
+		"hint": "Click sobre un aldeano para bendecirlo con un escudo (−%d devoción) · click derecho, %s u %s para guardarlo.",
 		"aim": "Apuntá a un aldeano",
 	},
 	Kind.VACCINE: {
 		"id": "vaccine",
 		"title": "Vacuna",
-		"key": KEY_V,
 		"price": 200,
 		"cost": 25.0,
 		"color": Color(0.42, 0.9, 0.86),
-		"tip": "Sacar o guardar la vacuna [V]",
+		"tip": "Sacar o guardar la vacuna",
 		"locked_tip": "Desbloqueala en la tienda (%d ofrendas)",
 		"need": "Desbloqueá la vacuna en la tienda",
-		"unlocked": "¡Vacuna desbloqueada! Sacala con V",
+		"unlocked": "¡Vacuna desbloqueada! Sacala con %s",
 		"done": "Desbloqueada",
 		"shop": "Deja a un aldeano inmune a la espora y a la gripe por un día entero, pero cuesta mucha devoción. No cura al que ya está enfermo.",
-		"hint": "Click sobre un aldeano sano para vacunarlo contra la gripe y la espora (−%d devoción) · click derecho, Esc o V para guardarla.",
+		"hint": "Click sobre un aldeano sano para vacunarlo contra la gripe y la espora (−%d devoción) · click derecho, %s o %s para guardarla.",
 		"aim": "Apuntá a un aldeano",
 	},
 }
@@ -102,7 +99,6 @@ var kind := Kind.RESURRECT:
 		var info: Dictionary = KINDS[k]
 		id = info.id
 		title = info.title
-		key = info.key
 		accent = info.color
 		price = info.price
 		cost = info.cost

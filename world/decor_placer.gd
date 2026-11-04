@@ -102,7 +102,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if kind == "":
 		_edit_input(event)
 		return
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+	if event.is_action_pressed(Controls.BACK):
 		stop()
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.pressed:
@@ -139,7 +139,7 @@ func _place() -> void:
 # ---- Editar decoraciones ya puestas y agarrar cocos ----
 func _edit_input(event: InputEvent) -> void:
 	if _moving:
-		var esc: bool = event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE
+		var esc := event.is_action_pressed(Controls.BACK)
 		var right: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT
 		if esc or right:
 			_cancel_move()

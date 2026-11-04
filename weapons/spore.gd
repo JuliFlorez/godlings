@@ -30,17 +30,16 @@ static var _wav: AudioStreamWAV
 func _init() -> void:
 	id = "spore"
 	title = "Espora"
-	key = KEY_Z
 	accent = UiStyle.C_SPORE
 	price = 300
 	sacrifices = 8
-	tooltip = "Sacar o guardar la espora [Z]"
+	tooltip = "Sacar o guardar la espora"
 	locked_tooltip = "Desbloqueala en la tienda (%d ofrendas y %d sacrificios)"
 	need = "Desbloqueá la espora en la tienda"
-	unlocked_text = "¡Espora desbloqueada! Sacala con Z"
+	unlocked_text = "¡Espora desbloqueada! Sacala con %s"
 	done = "Desbloqueada"
 	shop = "Un hongo zombi, como el cordyceps: de a poco se adueña de ellos, los hace zombis que muerden a los sanos y al final les brota de la cabeza."
-	hint = "Click sobre los aldeanos para meterles la espora (al que ya la tiene, se la apura) · click derecho, Esc o Z para guardarla."
+	hint = "Click sobre los aldeanos para meterles la espora (al que ya la tiene, se la apura) · click derecho, %s o %s para guardarla."
 
 func _ready() -> void:
 	z_index = 30   # Encima de los aldeanos

@@ -1,6 +1,6 @@
 extends Power
 class_name Cure
-## Curar: se desbloquea en la tienda y se saca desde el HUD o con la tecla C (Esc o click
+## Curar: se desbloquea en la tienda y se saca desde el HUD o con su tecla (Esc o click
 ## derecho lo guardan). Cada click baja un haz de luz dorada: los aldeanos que alcanza se
 ## curan de la gripe (aunque la estuvieran incubando, y quedan inmunes un rato), de la espora
 ## (si todavía no son zombis: ahí ya no tiene cura) y, si se estaban quemando, se apagan y se les
@@ -25,17 +25,16 @@ static var _wav: AudioStreamWAV
 func _init() -> void:
 	id = "cure"
 	title = "Curar"
-	key = KEY_C
 	good = true
 	accent = UiStyle.C_CURE
 	price = 130
-	tooltip = "Sacar o guardar curar [C]"
+	tooltip = "Sacar o guardar curar"
 	locked_tooltip = "Desbloquealo en la tienda (%d ofrendas)"
 	need = "Desbloqueá curar en la tienda"
-	unlocked_text = "¡Curar desbloqueado! Sacalo con C"
+	unlocked_text = "¡Curar desbloqueado! Sacalo con %s"
 	done = "Desbloqueado"
 	shop = "Un haz de luz que cura la gripe (y deja inmune un rato) y la espora (si todavía no son zombis), y apaga y sana a los que se queman."
-	hint = "Click sobre un aldeano para curarlo de la gripe, de la espora (si todavía no es un zombi) o de las quemaduras · click derecho, Esc o C para guardarlo."
+	hint = "Click sobre un aldeano para curarlo de la gripe, de la espora (si todavía no es un zombi) o de las quemaduras · click derecho, %s o %s para guardarlo."
 
 func _ready() -> void:
 	z_index = 30   # Encima de los aldeanos
