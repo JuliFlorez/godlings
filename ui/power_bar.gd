@@ -34,7 +34,7 @@ func _ready() -> void:
 	_slot_mode = UiStyle.box(Color(UiStyle.C_DEVOTION, 0.30), 12, UiStyle.C_DEVOTION.lightened(0.2), 2)
 
 	# De pantalla completa, sin atajar el mouse: la barra va abajo al centro
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)   # (Ya está en el árbol: con los offsets)
 	alignment = BoxContainer.ALIGNMENT_END
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_theme_constant_override("separation", 0)

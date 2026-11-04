@@ -38,7 +38,7 @@ var _sacrifice_chip: Control
 var _spawn_cost_label: Label   # El costo abajo del +
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)   # (Ya está en el árbol: con los offsets)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	# A la izquierda, el panel
