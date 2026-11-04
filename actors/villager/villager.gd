@@ -67,6 +67,7 @@ var drown_elapsed := 0.0
 
 # Comido por el tiburón
 var eaten := false
+var inside := false               # Está adentro de su choza (no se lo ve ni lo alcanza nada; ver VillagerHome)
 ## Acostado en un altar de sacrificios esperando el final del ritual (lo mueve el altar, ver Altar)
 var altar: Altar
 
@@ -208,30 +209,20 @@ var eat_t: float:
 	get:
 		return _hunger.eat_t
 
-# --- Casa y familia: cada uno se busca una choza donde vivir (ver Decoration "hut"): con su
-# pareja si tiene (en la de alguno de los dos, o en una con lugar para los dos) y si no, en
-# cualquiera con lugar. De noche se van a dormir adentro hasta que se hace de día, y de día
-# entran cada tanto a descansar un rato (las parejas, juntas). Adentro no se lo ve ni lo alcanza
-# nada (ni rayos ni meteoritos ni la peste); si le agarra hambre de verdad sale a comer. Las
-# parejas que están adentro juntas a veces tienen un bebé (ver Decoration._try_birth y la edad,
-# más abajo).
-const BABY_COOLDOWN := 180.0      # Después de tener un bebé, lo que tarda una pareja en tener otro
-const SLEEP_AT := 0.6             # Con la noche así de cerrada (ver Sky.night) se van a dormir...
-const WAKE_AT := 0.4              # ...y salen cuando aclara
-const REST_EVERY := Vector2(70.0, 140.0)   # De día, cada cuánto entran a descansar...
-const REST_INSIDE := Vector2(12.0, 25.0)   # ...y lo que se quedan
-const HOME_CHECK := 2.0           # Cada cuánto se fija dónde vivir
-const HOME_REACH := 6.0
-const HOME_GIVE_UP := 15.0        # Si no llega a la puerta en este tiempo, lo deja
-var home: Decoration              # Su choza (null: sin casa)
-var inside := false               # Está adentro de su choza
-var parents: Array[int] = []      # Números de carnet de sus padres (si nació en la isla)
-var baby_cool := 0.0
-var _going_home := false
-var _home_t := 0.0
-var _inside_t := 0.0
-var _rest_t := 0.0
-var _home_check := 0.0
+# --- Casa (ver VillagerHome): vive en una choza, de noche va a dormir adentro y de día entra a descansar ---
+var _home: VillagerHome
+## Su choza (null: sin casa; ver VillagerHome).
+var home: Decoration:
+	get:
+		return _home.home
+	set(value):
+		_home.home = value
+## Va caminando a su choza.
+var going_home: bool:
+	get:
+		return _home.going_home
+	set(value):
+		_home.going_home = value
 
 # --- Edad: nace chiquito y crece hasta ser grande (ADULT_AGE); de chico no se pone de novio ni
 # tiene hijos. Los que invocás ya son grandes (SPAWN_AGE). Con los días le salen canas, cada uno a
@@ -256,6 +247,8 @@ const ELDER_TIRED := 1.3                          # ...y se cansa más rápido
 var age := ADULT_AGE                  # Días vividos
 var lifespan := LIFESPAN.x            # A los cuántos días se muere de viejo
 var grey_age := GREY_AGE.x            # A los cuántos días le empiezan a salir canas
+const BABY_COOLDOWN := 180.0      # Después de tener un bebé, lo que tarda una pareja en tener otro
+var baby_cool := 0.0
 
 # --- Sueño (ver VillagerSleep): se cansa despierto, de noche se va a dormir y de día duerme la siesta ---
 var _sleep: VillagerSleep
@@ -331,6 +324,7 @@ static var ids_issued := 0       # Números de carnet repartidos (se guarda con 
 var id_number := 0
 var first_name := ""
 var last_name := ""
+var parents: Array[int] = []      # Números de carnet de sus padres (si nació en la isla)
 const FEMALE_CHANCE := 0.5      # Al aparecer (las partidas guardadas traen el suyo)
 var gender := Gender.MALE:
 	set(g):
@@ -370,6 +364,7 @@ var _resting := false
 var _rig_rest := Vector2.ZERO   # Dónde va el rig (comiendo, mastica para arriba y para abajo)
 
 func _init() -> void:
+	_home = VillagerHome.new(self)
 	_faith = VillagerFaith.new(self)
 	_chat = VillagerChat.new(self)
 	_hunger = VillagerHunger.new(self)
@@ -384,8 +379,6 @@ func _ready() -> void:
 	speed *= randf_range(PACE.x, PACE.y)
 	_pick_dir()
 	wander_timer = randf_range(1.5, 4.0)
-	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y)
-	_home_check = randf_range(0.0, HOME_CHECK)
 	age = randf_range(SPAWN_AGE.x, SPAWN_AGE.y)   # Los bebés y las partidas guardadas traen la suya
 	lifespan = randf_range(LIFESPAN.x, LIFESPAN.y)
 	grey_age = randf_range(GREY_AGE.x, GREY_AGE.y)
@@ -486,7 +479,7 @@ func _physics_process(dt: float) -> void:
 		velocity = Vector2.ZERO
 		return
 	if inside:
-		_inside_ai(dt)
+		_home.inside_ai(dt)
 		return
 	if tornado:
 		# Girando en el tornado: lo mueve él (ver Tornado)
@@ -618,12 +611,12 @@ func _physics_process(dt: float) -> void:
 			return
 		if chat_with != null and _chat.chat_ai(dt):
 			return
-		if _going_home and _walk_home(dt):
+		if going_home and _home.walk_home(dt):
 			return
 		if _sleep.seek_sleep():
 			return
 		_hunger.seek_food(dt)
-		_seek_home(dt)
+		_home.seek_home(dt)
 		_chat.seek_chat(dt)
 	# Asustado (ve venir un meteorito) se queda quieto mirándolo, y rezando o agachado de miedo
 	# también; prendido fuego (o escapándose del agua o de tu mano) corre sin parar
@@ -715,6 +708,11 @@ func is_alive() -> bool:
 ## choza ni muerto).
 func is_idle() -> bool:
 	return not (dragging or falling or in_water or eaten or dead or tornado or inside or asleep or altar)
+
+## Qué tan de noche es (0 mediodía, 1 noche cerrada; ver Sky.night).
+func _night() -> float:
+	var sky := get_tree().get_first_node_in_group("sky")
+	return sky.night if sky else 0.0
 
 # --- COMIDA (lo que el resto del juego le pregunta al aldeano; ver VillagerHunger) ---
 func starving() -> bool:
@@ -820,6 +818,12 @@ func oldness() -> float:
 func greyness() -> float:
 	return clampf((age - grey_age) / GREY_DAYS, 0.0, 1.0)
 
+## Grande (y no viejo), sano (sin gripe ni espora), no muerto de hambre, más o menos contento y
+## sin un bebé reciente.
+func can_have_baby() -> bool:
+	return not is_child() and not is_elder() and not dead and not is_sick() and not starving() \
+			and baby_cool <= 0.0 and mood >= VillagerMood.MOOD_BABY_AT and spore <= 0.0
+
 ## La edad (al pasar los días, al nacer y al cargar la partida), con el tamaño que le toca (con su
 ## altura) y sus canas.
 func set_age(a: float) -> void:
@@ -828,6 +832,23 @@ func set_age(a: float) -> void:
 	scale = Vector2.ONE * grow * lerpf(1.0, ELDER_SHRINK, oldness()) * height
 	if _waterline:
 		_waterline.set_shader_parameter("grey", greyness())
+
+## Le pasan los días (de chico crece; de grande le salen canas y de viejo se achica) y, si le
+## llegó la hora, se muere de viejo. Se le va pasando lo del último bebé.
+func _update_age(dt: float) -> void:
+	if not is_alive():
+		return
+	baby_cool = maxf(0.0, baby_cool - dt)
+	var was_child := is_child()
+	var sky := get_tree().get_first_node_in_group("sky")
+	if sky and sky.passed > 0.0:
+		set_age(age + sky.passed)
+	if was_child and not is_child():
+		if visible:
+			Game.say("¡Ya es grande!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SHOP)
+	# Termina parado en la isla (o durmiendo): no se muere colgando del mouse, flotando ni adentro
+	if age >= lifespan and (is_idle() or asleep) and not on_fire:
+		_die_of_old_age()
 
 ## Le llegó la hora: se muere tranquilo donde está (si estaba durmiendo, ni se despierta).
 func _die_of_old_age() -> void:
@@ -884,202 +905,24 @@ func inherit_looks(a: Villager, b: Villager) -> void:
 			clampf((a.height + b.height) * 0.5 + randf_range(-0.02, 0.02), HEIGHT.x, HEIGHT.y))
 	grey_age = clampf((a if randf() < 0.5 else b).grey_age + randf_range(-0.5, 0.5), GREY_AGE.x, GREY_AGE.y)
 
-# --- CASA Y FAMILIA ---
-## Grande (y no viejo), sano (sin gripe ni espora), no muerto de hambre, más o menos contento y
-## sin un bebé reciente.
-func can_have_baby() -> bool:
-	return not is_child() and not is_elder() and not dead and not is_sick() and not starving() \
-			and baby_cool <= 0.0 and mood >= VillagerMood.MOOD_BABY_AT and spore <= 0.0
+# --- CASA (lo que el resto del juego le pregunta al aldeano; ver VillagerHome) ---
+func has_home() -> bool:
+	return _home.has_home()
 
-## Le pasan los días (de chico crece; de grande le salen canas y de viejo se achica) y, si le
-## llegó la hora, se muere de viejo. Se le va pasando lo del último bebé y cada tanto se fija
-## dónde vivir.
-func _update_family(dt: float) -> void:
-	if not is_alive():
-		return
-	baby_cool = maxf(0.0, baby_cool - dt)
-	var was_child := is_child()
-	var sky := get_tree().get_first_node_in_group("sky")
-	if sky and sky.passed > 0.0:
-		set_age(age + sky.passed)
-	if was_child and not is_child():
-		if visible:
-			Game.say("¡Ya es grande!", get_global_transform_with_canvas().origin + Vector2(0, -80), HUD.C_SHOP)
-	# Termina parado en la isla (o durmiendo): no se muere colgando del mouse, flotando ni adentro
-	if age >= lifespan and (is_idle() or asleep) and not on_fire:
-		_die_of_old_age()
-		return
-	_home_check -= dt
-	if _home_check <= 0.0:
-		_home_check = HOME_CHECK
-		_update_home()
+func can_go_home() -> bool:
+	return _home.can_go_home()
 
-## Su choza sigue estando (no la quitaron).
-func _home_ok() -> bool:
-	return is_instance_valid(home) and home.is_in_group("hut") and not home.is_queued_for_deletion()
+func go_home() -> void:
+	_home.go_home()
 
-## Su pareja (viva), o null.
-func _partner() -> Villager:
-	var id := Relations.partner_id(self)
-	if id == 0:
-		return null
-	for node in get_tree().get_nodes_in_group("villager"):
-		var v := node as Villager
-		if v and v.id_number == id and v.is_alive():
-			return v
-	return null
-
-## Dónde vivir: con su pareja (en la choza de alguno de los dos, si hay lugar, o en una con
-## lugar para los dos) y si no, en cualquier choza con lugar. Adentro no se muda.
-func _update_home() -> void:
-	if home and not _home_ok():
-		home = null
-	if inside:
-		return
-	var p := _partner()
-	if p and p.home != home:
-		if p._home_ok() and p.home.free_beds() >= 1:
-			home = p.home
-		elif home and home.free_beds() >= 1 and not p.inside:
-			p.home = home
-		elif not p.inside:
-			var h := _free_hut(2)
-			if h:
-				home = h
-				p.home = h
-		return
-	if home == null:
-		home = _free_hut(1)
-
-## La choza más cerca con al menos beds lugares libres, o null.
-func _free_hut(beds: int) -> Decoration:
-	var best: Decoration = null
-	var best_d := INF
-	for node in get_tree().get_nodes_in_group("hut"):
-		var h := node as Decoration
-		var d := h.door().distance_to(global_position)
-		if h and not h.moving and h.free_beds() >= beds and d < best_d:
-			best = h
-			best_d = d
-	return best
-
-## De noche, o de día cada tanto, se va a su choza (si está tranquilo y sin hambre de verdad).
-## Las parejas que viven juntas se van juntas.
-func _seek_home(dt: float) -> void:
-	_rest_t -= dt
-	if not _can_go_home():
-		return
-	if _night() >= SLEEP_AT or _rest_t <= 0.0:
-		_go_home()
-		var p := _partner()
-		if p and p.home == home and p._can_go_home():
-			p._go_home()
-
-func _can_go_home() -> bool:
-	return _home_ok() and not _going_home and is_idle() and not on_fire and food == null \
-			and chat_with == null and _flee <= 0.0 and _scram <= 0.0 and pose == VillagerFaith.Pose.NONE \
-			and hunger < VillagerHunger.HUNGRY_AT and not home.moving and not is_zombie()
-
-func _go_home() -> void:
-	_going_home = true
-	_home_t = 0.0
-	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y) * (VillagerMood.MOOD_SAD_HOME if is_sad() else 1.0)
-	_resting = false
-
-## Dónde se para para entrar: con los pies en la puerta.
-func _door_spot() -> Vector2:
-	return home.door() - Vector2(0, (FEET - 2.0) * scale.y)
-
-## Camina hasta la puerta de su choza y entra. false si ya no va.
-func _walk_home(dt: float) -> bool:
-	if not _home_ok() or not is_idle() or home.moving:
-		_going_home = false
-		return false
-	_home_t += dt
-	if _home_t > HOME_GIVE_UP:
-		_going_home = false
-		return false
-	var to := _door_spot() - global_position
-	if to.length() <= HOME_REACH:
-		_going_home = false
-		enter_home()
-		return true
-	dir = to.normalized()
-	_update_sprite_flip()
-	velocity = (dir * speed + shove_vel).limit_length(maxf(to.length() / dt, shove_vel.length()))
-	var prev_pos := global_position
-	move_and_slide()
-	if island_poly.size() > 0 and not Geometry2D.is_point_in_polygon(global_position, island_poly):
-		if shove_timer > 0.0:
-			_going_home = false
-			_fall_from_shove()
-			return true
-		global_position = prev_pos
-		if to.length() < 30.0:   # La puerta queda en la orilla: entra desde ahí
-			_going_home = false
-			enter_home()
-	return true
-
-## Entra a su choza: no se lo ve ni lo alcanza nada hasta que sale.
 func enter_home() -> void:
-	inside = true
-	_going_home = false
-	visible = false
-	$CollisionShape2D.set_deferred("disabled", true)
-	velocity = Vector2.ZERO
-	_inside_t = randf_range(REST_INSIDE.x, REST_INSIDE.y)
-	if chat_with:
-		end_chat()
-	if food:
-		food.release_eater()
+	_home.enter_home()
 
-## Le rompieron la choza (ver Decoration.smash): si estaba adentro sale de golpe, y se queda
-## sin casa (después se busca otra).
 func lose_home() -> void:
-	if inside:
-		_leave_home()
-	home = null
-	add_mood(VillagerMood.MOOD_LOST_HOME, "Le rompieron la casa")
+	_home.lose_home()
 
-## Sale por la puerta (o donde estaba, si le quitaron la choza).
-func _leave_home() -> void:
-	inside = false
-	_sleep.left_home()
-	visible = true
-	$CollisionShape2D.set_deferred("disabled", false)
-	if _home_ok():
-		global_position = _door_spot() + Vector2(0, 4)
-	_rest_t = randf_range(REST_EVERY.x, REST_EVERY.y) * (VillagerMood.MOOD_SAD_HOME if is_sad() else 1.0)
-	dir = Vector2(randf_range(-0.8, 0.8), 1.0).normalized()
-	_update_sprite_flip()
-	_walk = 0.0
-	_heading = Vector2.ZERO
-	wander_timer = randf_range(1.5, 3.0)
-
-## Adentro: se queda hasta que se hace de día (o, de día, hasta que descansó), o hasta que le
-## agarra hambre de verdad. Si le quitaron la choza, sale.
-func _inside_ai(dt: float) -> void:
-	velocity = Vector2.ZERO
-	if is_zombie():
-		_leave_home()   # Se hizo zombi adentro: sale (ver _spore_turned)
-		return
-	if not _home_ok():
-		_leave_home()
-		home = null
-		return
-	global_position = _door_spot()   # Si mueven la choza, va con ella
-	_inside_t -= dt
-	# De día sale cuando descansó (de la noche, o de la siesta: ahí no importa _inside_t)
-	var rested := _sleep.rested()
-	if hunger >= VillagerHunger.HUNGRY_AT or (_night() < WAKE_AT and rested and (_inside_t <= 0.0 or _sleep.napping)):
-		if _sleep.slept_inside and hunger < VillagerHunger.HUNGRY_AT:
-			add_mood(VillagerSleep.MOOD_SLEPT_WELL, "Durmió bien")
-		_leave_home()
-
-## Qué tan de noche es (0 mediodía, 1 noche cerrada; ver Sky.night).
-func _night() -> float:
-	var sky := get_tree().get_first_node_in_group("sky")
-	return sky.night if sky else 0.0
+func leave_home() -> void:
+	_home.leave_home()
 
 # --- FE Y MIEDO (lo que el resto del juego le pregunta al aldeano; ver VillagerFaith) ---
 func creed() -> VillagerFaith.Creed:
@@ -1203,7 +1046,7 @@ func _fall_from_shove() -> void:
 func lay_on_altar(a: Altar) -> void:
 	altar = a
 	wake_up(false)
-	_going_home = false
+	going_home = false
 	if food:
 		food.release_eater()
 	if chat_with:
@@ -1793,7 +1636,7 @@ func _come_back() -> void:
 		food.release_eater()
 	if chat_with:
 		end_chat()
-	_going_home = false
+	going_home = false
 	_walk = 0.0
 	_heading = Vector2.ZERO
 	_resting = true
@@ -1948,7 +1791,8 @@ func _process(dt: float) -> void:
 	_flu.update(dt)
 	_spore.update(dt)
 	_hunger.update(dt)
-	_update_family(dt)
+	_update_age(dt)
+	_home.update(dt)
 	_scram = maxf(0.0, _scram - dt)
 	_faith.update(dt)
 	_mood.update(dt)

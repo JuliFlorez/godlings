@@ -731,7 +731,7 @@ func save_game() -> void:
 			"lifespan_days": v.lifespan,
 			"grey_days": v.grey_age,
 			"parents": v.parents,
-			"home": deco_index.get(v.home, -1) if v._home_ok() else -1,
+			"home": deco_index.get(v.home, -1) if v.has_home() else -1,
 		})
 		ids.append(v.id_number)
 

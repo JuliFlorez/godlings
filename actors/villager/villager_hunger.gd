@@ -47,7 +47,7 @@ func starving() -> bool:
 ## Con hambre (aunque sea un poco), libre y tranquilo en la isla.
 func wants_food() -> bool:
 	return food == null and v.chat_with == null and v.is_idle() and not v.on_fire and _food_cooldown <= 0.0 \
-			and hunger >= SNACK_AT and not v._going_home and not v.is_zombie()
+			and hunger >= SNACK_AT and not v.going_home and not v.is_zombie()
 
 ## Comió: se le va el hambre.
 func feed(amount: float) -> void:

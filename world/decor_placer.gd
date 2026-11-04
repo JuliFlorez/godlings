@@ -294,7 +294,7 @@ func _remove(d: Decoration) -> void:
 	# Fuera de Props: ya no cuenta para el espacio libre ni se puede volver a agarrar (ni
 	# comerle las bayas)
 	d.remove_from_group("berry_bush")
-	d.remove_from_group("hut")   # Los que vivían ahí se quedan sin casa (ver Villager._home_ok)
+	d.remove_from_group("hut")   # Los que vivían ahí se quedan sin casa (ver VillagerHome.has_home)
 	d.remove_from_group("altar")   # Si estaban sacrificando a alguien, se salva (ver Altar)
 	d.reparent(get_parent())
 	var tw := d.create_tween()

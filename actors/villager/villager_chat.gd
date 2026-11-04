@@ -41,7 +41,7 @@ func _init(villager: Villager) -> void:
 ## rezarte o agacharse de miedo.
 func can_chat() -> bool:
 	return v.is_idle() and not v.on_fire and not v.is_scared() and v._flee <= 0.0 and v.food == null \
-			and v._scram <= 0.0 and v.pose == VillagerFaith.Pose.NONE and not v._going_home and not v.is_zombie()
+			and v._scram <= 0.0 and v.pose == VillagerFaith.Pose.NONE and not v.going_home and not v.is_zombie()
 
 func wants_chat() -> bool:
 	return chat_with == null and _chat_cool <= 0.0 and can_chat()

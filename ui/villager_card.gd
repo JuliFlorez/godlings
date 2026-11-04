@@ -347,14 +347,14 @@ func _update_relations() -> void:
 		if o.id_number in villager.parents or villager.id_number in o.parents:
 			family.append(o)
 	var housemates: Array[Villager] = []
-	if villager._home_ok():
+	if villager.has_home():
 		housemates.assign(villager.home.residents().filter(func(o: Villager): return o != villager))
 	var key := TranslationServer.get_locale()   # Los que no tienen nombre dicen "N.º" en el idioma
 	for k in lists:
 		lists[k].sort_custom(func(a: Villager, b: Villager): return a.id_number < b.id_number)
 		for o: Villager in lists[k]:
 			key += "%d:%d:%s;" % [k, o.id_number, o.full_name()]
-	key += "|%s|%s|%s|" % [villager._home_ok(), villager.inside, villager.home.hut_name if villager._home_ok() else ""]
+	key += "|%s|%s|%s|" % [villager.has_home(), villager.inside, villager.home.hut_name if villager.has_home() else ""]
 	for o: Villager in family + housemates:
 		key += "%d:%s;" % [o.id_number, o.full_name()]
 	if key == _relations_key:
@@ -370,7 +370,7 @@ func _update_relations() -> void:
 			hud.open_family_tree(who)))
 	for c in _home.get_children():
 		c.queue_free()
-	if not villager._home_ok():
+	if not villager.has_home():
 		_home.add_child(HUD.make_label("Sin casa", 14, Color(HUD.C_MUTED, 0.6)))
 	else:
 		var hut := villager.home

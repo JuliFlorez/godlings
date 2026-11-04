@@ -176,7 +176,7 @@ func _mood_factors() -> Array:
 		if o and v.id_number in o.parents and o.is_alive():
 			out.append(["Tiene hijos", MOOD_KIDS])
 			break
-	if v._home_ok():
+	if v.has_home():
 		out.append(["Tiene casa", MOOD_HOME])
 	elif v.get_tree().has_group("hut"):
 		out.append(["No tiene casa", MOOD_HOMELESS])

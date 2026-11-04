@@ -43,7 +43,7 @@ func _init(villager: Villager) -> void:
 
 ## Durmiendo: acostado en el piso, o en su choza de noche (o durmiendo la siesta).
 func is_sleeping() -> bool:
-	return asleep or (v.inside and (v._night() >= Villager.SLEEP_AT or napping))
+	return asleep or (v.inside and (v._night() >= VillagerHome.SLEEP_AT or napping))
 
 ## Ya descansó: de la noche (hasta SLEEPY_AT) o de la siesta, que dura más (hasta NAP_UNTIL).
 func rested() -> bool:
@@ -74,7 +74,7 @@ func wake_up(stand := true) -> void:
 	if v.bubble == Villager.Bubble.SLEEP:
 		v.bubble_t = 0.0
 
-## Salió de su choza (ver Villager._leave_home): se terminó la siesta o la noche adentro.
+## Salió de su choza (ver VillagerHome.leave_home): se terminó la siesta o la noche adentro.
 func left_home() -> void:
 	napping = false
 	slept_inside = false
@@ -104,8 +104,8 @@ func update(dt: float) -> void:
 func seek_sleep() -> bool:
 	if not _can_sleep():
 		return false
-	if v._night() >= Villager.SLEEP_AT:
-		if v._home_ok() and v._can_go_home():
+	if v._night() >= VillagerHome.SLEEP_AT:
+		if v.has_home() and v.can_go_home():
 			return false   # Se va a su choza (ver _seek_home)
 		napping = tiredness >= EXHAUSTED_AT   # Muerto de sueño: aunque tenga hambre, duerme hasta descansar
 		fall_asleep()
@@ -113,8 +113,8 @@ func seek_sleep() -> bool:
 	if tiredness < EXHAUSTED_AT:
 		return false
 	napping = true
-	if v._can_go_home():
-		v._go_home()
+	if v.can_go_home():
+		v.go_home()
 		return false
 	fall_asleep()
 	return true
@@ -131,7 +131,7 @@ func sleep_ai(dt: float) -> void:
 	sleep_drop = drop
 	if v.bubble_t <= 0.0:
 		v.say(Villager.Bubble.SLEEP, 2.0, false)
-	var day := v._night() < Villager.WAKE_AT
+	var day := v._night() < VillagerHome.WAKE_AT
 	var hungry := v.starving() or (v.hunger >= VillagerHunger.HUNGRY_AT and not napping)
 	if hungry or v.on_fire or Storm.water_near(v.ground_point(), Villager.FLOOD_FLEE) \
 			or (day and rested()):
@@ -145,4 +145,4 @@ func _can_sleep() -> bool:
 	return v.is_idle() and v.chat_with == null and v.food == null and not v.on_fire and v._flee <= 0.0 \
 			and v._scram <= 0.0 and not v.is_scared() and v.pose == VillagerFaith.Pose.NONE and not v.starving() \
 			and (v.hunger < VillagerHunger.HUNGRY_AT or tiredness >= EXHAUSTED_AT) and not v.is_zombie() \
-			and not v._going_home and not Storm.water_near(v.ground_point(), Villager.FLOOD_FLEE)
+			and not v.going_home and not Storm.water_near(v.ground_point(), Villager.FLOOD_FLEE)

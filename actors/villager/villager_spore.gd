@@ -198,12 +198,12 @@ func _spore_turned(stage: Infection) -> void:
 			# Deja todo lo que estaba haciendo (y si estaba adentro de su choza, sale)
 			v.wake_up()
 			if v.inside:
-				v._leave_home()
+				v.leave_home()
 			if v.chat_with:
 				v.end_chat()
 			if v.food:
 				v.food.release_eater()
-			v._going_home = false
+			v.going_home = false
 			v._resting = false
 			_prey = null
 			_groan_t = randf_range(0.2, 0.8)
@@ -334,7 +334,7 @@ func get_bitten(z: Villager) -> void:
 		v.end_chat()
 	if v.food:
 		v.food.release_eater()
-	v._going_home = false
+	v.going_home = false
 	var push := Vector2(1.0 if v.global_position.x >= z.global_position.x else -1.0, 0.0)
 	v._spawn_blood(v.body_center() + Vector2(-push.x * 6.0, -14.0), push + Vector2.UP * 0.5, 12)
 	if v.rig:
