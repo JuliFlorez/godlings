@@ -61,10 +61,10 @@ func _run() -> void:
 	await _seconds(4.0)
 	await _shot("hud")
 
-	_hud._set_tab(true)
+	_show_tab(true)
 	await _seconds(0.3)
 	await _shot("toolbar_good")
-	_hud._set_tab(false)
+	_show_tab(false)
 	var lightning := _power("lightning")
 	if lightning:
 		lightning.set_armed(true)
@@ -146,6 +146,13 @@ func _setup() -> void:
 		Relations.make(vs[3], vs[4], Relations.Kind.ENEMY)
 		vs[4].parents.assign([vs[0].id_number, vs[1].id_number])
 		Relations.note_birth(vs[0], vs[1])
+
+## La pestaña de los poderes buenos o la de los malos. (Se llama por nombre porque la comparación
+## corre este script también en el commit de antes, que puede tener otro HUD: la barra de abajo
+## era parte del HUD hasta que pasó a PowerBar.)
+func _show_tab(good: bool) -> void:
+	var bar: Object = _hud.get("_bar")
+	(bar if bar else _hud).call("_set_tab", good)
 
 func _shot(shot_name: String) -> void:
 	await RenderingServer.frame_post_draw

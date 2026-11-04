@@ -44,7 +44,8 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 | `actors/shark.gd` | El tiburón (en `World` se duplica hasta `Shark.MAX`). |
 | `weapons/` | Un nodo por poder, todos hijos de `Power` (`power.gd`: lo común, y `Power.all()` / `aiming()`): `Gun`, `Lightning`, `Meteor`, `Tornado`, `Storm` (diluvio, no se apunta), `Plague`, `Spore`, `Cure`, `Feed`. `Charm` (Cupido, Discordia, Amistad) y `Miracle` (Resurrección, Escudo, Vacuna) van por `Kind`. `World._create_powers` los crea en el orden de la barra. |
 | `world/game.gd` (`Game`) | La partida, en estáticos: ofrendas, sacrificios, devoción, XP y puntos de expansión, la Luna de Sangre y los tiburones comprados, las compras (`buy`, `unlock_power`...) y su guardado (`save_state` / `load_state`). `Game.reset()` borra todo lo de la partida; `Game.events` avisa lo que cambia; `Game.say` / `announce` muestran un cartel flotante. |
-| `ui/hud.gd` (`HUD`, grupo `"hud"`) | Arma toda la interfaz por código (la barra de poderes, con `set_powers`) y **muestra** la partida: escucha `Game.events`. No guarda nada. |
+| `ui/hud.gd` (`HUD`, grupo `"hud"`) | La interfaz: arma `TopBar` y `PowerBar`, abre los paneles (tienda, historial, carnet, cartel de la choza, árbol, pausa), lleva el modo del click, la pista y los carteles flotantes, y **muestra** la partida: escucha `Game.events`. No guarda nada. |
+| `ui/top_bar.gd` (`TopBar`), `ui/power_bar.gd` (`PowerBar`) | La barra de arriba (el día, la XP, la isla, la tienda y el historial, el + de invocar con la devoción, las monedas) y la de abajo (el modo del click y los poderes, con `set_powers`). |
 | `ui/ui_style.gd` (`UiStyle`) | El estilo de la interfaz: la paleta (`UiStyle.C_TEXT`, `C_PANEL`, el color de cada poder...) y las piezas (`label`, `button`, `box`, `window`, `outline`). |
 | `ui/hud_icon.gd` (`HudIcon`), `ui/painter.gd` (`Painter`) | Los íconos vectoriales por nombre (y la moneda de los sacrificios), y el lienzo del `overlay` donde dibujan el rayo, el meteorito y el tornado. |
 | `ui/` (el resto) | `shop`, `villager_card` (el carnet), `hut_card`, `family_tree`, `history_panel`, `title_menu`, `pause_menu`, `settings` y `settings_panel`, `i18n`, `debug_console` (F1, solo en debug). |
@@ -101,10 +102,9 @@ sacrificios), su `locked_tooltip` es "Desbloquealo en la tienda (%d ofrendas y %
 
 ## Archivos grandes
 
-`villager.gd` (~1.950 líneas), `hud.gd` (~1.250), `shark.gd` (~1.200) y `villager_rig.gd`
-(~1.150). Un sistema nuevo del aldeano (o uno que se saca, fase 4 del plan) va en su propio
-componente, como `VillagerFlu` o `VillagerMood` (están en el Mapa): un `RefCounted` con `v` (el
-aldeano), que el aldeano crea en `_init()` y llama desde su loop. Lo que se usa desde afuera, el
-aldeano lo reenvía (`is_zombie()`, la propiedad `spore`...), así no cambian los que llaman. Adentro
-del componente, lo del aldeano va con `v.` (`v.dir`, `v.add_mood()`, `v.global_position`) y sus
-constantes con `Villager.`; `self` es el componente, el aldeano es `v`.
+`villager.gd` (~2.000 líneas), `shark.gd` (~1.200) y `villager_rig.gd` (~1.150). Un sistema nuevo
+del aldeano va en su propio componente, como `VillagerFlu` o `VillagerMood` (están en el Mapa): un
+`RefCounted` con `v` (el aldeano), que el aldeano crea en `_init()` y llama desde su loop. Lo que se
+usa desde afuera, el aldeano lo reenvía (`is_zombie()`, la propiedad `spore`...), así no cambian los
+que llaman. Adentro del componente, lo del aldeano va con `v.` (`v.dir`, `v.add_mood()`,
+`v.global_position`) y sus constantes con `Villager.`; `self` es el componente, el aldeano es `v`.

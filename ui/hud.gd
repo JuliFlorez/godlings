@@ -1,16 +1,13 @@
 extends CanvasLayer
 class_name HUD
-## Panel superior izquierdo: qué día es (y cuánto le queda al día o a la noche, ver Sky), XP
-## (progreso al próximo punto de expansión), el tamaño de la isla
-## con el botón de Expandir, Tienda e Historial (quién se hizo amigo, enemigo o pareja de quién,
-## ver HistoryPanel).
-## Arriba al medio, un + grande para invocar aldeanos, con la devoción en un anillo alrededor, lo
-## que cuesta abajo y cuántos aldeanos hay al lado; arriba a la derecha (al lado del sol), las
-## monedas: las ofrendas y los sacrificios (con la cabeza de un aldeano muerto, como el logo).
-## Menú inferior: modo del click (arrastrar aldeanos, seleccionarlos o editar la isla) y armas
-## y poderes (los que todavía no existen dicen "Próximamente").
-## Toda la interfaz se construye por código. Debajo de todo va overlay: lo que se dibuja
-## encima del mundo sin el tinte de la noche (el destello, el rayo y el meteorito, ver Painter).
+## La interfaz del juego (grupo "hud"), toda armada por código: arriba, TopBar (el día, la XP, la
+## isla, la tienda y el historial, el + de invocar con la devoción, las monedas y la pista de lo
+## que conviene hacer); abajo, PowerBar (el modo del click y los poderes). Además abre los paneles
+## (la tienda, el historial, el carnet, el cartel de la choza, el árbol y la pausa), lleva el modo
+## del click (arrastrar, seleccionar o editar la isla), los carteles flotantes y los nombres arriba
+## de las cabezas. Muestra la partida (ver Game) pero no guarda nada.
+## Debajo de todo va overlay: lo que se dibuja encima del mundo sin el tinte de la noche (el
+## destello, el rayo y el meteorito, ver Painter).
 
 signal spawn_pressed
 signal expand_pressed
@@ -30,63 +27,22 @@ var _population := -1
 var _capacity := -1
 var _spawn_cost := 10.0
 
-const TAB_SIZE := 38.0
-const SLOT_SIZE := Vector2(76, 62)
-const SUMMON_SIZE := 78.0       # El + de invocar...
-const RING_W := 7.0             # ...con el anillo de devoción alrededor...
-const RING_GAP := 3.0           # ...un poquito separado
-const PANEL_W := 250.0          # El panel de la izquierda...
-const PANEL_BUTTON_H := 38.0    # ...y sus botones
-const COIN_W := 118.0           # Ancho de cada moneda de arriba a la derecha
-const COIN_ICON := 34.0          # Alto del ícono de cada moneda
-
 var _root: Control
-var _day_icon: HudIcon
-var _day_label: Label
-var _day_bar: ProgressBar
-var _xp_bar: ProgressBar
-var _xp_value: Label
-var _devotion_ring: DevotionRing
-var _pop_value: Label
-var _level_value: Label
-var _spawn_btn: Button
-var _expand_btn: Button
-## Los poderes de la barra (ver set_powers), en su orden, y el slot de cada uno.
+var _top: TopBar
+var _bar: PowerBar
+## Los poderes de la barra (ver set_powers), en su orden.
 var powers: Array[Power] = []
-var _power_slots := {}        # Power -> Button
-var _power_row: HBoxContainer
-## Pestañas de la barra de poderes: qué slots van en cada una y cuál se ve.
-var _good_tab := false
-var _tab_evil: Button
-var _tab_holy: Button
-var _tool_slots := {}         # Button -> bueno (bool)
 ## Encima del mundo y debajo de la interfaz, sin el tinte de la noche.
 var overlay: Control
 var _flash_rect: ColorRect
 var _flash_amount := 0.0
-var _slot_idle: StyleBoxFlat
-var _slot_hover: StyleBoxFlat
-var _slot_active: StyleBoxFlat
-var _hint: Label
-var _offer_value: Label
-var _offer_chip: Control
-var _tribute_label: Label      # Abajo de las ofrendas: lo que te dejan rezando cada tanto
 ## Cada cuántos segundos rezan (ver World.worship_interval; también para el carnet).
 var tribute_interval := 10.0
-var _sacrifice_value: Label
-var _sacrifice_chip: Control
-var _spawn_cost_label: Label   # El costo abajo del +
-var _shop_btn: Button
 var _shop: Shop
-var _history_btn: Button
 var _history: HistoryPanel
 var _placing := false
 var _decor_edit := DecorPlacer.Edit.NONE
 var _pause: PauseMenu
-var _drag_btn: Button
-var _select_btn: Button
-var _edit_btn: Button
-var _slot_mode: StyleBoxFlat
 var _tags: Control
 var _card: VillagerCard
 var _hut_card: HutCard
@@ -96,12 +52,8 @@ func _ready() -> void:
 	add_to_group("hud")
 	Settings.init()   # Volumen e idioma guardados, antes de armar los textos
 	_build_ui()
-	_snap_bars()
 	# La partida (ver Game): muestra lo que cambia, y los carteles
 	Game.events.changed.connect(_refresh)
-	Game.events.loaded.connect(_snap_bars)
-	Game.events.offerings_gained.connect(func(_amount: int): _flash(_offer_chip))
-	Game.events.sacrifices_gained.connect(func(_amount: int): _flash(_sacrifice_chip))
 	Game.events.point_earned.connect(_on_point_earned)
 	Game.events.said.connect(popup_text)
 	_refresh()
@@ -133,53 +85,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
-	# Las barras siguen a su valor con suavidad
-	var k := 1.0 - exp(-10.0 * delta)
-	var xp_target := _xp_bar.max_value if not Game.can_earn_points() else float(Game.xp)
-	_xp_bar.value = lerpf(_xp_bar.value, xp_target, k)
-	_devotion_ring.value = lerpf(_devotion_ring.value, Game.devotion, k)
-
-	_update_day()
-
 	if _flash_amount > 0.0:
 		_flash_amount = move_toward(_flash_amount, 0.0, 6.0 * delta)
 		_flash_rect.color.a = _flash_amount
 
-	# Recargándose (el diluvio): la barrita de abajo del slot se va llenando y el ícono, apagado
-	for power in powers:
-		var fill := power.recharge()
-		var charging := power.unlocked and fill < 1.0 and not power.armed
-		var slot: Button = _power_slots[power]
-		var bar: ColorRect = slot.get_meta("charge")
-		bar.visible = charging
-		if charging:
-			bar.size.x = (SLOT_SIZE.x - 16.0) * fill
-		if power.unlocked:
-			slot.get_meta("icon").modulate = Color(1, 1, 1, 0.45) if charging else Color.WHITE
-
-## Qué día es y lo que va del día (o de la noche), con el sol o la luna.
-func _update_day() -> void:
-	var sky := get_tree().get_first_node_in_group("sky")
-	if sky == null:
-		return
-	var night: bool = sky.is_night
-	_day_icon.kind = "night" if night else "day"
-	_day_icon.queue_redraw()
-	_day_label.text = (tr("Noche %d") if night else tr("Día %d")) % sky.day
-	_day_bar.value = 1.0 - sky.phase()
-	(_day_bar.get_theme_stylebox("fill") as StyleBoxFlat).bg_color = UiStyle.C_MOON if night else UiStyle.C_SUN
-
 # ---- API para otros scripts ----
 ## Ganaste un punto para agrandar la isla (ver Game.add_xp): la barra vuelve a empezar.
 func _on_point_earned() -> void:
-	_xp_bar.value = 0.0
-	_flash(_expand_btn)
+	_top.point_earned()
 	popup_text("+1 punto de expansión", get_viewport().get_visible_rect().size * Vector2(0.5, 0.42), UiStyle.C_EXPAND)
-
-## Las barras en su valor, sin animarlas (al armar el HUD y al cargar una partida).
-func _snap_bars() -> void:
-	_xp_bar.value = Game.xp
-	_devotion_ring.value = Game.devotion
 
 func set_population(count: int, capacity: int) -> void:
 	if count == _population and capacity == _capacity:
@@ -192,29 +106,13 @@ func set_spawn_cost(cost: float) -> void:
 	_spawn_cost = cost
 	_refresh()
 
-## Los poderes de la barra (ver World._create_powers), en su orden: un slot para cada uno, en la
-## pestaña de los malos o de los buenos.
+## Los poderes de la barra (ver World._create_powers), en su orden: un slot para cada uno (ver
+## PowerBar.set_powers). Cuando se saca o se guarda uno, cambia la pista.
 func set_powers(list: Array[Power]) -> void:
 	powers = list
-	for power in powers:
-		_power_slots[power] = _power_slot(power)
-		power.armed_changed.connect(_on_power_armed.bind(power))
-	# Del ancho de la pestaña más llena: así la barra no salta al cambiar de pestaña
-	var most := 0
-	for good: bool in [false, true]:
-		most = maxi(most, _tool_slots.values().count(good))
-	_power_row.custom_minimum_size.x = most * SLOT_SIZE.x + (most - 1) * _power_row.get_theme_constant("separation")
-	_set_tab(false)
-	_refresh()
-
-## (power va último: se conecta con bind, que lo agrega al final.)
-func _on_power_armed(on: bool, power: Power) -> void:
-	_armed_changed(_power_slots[power], on)
-
-## Sacado con su tecla desde la otra pestaña: la barra pasa a la suya, así se ve resaltado.
-func _armed_changed(btn: Button, on: bool) -> void:
-	if on:
-		_show_tool(btn)
+	_bar.set_powers(list)
+	for power in list:
+		power.armed_changed.connect(func(_on: bool): _refresh())
 	_refresh()
 
 ## Aparece de a poco (al llegar la cámara a la isla desde el menú de inicio, ver World).
@@ -230,11 +128,10 @@ func flash_screen(amount: float) -> void:
 
 # ---- Ofrendas, sacrificios y tienda ----
 ## Lo que te dejan rezando todos juntos cada interval segundos (ver World._prayers): va abajo
-## de las ofrendas (apagado si no reza nadie).
+## de las ofrendas (ver TopBar.set_tribute).
 func set_tribute(amount: float, interval: float) -> void:
 	tribute_interval = interval
-	_tribute_label.text = per_prayer(amount, interval)
-	_tribute_label.add_theme_color_override("font_color", UiStyle.C_OFFERING if amount > 0.0 else UiStyle.C_MUTED)
+	_top.set_tribute(amount, interval)
 
 ## "+1,5 cada 10 s": lo que dejan (amount) cada vez que rezan (cada interval segundos).
 static func per_prayer(amount: float, interval: float) -> String:
@@ -386,104 +283,55 @@ func popup_text(text: String, screen_pos: Vector2, color: Color = UiStyle.C_TEXT
 	tw.chain().tween_callback(l.queue_free)
 
 # ---- Estado ----
+## Vuelve a mostrar todo (cambió la partida, el modo del click, un poder que se sacó...).
 func _refresh() -> void:
 	if _root == null:
 		return
-	var maxed := not Game.can_earn_points()
-	_xp_bar.max_value = Game.xp_needed()
-	_xp_value.text = tr("Máx") if maxed else "%d / %d" % [Game.xp, Game.xp_needed()]
-	if maxed:
-		_xp_bar.value = _xp_bar.max_value
+	_top.refresh(_population, _capacity, _spawn_cost)
+	_bar.refresh()
+	_top.set_hint(_hint_text())
 
-	_devotion_ring.max_value = Game.DEVOTION_MAX
-	_devotion_ring.cost = _spawn_cost
-
-	var full := _capacity >= 0 and _population >= _capacity
-	_pop_value.text = "%d / %d" % [maxi(_population, 0), maxi(_capacity, 0)]
-	_pop_value.add_theme_color_override("font_color", UiStyle.C_WARN if full else UiStyle.C_TEXT)
-	_level_value.text = "%d / %d" % [Game.island_level + 1, Game.island_max + 1]
-
-	var has_energy := Game.devotion >= _spawn_cost
-	_spawn_btn.disabled = full or not has_energy
-	_spawn_btn.tooltip_text = tr("Invocar aldeano (−%d devoción)") % int(_spawn_cost) + "\n" \
-			+ tr("Devoción: %d / %d") % [int(Game.devotion), int(Game.DEVOTION_MAX)]
-	_spawn_btn.get_meta("icon").modulate.a = 0.45 if _spawn_btn.disabled else 1.0
-	_spawn_cost_label.text = str(int(_spawn_cost))
-	_spawn_cost_label.add_theme_color_override("font_color", UiStyle.C_TEXT if has_energy else UiStyle.C_WARN)
-
-	var island_maxed := Game.island_level >= Game.island_max
-	_expand_btn.disabled = Game.expansion_points <= 0 or island_maxed
-	_expand_btn.text = tr("Isla al máximo") if island_maxed else tr("Expandir isla (%d)") % Game.expansion_points
-
-	_offer_value.text = str(Game.offerings)
-	_sacrifice_value.text = str(Game.sacrifices)
-
+## La pista de abajo del panel de la izquierda: lo que conviene hacer ahora (la del poder que se
+## está apuntando, la del modo del click, por qué no se puede invocar...), o nada.
+func _hint_text() -> String:
 	var aimed_hint := ""   # La pista del que se está apuntando...
 	var out_hint := ""     # ...y la del que está afuera sin apuntar (el diluvio: va más abajo)
 	for power in powers:
-		var slot: Button = _power_slots[power]
-		_sync_weapon(slot, power.unlocked, power.armed, slot.get_meta("active"), power.tooltip, power.locked_tooltip,
-				power.price, power.sacrifices)
 		if power.armed:
 			if power.aims:
 				aimed_hint = power.hint_text()
 			else:
 				out_hint = power.hint_text()
-
-	var dragging := not select_mode and not edit_mode
-	for b: Array in [[_drag_btn, dragging], [_select_btn, select_mode], [_edit_btn, edit_mode]]:
-		b[0].add_theme_stylebox_override("normal", _slot_mode if b[1] else _slot_idle)
-		b[0].add_theme_stylebox_override("hover", _slot_mode if b[1] else _slot_hover)
-
+	var full := _capacity >= 0 and _population >= _capacity
+	var island_maxed := Game.island_level >= Game.island_max
 	if _placing:
-		_hint.text = tr("Click en la isla para colocar · click derecho o Esc para terminar.")
-	elif aimed_hint != "":
-		_hint.text = aimed_hint
-	elif _decor_edit == DecorPlacer.Edit.MOVING:
-		_hint.text = tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
-	elif _decor_edit == DecorPlacer.Edit.HOVER:
-		_hint.text = tr("Arrastrá para moverla · click derecho para quitarla (devuelve la mitad).")
-	elif _decor_edit == DecorPlacer.Edit.COCONUT:
-		_hint.text = tr("Agarrá el coco y tiráselo en la cabeza a un aldeano.")
-	elif _decor_edit == DecorPlacer.Edit.COCONUT_HELD:
-		_hint.text = tr("Soltalo encima de un aldeano para partirlo.")
-	elif _decor_edit == DecorPlacer.Edit.HUT:
-		_hint.text = tr("Click para ponerle nombre al cartel de la choza.")
-	elif select_mode:
-		_hint.text = tr("Click en un aldeano para ver su carnet y ponerle nombre, o en una choza para escribir su cartel · S para volver a arrastrar.")
-	elif edit_mode:
-		_hint.text = tr("Arrastrá una decoración para moverla · click derecho para quitarla (devuelve la mitad) · I para volver a arrastrar aldeanos.")
-	elif out_hint != "":
-		_hint.text = out_hint
-	elif full and not island_maxed:
-		_hint.text = tr("Isla llena: sacrificá aldeanos para ganar puntos y expandirla.")
-	elif not has_energy:
-		_hint.text = tr("Devoción insuficiente: se recarga con el tiempo.")
-	elif Game.expansion_points > 0 and not island_maxed:
-		_hint.text = tr("¡Tocá un orbe + en la isla para expandirla!")
-	else:
-		_hint.text = ""
-	_hint.visible = _hint.text != ""
-
-## Slot de un arma o poder de la tienda: resaltado mientras está afuera; bloqueado se ve
-## apagado, con el cartel "En la tienda" (y lo que cuesta: las cosas malas, también sacrificios).
-func _sync_weapon(slot: Button, unlocked: bool, out: bool, active: StyleBoxFlat, tip: String, locked_tip: String, price: int,
-		sacrifice_cost := 0) -> void:
-	slot.add_theme_stylebox_override("normal", active if out else _slot_idle)
-	slot.add_theme_stylebox_override("hover", active if out else _slot_hover)
-	slot.get_meta("lock").visible = not unlocked
-	slot.get_meta("icon").modulate = Color.WHITE if unlocked else Color(1, 1, 1, 0.45)
-	if unlocked:
-		slot.tooltip_text = tr(tip)
-	elif sacrifice_cost > 0:
-		slot.tooltip_text = tr(locked_tip) % [price, sacrifice_cost]   # El texto "... ofrendas y %d sacrificios)"
-	else:
-		slot.tooltip_text = tr(locked_tip) % price
-
-func _flash(c: Control) -> void:
-	var tw := c.create_tween()
-	tw.tween_property(c, "modulate", Color(1.6, 1.5, 1.2), 0.12)
-	tw.tween_property(c, "modulate", Color.WHITE, 0.4)
+		return tr("Click en la isla para colocar · click derecho o Esc para terminar.")
+	if aimed_hint != "":
+		return aimed_hint
+	match _decor_edit:
+		DecorPlacer.Edit.MOVING:
+			return tr("Soltala sobre la isla · click derecho o Esc para dejarla donde estaba.")
+		DecorPlacer.Edit.HOVER:
+			return tr("Arrastrá para moverla · click derecho para quitarla (devuelve la mitad).")
+		DecorPlacer.Edit.COCONUT:
+			return tr("Agarrá el coco y tiráselo en la cabeza a un aldeano.")
+		DecorPlacer.Edit.COCONUT_HELD:
+			return tr("Soltalo encima de un aldeano para partirlo.")
+		DecorPlacer.Edit.HUT:
+			return tr("Click para ponerle nombre al cartel de la choza.")
+	if select_mode:
+		return tr("Click en un aldeano para ver su carnet y ponerle nombre, o en una choza para escribir su cartel · S para volver a arrastrar.")
+	if edit_mode:
+		return tr("Arrastrá una decoración para moverla · click derecho para quitarla (devuelve la mitad) · I para volver a arrastrar aldeanos.")
+	if out_hint != "":
+		return out_hint
+	if full and not island_maxed:
+		return tr("Isla llena: sacrificá aldeanos para ganar puntos y expandirla.")
+	if Game.devotion < _spawn_cost:
+		return tr("Devoción insuficiente: se recarga con el tiempo.")
+	if Game.expansion_points > 0 and not island_maxed:
+		return tr("¡Tocá un orbe + en la isla para expandirla!")
+	return ""
 
 # ---- Construcción de la UI ----
 func _build_ui() -> void:
@@ -509,96 +357,12 @@ func _build_ui() -> void:
 	_tags.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_tags)
 
-	var panel := PanelContainer.new()
-	panel.position = Vector2(14, 14)
-	panel.custom_minimum_size = Vector2(PANEL_W, 0)
-	panel.add_theme_stylebox_override("panel", UiStyle.box(UiStyle.C_PANEL, 14, UiStyle.C_PANEL_BORDER, 1, Vector4(12, 10, 12, 12)))
-	_root.add_child(panel)
-
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 8)
-	panel.add_child(col)
-
-	# Qué día es, y una barrita con lo que va del día (o de la noche)
-	var day_row := HBoxContainer.new()
-	day_row.add_theme_constant_override("separation", 7)
-	day_row.tooltip_text = "Lo que falta para que se haga de noche (o de día)"
-	col.add_child(day_row)
-	_day_icon = HudIcon.make("day", 16)
-	day_row.add_child(_day_icon)
-	_day_label = UiStyle.label("", 13, UiStyle.C_TEXT)
-	_day_label.custom_minimum_size = Vector2(62, 0)
-	day_row.add_child(_day_label)
-	_day_bar = ProgressBar.new()
-	_day_bar.show_percentage = false
-	_day_bar.max_value = 1.0
-	_day_bar.custom_minimum_size = Vector2(0, 6)
-	_day_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_day_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_day_bar.mouse_filter = Control.MOUSE_FILTER_PASS
-	_day_bar.add_theme_stylebox_override("background", UiStyle.box(UiStyle.C_TRACK, 3))
-	_day_bar.add_theme_stylebox_override("fill", UiStyle.box(UiStyle.C_SUN, 3))
-	day_row.add_child(_day_bar)
-
-	# XP: una barrita finita con lo que falta para el próximo punto de expansión
-	var xp_row := HBoxContainer.new()
-	xp_row.add_theme_constant_override("separation", 7)
-	xp_row.tooltip_text = "XP: cada sacrificio suma 1; al llenarse ganás un punto para expandir la isla"
-	col.add_child(xp_row)
-	xp_row.add_child(HudIcon.make("xp", 16))
-	_xp_bar = ProgressBar.new()
-	_xp_bar.show_percentage = false
-	_xp_bar.custom_minimum_size = Vector2(0, 8)
-	_xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_xp_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_xp_bar.mouse_filter = Control.MOUSE_FILTER_PASS
-	_xp_bar.add_theme_stylebox_override("background", UiStyle.box(UiStyle.C_TRACK, 4))
-	_xp_bar.add_theme_stylebox_override("fill", UiStyle.box(UiStyle.C_XP, 4))
-	xp_row.add_child(_xp_bar)
-	_xp_value = UiStyle.label("", 12, UiStyle.C_MUTED)
-	xp_row.add_child(_xp_value)
-
-	# La isla: de qué tamaño es y el botón para agrandarla
-	var island_row := HBoxContainer.new()
-	island_row.add_theme_constant_override("separation", 6)
-	col.add_child(island_row)
-	var island := PanelContainer.new()
-	island.tooltip_text = "Isla"
-	island.add_theme_stylebox_override("panel", UiStyle.box(Color(1, 1, 1, 0.06), 9, Color(0, 0, 0, 0), 0, Vector4(8, 0, 9, 0)))
-	island_row.add_child(island)
-	var island_in := HBoxContainer.new()
-	island_in.add_theme_constant_override("separation", 5)
-	island_in.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	island.add_child(island_in)
-	island_in.add_child(HudIcon.make("island", 16))
-	_level_value = UiStyle.label("", 14, UiStyle.C_TEXT)
-	island_in.add_child(_level_value)
-	_expand_btn = _action_button(island_row, UiStyle.C_EXPAND)
-	_expand_btn.custom_minimum_size.y = PANEL_BUTTON_H
-	_expand_btn.pressed.connect(func(): expand_pressed.emit())
-
-	var shop_row := HBoxContainer.new()
-	shop_row.add_theme_constant_override("separation", 8)
-	col.add_child(shop_row)
-	_shop_btn = _action_button(shop_row, UiStyle.C_SHOP)
-	_shop_btn.custom_minimum_size.y = PANEL_BUTTON_H
-	_shop_btn.text = "Tienda"
-	_shop_btn.pressed.connect(open_shop)
-	_history_btn = _action_button(shop_row, UiStyle.C_HISTORY)
-	_history_btn.custom_minimum_size.y = PANEL_BUTTON_H
-	_history_btn.text = "Historial"
-	_history_btn.tooltip_text = "Quién se hizo amigo, enemigo o pareja de quién [H]"
-	_history_btn.pressed.connect(toggle_history)
-
-	_hint = Label.new()
-	_hint.add_theme_font_size_override("font_size", 12)
-	_hint.add_theme_color_override("font_color", UiStyle.C_MUTED)
-	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_hint.custom_minimum_size = Vector2(PANEL_W - 24.0, 0)
-	col.add_child(_hint)
-
-	_build_top()
-	_build_toolbar()
+	_top = TopBar.new()   # Arriba: el panel de la izquierda, el + de invocar y las monedas
+	_top.hud = self
+	_root.add_child(_top)
+	_bar = PowerBar.new()   # Abajo: el modo del click y los poderes
+	_bar.hud = self
+	_root.add_child(_bar)
 
 	_card = VillagerCard.new()
 	_card.hud = self
@@ -606,335 +370,3 @@ func _build_ui() -> void:
 	_hut_card = HutCard.new()
 	_hut_card.hud = self
 	_root.add_child(_hut_card)
-
-## Arriba al medio, el + grande para invocar aldeanos: alrededor, la devoción (un anillo que se
-## llena); abajo, lo que cuesta, y al costado, cuántos aldeanos hay. Arriba a la derecha, las
-## ofrendas y los sacrificios.
-func _build_top() -> void:
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	center.offset_top = 6.0
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(center)
-	var summon := VBoxContainer.new()
-	summon.add_theme_constant_override("separation", -8)   # El costo se apoya en el anillo
-	summon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	center.add_child(summon)
-	var ring_size := SUMMON_SIZE + (RING_GAP + RING_W) * 2.0
-	var ring_box := Control.new()   # El anillo con el + adentro (y los aldeanos al costado, afuera)
-	ring_box.custom_minimum_size = Vector2(ring_size, ring_size)
-	ring_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	ring_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	summon.add_child(ring_box)
-	_devotion_ring = DevotionRing.new()
-	_devotion_ring.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_devotion_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ring_box.add_child(_devotion_ring)
-	_spawn_btn = Button.new()
-	_spawn_btn.position = Vector2.ONE * (RING_GAP + RING_W)
-	_spawn_btn.size = Vector2(SUMMON_SIZE, SUMMON_SIZE)
-	_spawn_btn.custom_minimum_size = Vector2(SUMMON_SIZE, SUMMON_SIZE)
-	_spawn_btn.pivot_offset = Vector2(SUMMON_SIZE, SUMMON_SIZE) * 0.5
-	_spawn_btn.focus_mode = Control.FOCUS_NONE
-	var r := int(SUMMON_SIZE * 0.5)
-	for state: Array in [["normal", UiStyle.C_SPAWN, UiStyle.C_SPAWN.lightened(0.45)], ["hover", UiStyle.C_SPAWN.lightened(0.12), Color.WHITE],
-			["pressed", UiStyle.C_SPAWN.darkened(0.15), UiStyle.C_SPAWN.darkened(0.3)], ["disabled", Color(UiStyle.C_PANEL, 0.55), Color(1, 1, 1, 0.18)]]:
-		var box := UiStyle.box(state[1], r, state[2], 3)
-		box.shadow_color = Color(0, 0, 0, 0.28)
-		box.shadow_size = 6
-		box.shadow_offset = Vector2(0, 3)
-		_spawn_btn.add_theme_stylebox_override(state[0], box)
-	var plus := HudIcon.make("plus", int(SUMMON_SIZE * 0.62))
-	plus.position = Vector2(SUMMON_SIZE, SUMMON_SIZE) * 0.19
-	_spawn_btn.add_child(plus)
-	_spawn_btn.set_meta("icon", plus)
-	_spawn_btn.pressed.connect(func():
-		var tw := _spawn_btn.create_tween()
-		_spawn_btn.scale = Vector2.ONE * 1.15
-		tw.tween_property(_spawn_btn, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		spawn_pressed.emit())
-	ring_box.add_child(_spawn_btn)
-	# Cuántos aldeanos hay (y cuántos entran), al costado
-	var pop := PanelContainer.new()
-	pop.tooltip_text = "Aldeanos"
-	pop.add_theme_stylebox_override("panel", UiStyle.box(UiStyle.C_PANEL, 17, UiStyle.C_PANEL_BORDER, 1, Vector4(8, 3, 12, 3)))
-	ring_box.add_child(pop)
-	var pop_row := HBoxContainer.new()
-	pop_row.add_theme_constant_override("separation", 5)
-	pop_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pop.add_child(pop_row)
-	pop_row.add_child(HudIcon.make("villager", 22))
-	_pop_value = UiStyle.label("", 18, UiStyle.C_TEXT)
-	pop_row.add_child(_pop_value)
-	pop.position = Vector2(ring_size + 6.0, (ring_size - pop.get_combined_minimum_size().y) * 0.5)
-	# Lo que cuesta: una gotita de devoción y el número
-	var cost := PanelContainer.new()
-	cost.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	cost.mouse_filter = Control.MOUSE_FILTER_IGNORE   # Que no le saque clicks al +
-	cost.add_theme_stylebox_override("panel", UiStyle.box(Color(0.06, 0.09, 0.16, 0.92), 10, UiStyle.C_DEVOTION.darkened(0.2), 1, Vector4(7, 1, 9, 1)))
-	summon.add_child(cost)
-	var cost_row := HBoxContainer.new()
-	cost_row.add_theme_constant_override("separation", 3)
-	cost_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cost.add_child(cost_row)
-	cost_row.add_child(HudIcon.make("devotion", 13))
-	_spawn_cost_label = UiStyle.label("", 13, UiStyle.C_TEXT)
-	cost_row.add_child(_spawn_cost_label)
-
-	var coins := VBoxContainer.new()
-	coins.add_theme_constant_override("separation", 6)
-	_root.add_child(coins)
-	_offer_value = _coin(coins, HudIcon.make("coin", int(COIN_ICON)), "Ofrendas: abajo, lo que te dejan tus aldeanos rezando cada 10 segundos")
-	_offer_chip = _offer_value.get_parent().get_parent()
-	# Abajo del número, lo que te dejan rezando (ver set_tribute)
-	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", -5)
-	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stack.alignment = BoxContainer.ALIGNMENT_CENTER
-	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_offer_value.get_parent().add_child(stack)
-	_offer_value.reparent(stack)
-	_tribute_label = UiStyle.label("", 11, UiStyle.C_OFFERING)
-	_tribute_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_tribute_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce set_tribute (lleva el número)
-	stack.add_child(_tribute_label)
-	set_tribute(0.0, tribute_interval)
-	_sacrifice_value = _coin(coins, HudIcon.sacrifice(COIN_ICON),
-			"Sacrificios: cada muerte suma uno (en el altar, más). Se gastan en la tienda: las cosas malas cuestan ofrendas y sacrificios")
-	_sacrifice_chip = _sacrifice_value.get_parent().get_parent()
-	coins.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 14)
-	coins.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-
-## Una moneda de arriba a la derecha: el ícono y cuántas hay (devuelve el número).
-func _coin(parent: Control, icon: Control, tip: String) -> Label:
-	var chip := PanelContainer.new()
-	chip.custom_minimum_size = Vector2(COIN_W, 0)
-	chip.tooltip_text = tip
-	chip.add_theme_stylebox_override("panel", UiStyle.box(UiStyle.C_PANEL, 21, UiStyle.C_PANEL_BORDER, 1, Vector4(6, 4, 14, 4)))
-	parent.add_child(chip)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	chip.add_child(row)
-	row.add_child(icon)
-	var value := UiStyle.label("", 21, UiStyle.C_TEXT)
-	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	row.add_child(value)
-	return value
-
-func _build_toolbar() -> void:
-	_slot_idle = UiStyle.box(Color(1, 1, 1, 0.06), 12, Color(1, 1, 1, 0.10), 1)
-	_slot_hover = UiStyle.box(Color(1, 1, 1, 0.13), 12, Color(1, 1, 1, 0.28), 1)
-	_slot_active = UiStyle.box(Color(UiStyle.C_GUN, 0.38), 12, UiStyle.C_GUN.lightened(0.3), 2)
-	_slot_mode = UiStyle.box(Color(UiStyle.C_DEVOTION, 0.30), 12, UiStyle.C_DEVOTION.lightened(0.2), 2)
-
-	# Abajo al centro: dock de pantalla completa que no bloquea el mouse
-	var dock := VBoxContainer.new()
-	dock.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dock.alignment = BoxContainer.ALIGNMENT_END
-	dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dock.add_theme_constant_override("separation", 0)
-	_root.add_child(dock)
-	var center := CenterContainer.new()
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dock.add_child(center)
-	var bottom_gap := Control.new()
-	bottom_gap.custom_minimum_size = Vector2(0, 8)
-	bottom_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dock.add_child(bottom_gap)
-	var bars := HBoxContainer.new()
-	bars.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bars.add_theme_constant_override("separation", 10)
-	center.add_child(bars)
-
-	# Modo del click: arrastrar aldeanos, seleccionarlos (carnet) o editar la isla
-	var mode_row := _toolbar_panel(bars)
-	_drag_btn = _tool_slot(mode_row, "hand", "Arrastrar", "", true, "Agarrá y tirá aldeanos [S]")
-	_drag_btn.pressed.connect(set_drag_mode)
-	_select_btn = _tool_slot(mode_row, "select", "Seleccionar", "S", true, "Click en un aldeano para ver su carnet, o en una choza para ponerle nombre [S]")
-	_select_btn.pressed.connect(set_select_mode.bind(true))
-	_edit_btn = _tool_slot(mode_row, "edit", "Editar isla", "I", true, "Mover y quitar decoraciones, sin agarrar aldeanos [I]")
-	_edit_btn.pressed.connect(set_edit_mode.bind(true))
-	mode_row.get_parent().size_flags_vertical = Control.SIZE_SHRINK_END   # Abajo, a la par de los poderes
-
-	# Poderes: arriba las pestañas (malos / buenos) y abajo los de la pestaña elegida
-	var tools_col := VBoxContainer.new()
-	tools_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tools_col.add_theme_constant_override("separation", 4)
-	bars.add_child(tools_col)
-	var tabs := HBoxContainer.new()
-	tabs.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tabs.add_theme_constant_override("separation", 6)
-	tools_col.add_child(tabs)
-	var tab_gap := Control.new()
-	tab_gap.custom_minimum_size = Vector2(6, 0)
-	tab_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tabs.add_child(tab_gap)
-	_tab_evil = _tab_button(tabs, "evil", "Poderes malos")
-	_tab_evil.pressed.connect(_set_tab.bind(false))
-	_tab_holy = _tab_button(tabs, "holy", "Poderes buenos")
-	_tab_holy.pressed.connect(_set_tab.bind(true))
-	var row := _toolbar_panel(tools_col)
-
-	_power_row = row   # Los slots de los poderes van acá (ver set_powers)
-	_set_tab(false)
-
-## Muestra los poderes malos o los buenos.
-func _set_tab(good: bool) -> void:
-	_good_tab = good
-	for slot: Button in _tool_slots:
-		slot.visible = _tool_slots[slot] == good
-	for tab: Button in [_tab_evil, _tab_holy]:
-		var on := (tab == _tab_holy) == good
-		var col := UiStyle.C_HOLY if tab == _tab_holy else UiStyle.C_EVIL
-		var r := int(TAB_SIZE * 0.5)
-		var box := UiStyle.box(Color(col, 0.32), r, col.lightened(0.25), 2) if on \
-				else UiStyle.box(Color(UiStyle.C_PANEL, 0.9), r, Color(1, 1, 1, 0.14), 1)
-		var hover := box if on else UiStyle.box(Color(col, 0.18), r, Color(col, 0.6), 1)
-		tab.add_theme_stylebox_override("normal", box)
-		tab.add_theme_stylebox_override("hover", hover)
-		tab.add_theme_stylebox_override("pressed", hover)
-		tab.get_meta("icon").modulate = Color.WHITE if on else Color(1, 1, 1, 0.55)
-
-## Al sacar un poder con su tecla, que se vea en la barra (pasa a su pestaña).
-func _show_tool(btn: Button) -> void:
-	if _tool_slots.has(btn) and _tool_slots[btn] != _good_tab:
-		_set_tab(_tool_slots[btn])
-
-## Pestaña redonda con un ícono (la carita con cuernos o con aureola).
-func _tab_button(parent: Control, kind: String, tip: String) -> Button:
-	var b := Button.new()
-	b.custom_minimum_size = Vector2(TAB_SIZE, TAB_SIZE)
-	b.focus_mode = Control.FOCUS_NONE
-	b.tooltip_text = tip
-	parent.add_child(b)
-	var icon := HudIcon.make(kind, int(TAB_SIZE) - 8)
-	icon.position = Vector2(4, 4)
-	b.add_child(icon)
-	b.set_meta("icon", icon)
-	return b
-
-## El slot de un poder: lo saca o lo guarda, y bloqueado lleva a la tienda (a la pestaña de los
-## poderes buenos o de los malos). Abajo tiene una barrita que se llena mientras se recarga.
-func _power_slot(power: Power) -> Button:
-	var slot := _tool_slot(_power_row, power.icon_kind(), power.title, OS.get_keycode_string(power.key), true,
-			power.tooltip)
-	_tool_slots[slot] = power.good
-	var active := UiStyle.box(Color(power.accent, 0.32), 12, power.accent.lightened(0.3), 2)
-	slot.set_meta("active", active)
-	slot.add_theme_stylebox_override("pressed", active)
-	slot.set_meta("lock", _slot_badge(slot, "EN LA TIENDA", UiStyle.C_SHOP))
-	var bar := ColorRect.new()
-	bar.color = power.accent
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.position = Vector2(8.0, SLOT_SIZE.y - 6.0)
-	bar.size = Vector2(0.0, 3.0)
-	bar.visible = false
-	slot.add_child(bar)
-	slot.set_meta("charge", bar)
-	slot.pressed.connect(func():
-		if power.unlocked:
-			power.set_armed(not power.armed)
-		else:
-			open_shop(Shop.Tab.GOOD if power.good else Shop.Tab.EVIL))
-	return slot
-
-## Panel de la barra de abajo; devuelve la fila donde van los slots.
-func _toolbar_panel(parent: Control) -> HBoxContainer:
-	var bar := PanelContainer.new()
-	bar.mouse_filter = Control.MOUSE_FILTER_STOP  # Los clicks en la barra no llegan al mundo
-	bar.add_theme_stylebox_override("panel", UiStyle.box(UiStyle.C_PANEL, 14, UiStyle.C_PANEL_BORDER, 1, Vector4(8, 8, 8, 8)))
-	parent.add_child(bar)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	bar.add_child(row)
-	return row
-
-func _tool_slot(parent: Control, kind: String, title: String, key: String, available: bool, tip: String) -> Button:
-	var b := Button.new()
-	b.custom_minimum_size = SLOT_SIZE
-	b.focus_mode = Control.FOCUS_NONE
-	b.tooltip_text = tip
-	b.add_theme_stylebox_override("normal", _slot_idle)
-	b.add_theme_stylebox_override("hover", _slot_hover)
-	b.add_theme_stylebox_override("pressed", _slot_active)
-	b.add_theme_stylebox_override("disabled", UiStyle.box(Color(1, 1, 1, 0.03), 12, Color(1, 1, 1, 0.06), 1))
-	parent.add_child(b)
-
-	var col := VBoxContainer.new()
-	col.set_anchors_preset(Control.PRESET_FULL_RECT)
-	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	col.add_theme_constant_override("separation", 2)
-	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(col)
-	var icon := HudIcon.make(kind, 26)
-	icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	col.add_child(icon)
-	var name_l := UiStyle.label(title, 11, UiStyle.C_TEXT)
-	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(name_l)
-
-	if key != "":
-		var k := UiStyle.label(key, 10, UiStyle.C_MUTED)
-		k.position = Vector2(8, 4)
-		b.add_child(k)
-
-	b.set_meta("icon", icon)
-	if not available:
-		b.disabled = true
-		icon.modulate = Color(1, 1, 1, 0.5)
-		name_l.modulate = Color(1, 1, 1, 0.55)
-		_slot_badge(b, "PRÓXIMAMENTE", UiStyle.C_SOON)
-	return b
-
-## Cartelito ("Próximamente", "En la tienda") pegado sobre el borde superior del slot.
-func _slot_badge(slot: Control, text: String, color: Color) -> Control:
-	var badge := PanelContainer.new()
-	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge.add_theme_stylebox_override("panel", UiStyle.box(color, 4, color.darkened(0.4), 1, Vector4(4, 0, 4, 0)))
-	badge.add_child(UiStyle.label(text, 8, Color(0.18, 0.11, 0.02)))
-	slot.add_child(badge)
-	var sz := badge.get_combined_minimum_size()
-	badge.size = sz
-	badge.pivot_offset = sz * 0.5
-	badge.position = Vector2(SLOT_SIZE.x * 0.5 - sz.x * 0.5, -sz.y * 0.55)
-	badge.rotation = deg_to_rad(-6.0)
-	return badge
-
-func _action_button(parent: Control, color: Color) -> Button:
-	var b := Button.new()
-	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	b.custom_minimum_size = Vector2(0, 48)
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 13)
-	b.add_theme_color_override("font_color", Color(0.12, 0.08, 0.04))
-	b.add_theme_color_override("font_hover_color", Color(0.12, 0.08, 0.04))
-	b.add_theme_color_override("font_pressed_color", Color(0.12, 0.08, 0.04))
-	b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.35))
-	b.add_theme_stylebox_override("normal", UiStyle.box(color, 10, color.lightened(0.3), 1))
-	b.add_theme_stylebox_override("hover", UiStyle.box(color.lightened(0.15), 10, color.lightened(0.5), 1))
-	b.add_theme_stylebox_override("pressed", UiStyle.box(color.darkened(0.15), 10, color.darkened(0.3), 1))
-	b.add_theme_stylebox_override("disabled", UiStyle.box(Color(1, 1, 1, 0.07), 10, Color(1, 1, 1, 0.08), 1))
-	parent.add_child(b)
-	return b
-
-## El anillo de devoción alrededor del +: se llena desde arriba, en el sentido del reloj, con la
-## devoción. Si no alcanza para invocar (cost), apagado.
-class DevotionRing extends Control:
-	var max_value := 100.0
-	var cost := 10.0
-	var value := 0.0:
-		set(v):
-			if not is_equal_approx(v, value):
-				value = v
-				queue_redraw()
-
-	func _draw() -> void:
-		var c := size * 0.5
-		var r := size.x * 0.5 - HUD.RING_W * 0.5
-		draw_arc(c, r, 0.0, TAU, 64, Color(0.06, 0.09, 0.16, 0.75), HUD.RING_W + 3.0, true)
-		var k := clampf(value / maxf(max_value, 1.0), 0.0, 1.0)
-		if k > 0.002:
-			var col := UiStyle.C_DEVOTION if value >= cost else UiStyle.C_DEVOTION.darkened(0.45)
-			draw_arc(c, r, -PI * 0.5, -PI * 0.5 + TAU * k, maxi(3, int(64.0 * k)), col, HUD.RING_W, true)
