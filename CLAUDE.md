@@ -1,7 +1,7 @@
 # Godlings: guía para trabajar en el código
 
-God game en **Godot 4.7** (GL Compatibility), todo en GDScript (~21.000 líneas). Las mecánicas
-están en `README.md`; la revisión de estructura y el plan de refactor, en `docs/PLAN.md`.
+God game en **Godot 4.7** (GL Compatibility), todo en GDScript (~21.700 líneas, sin los tests). Las
+mecánicas están en `README.md`; la revisión de estructura y el plan de refactor, en `docs/PLAN.md`.
 
 ## Reglas
 
@@ -10,12 +10,12 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
   tenía, así que el cambio se pierde. Lo que haga falta se arma por código (por eso `WaterArea` se
   agranda en código y la versión está en `World.VERSION`). Si algo tiene que ir sí o sí ahí
   (autoload, InputMap, buses de audio), pedile al usuario que lo haga desde el editor.
-- En la nube **no hay Godot**: no se puede correr el juego. Antes de commitear corré los chequeos
-  que la CI (`.github/workflows/checks.yml`) corre en cada push:
-  `pip install "gdtoolkit==4.5.0"`, `gdlint $(git ls-files '*.gd')` (la config está en
+- En la nube **no hay Godot**: no se puede correr el juego. Antes de commitear corré lo que no lo
+  necesita: `pip install "gdtoolkit==4.5.0"`, `gdlint $(git ls-files '*.gd')` (la config está en
   `gdlintrc`; detecta errores de sintaxis) y `python3 tools/check_i18n.py`. gdlint no ve todo: una
-  variable declarada dos veces o un miembro que ya no existe pasan; si movés código entre archivos,
-  revisá eso aparte. El resto lo prueba el usuario en el juego: decile qué probar.
+  variable declarada dos veces o un miembro que ya no existe pasan. Eso lo encuentra la CI, que sí
+  corre Godot (ver Tests y CI): después de pushear, fijate que pase. Lo que la CI no ve (cómo se
+  juega) lo prueba el usuario en el juego: decile qué probar.
 - Comentarios, textos del juego y docs en **español rioplatense** (voseo); commits en **inglés**
   (título corto y un cuerpo que cuenta qué cambia para el jugador).
 - Si cambia una mecánica, un precio o una tecla, actualizá el README (su sección y Controles).
@@ -27,7 +27,7 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 | Dónde | Qué |
 |---|---|
 | `world/world.gd` (`World`) | La raíz: capas (`Ground`, y `Props` con y-sort), crea los poderes y los conecta con el HUD, población y capacidad, rezos → ofrendas, brotes de gripe, zoom y paneo, menú de inicio y bajada de la cámara, **guardado y carga** (`save_game`, `_load_game`). |
-| `actors/villager/villager.gd` (`Villager`) | El aldeano: el cuerpo y su física (arrastre, caída, agua, ahogo, empujones), el paseo, cómo es y su carnet, el escudo, la vacuna y la resurrección, los globitos (`say`) y el duelo. Cada sistema está en su componente (ver Archivos grandes). |
+| `actors/villager/villager.gd` (`Villager`) | El aldeano: el cuerpo y su física (arrastre, caída, agua, ahogo, empujones; en qué estado está lo dice `body()`, ver `enum Body`), el paseo, cómo es y su carnet, el escudo, la vacuna y la resurrección, los globitos (`say`) y el duelo. Cada sistema está en su componente (ver Archivos grandes). |
 | `actors/villager/villager_age.gd` (`VillagerAge`) | Un componente del aldeano: la edad (crece, le salen canas, envejece, se muere de viejo) y si puede tener un bebé. |
 | `actors/villager/villager_burn.gd` (`VillagerBurn`) | Un componente del aldeano: el fuego y el rayo (se prende o lo electrocuta, queda carbonizado y se hace cenizas). |
 | `actors/villager/villager_chat.gd` (`VillagerChat`) | Un componente del aldeano: las charlas (con quién, ir hasta el otro, hablar por turnos, cómo les fue, las peleas). |
@@ -52,6 +52,7 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
 | `world/` (el resto) | `decoration` (todas, por `kind`; se crean con `Decoration.make(kind)`), `hut` (`Hut`, la choza: los que viven ahí, los nacimientos, el cartel y romperse), `decor_placer`, `altar`, `food` / `coconut` / `manna`, `sea` y `water.gdshader`, `water_area`, `hut_debris`, `expand_marker`, `save_slots`. |
 | `sky/` | `sky.gd` (reloj, día y noche, Luna de Sangre), `sun` y `moon` (`Celestial`), nubes, estrellas y gaviotas. |
 | `audio/` | La música, `wow.wav` y `Synth.wav()`; cada clase sintetiza sus sonidos en sus `_make_*`. |
+| `tests/`, `tools/ci/` | Los tests y lo que corre la CI con Godot (ver Tests y CI). No van en el juego exportado. |
 
 ## Cómo está hecho
 
@@ -63,8 +64,9 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
   `Villager.ids_issued`, `World.play_time`, `Relations`, `Genealogy` y el agua del diluvio
   (`Storm.rain`...). "Menú principal" recarga la escena y los estáticos **sobreviven**: los borra
   `Game.reset()`, lo primero de `World._ready()`. Un `static var` nuevo con algo de la partida se
-  borra ahí, o pasa de una partida a otra. Las opciones (`Settings`) persisten a propósito. (Si
-  está afuera y si se compró cada poder no es estático: es de cada nodo, `armed` y `unlocked`.)
+  borra ahí, o pasa de una partida a otra. Las opciones (`Settings`) persisten a propósito, y
+  `World.anim_time` (el reloj de lo que se anima al dibujarse) no es de la partida. (Si está afuera
+  y si se compró cada poder no es estático: es de cada nodo, `armed` y `unlocked`.)
 - **Para cobrar, pagar o sumar**, `Game` (`Game.buy`, `Game.spend_devotion`, `Game.add_offerings`...),
   nunca el HUD. **Para un cartel flotante**, `Game.say(texto, posición en la pantalla, color)`, o
   `Game.announce(texto, color)` en el medio de la pantalla: no hace falta buscar el HUD.
@@ -82,12 +84,37 @@ están en `README.md`; la revisión de estructura y el plan de refactor, en `doc
   `SaveSlots.write` / `read`, que guardan a un `.tmp`, dejan la anterior como `.bak` y la usan si
   la partida no se puede leer. Tiene versión (`meta/version`, `SaveSlots.VERSION`); las partidas
   de antes no la tienen y se migran mirando qué claves tienen. Si cambiás el formato, subí la
-  versión y seguí cargando las de antes.
+  versión y seguí cargando las de antes. Cada aldeano se guarda con `Villager.to_dict()` /
+  `from_dict()`, que le piden su parte a cada componente: un campo nuevo de un sistema del aldeano
+  va en el `to_dict` / `from_dict` de su componente.
 - **Teclas**: la de cada poder es su `key` (la atiende `Power`); las demás, cada uno en su
   `_unhandled_input` (no hay InputMap). Ocupadas: G R M T D
   P Z E F C V O L A B; S (seleccionar), H (historial), I (editar la isla), F1 o la tecla a la
   izquierda del 1 (consola), flechas, + − 0 (zoom) y Esc. Antes de usar una, fijate que esté
   libre.
+
+## Tests y CI
+
+La CI (`.github/workflows/checks.yml`) corre en cada push tres jobs:
+
+- `checks`: gdlint y las traducciones.
+- `godot`: baja Godot 4.7.2 y, sin pantalla, compila todos los scripts
+  (`tools/ci/check_scripts.gd`), corre los tests (`tools/ci/run_tests.gd`) y juega una partida sola
+  (`tools/ci/smoke.gd`: de todo un poco, la guarda, la vuelve a cargar y compara cada aldeano).
+  Falla si Godot escribe un error de script.
+- `screens`: con una pantalla virtual saca 18 capturas de la interfaz (`tools/ci/screenshots.gd`),
+  saca las mismas en el commit de antes del push y dice en el log cuáles cambiaron, dónde y cómo
+  (`tools/ci/compare_screens.py`; al final, "Iguales: N de 18"). Si tocaste algo que se ve y no
+  querías cambiarlo, tienen que dar todas iguales. Se puede correr a mano contra cualquier commit
+  (el input `antes`). Las capturas quedan en el artefacto "capturas" de cada corrida.
+
+Los resultados se miran con las herramientas de GitHub (`actions_list`, `get_job_logs`).
+
+Un test nuevo va en `tests/test_algo.gd`: `extends "res://tests/test_case.gd"` y funciones
+`test_*` con `check(cond, qué)` y `check_eq(lo_que_dio, lo_esperado, qué)`; `before_each` y
+`after_each` si hacen falta. Cada test corre en una instancia nueva. Las pruebas que juegan usan la
+ranura 9 (no pisan las de verdad) y una semilla fija; por eso lo que se anima al dibujarse usa
+`World.anim_time` y no `Time.get_ticks_msec()`, y por eso no hay `randomize()`.
 
 ## Agregar un poder
 

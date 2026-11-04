@@ -1,12 +1,14 @@
 # Revisión de estructura y plan de mejoras
 
-*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Fases 0 a 3 hechas; la 4, en curso.*
+*3 de noviembre de 2026 · sobre la versión 0.1 (commit `3724ecd`). Actualizado el 4 de noviembre: las
+seis fases están hechas (ver Cómo quedó); falta probar en el juego las fases 2 a 5.*
 
 **Cómo la hice**: leí la arquitectura (las dos escenas, `World`, `HUD`, las armas, el guardado, la
 i18n), recorrí `Villager` por secciones, medí tamaños y acoplamiento con scripts, pasé `gdlint`
 (gdtoolkit 4.5) por los 53 scripts e hice un chequeo propio de traducciones. **No pude correr
-Godot** en el contenedor (no hay salida a las descargas), así que nada de esto está probado en el
-juego: todo sale de leer el código.
+Godot** en el contenedor (no hay salida a las descargas), así que la revisión sale de leer el
+código. Después Godot pasó a correr en la CI (fase 6): compila todo, corre los tests, juega una
+partida sola y saca capturas de la interfaz.
 
 ## En una línea
 
@@ -256,7 +258,7 @@ leer o guardar.
       dibujan el rayo, el meteorito, el tornado y el altar, el destello, las etiquetas, los modos).
 - Cambio que se ve: la devoción ya no se recarga mientras baja la cámara (son unos segundos).
 
-### Fase 4 · Partir `Villager` (en curso, un sistema por sesión)
+### Fase 4 · Partir `Villager` ✅ (falta probarla en el juego)
 
 - [x] Lo mecánico: las clases de efectos (`BloodPool`, `ZapArcs`, `AshPile`, `Flames`) y los sonidos
       (`VillagerSounds`) a sus archivos. Sin cambios en el juego.
@@ -305,34 +307,92 @@ leer o guardar.
       en vez de los nombres privados de antes. El script ahora busca al final nombres viejos que
       hayan quedado en cualquier archivo (como `p._home_ok()` en la pareja).
 
-Con esto todos los sistemas del aldeano son componentes. En `villager.gd` queda el cuerpo (los 12
+Con esto todos los sistemas del aldeano son componentes. En `villager.gd` queda el cuerpo (sus
 estados y `_physics_process`), el paseo, cómo es y su carnet, los globitos y el duelo, y lo que le
-hacen directo los poderes (escudo, vacuna, resurrección, meteorito, tornado, diluvio, tiburón, Luna de
-Sangre). Lo que sigue de esta fase son las dos de abajo:
+hacen directo los poderes (escudo, vacuna, resurrección, meteorito, tornado, diluvio, tiburón, Luna
+de Sangre). Lo último de la fase:
 
-- [ ] `enum Body` para los estados excluyentes: cambia el corazón de `_physics_process`, mejor
-      después de probar en el juego lo de las fases 2 a 4.
-- [ ] Que cada uno se guarde solo (`to_dict()` / `from_dict()`): por ahora `World` sigue guardando
-      los campos del aldeano (la gripe, por `flu`, `flu_t` y `set_flu`; la espora, por `spore` y
-      `set_spore`; lo demás, por sus propiedades).
+- [x] Que cada uno se guarde solo: `Villager.to_dict()` / `from_dict()` arman lo suyo (el carnet,
+      el nombre, cómo es, el escudo, la vacuna, los padres) y le piden a cada componente su parte,
+      con las mismas claves de siempre, así las partidas de antes cargan igual (la edad en segundos
+      de las muy viejas la pasa a días `VillagerAge`). `World` solo agrega dónde está parado y en
+      qué choza vive. Lo prueban `tests/test_villager_save.gd` y la prueba de humo, que guarda,
+      vuelve a cargar y compara cada aldeano.
+- [x] `enum Body`, pero sin sacar los flags: `body()` dice en cuál de los estados excluyentes está
+      el cuerpo (caminando, agarrado, adentro, en el tornado, flotando, ahogándose, cayendo, tirado,
+      dormido...), sacado de los flags en el mismo orden de prioridad que tenía el loop, y
+      `_physics_process` es un `match` que manda cada estado a su función (`_water_physics`,
+      `_fall_physics`, `_tornado_physics`, `_walk_ai`). Cambiar los flags por un estado que se
+      asigna habría tocado las decenas de lugares que los ponen y los leen, y eso no lo ve ninguna
+      prueba; así la estructura es la que se buscaba y el comportamiento es el mismo. Estar muerto
+      va aparte (`dead`): un cadáver también flota, se cae o lo llevás. Lo prueba
+      `tests/test_villager_body.gd`.
 
-`villager.gd` va de 4.001 a 1.946 líneas.
+`villager.gd` va de 4.001 a 2.020 líneas (las funciones de cada estado del cuerpo sumaron unas 70).
 
-### Fase 5 · Interfaz (cuando haga falta)
+### Fase 5 · Interfaz ✅ (falta probarla en el juego)
 
-- [ ] `UiStyle` o `Theme`, partir `hud.gd`, `HudIcon` y `Painter` a su archivo, las pistas desde el
-      registro de poderes y `Hut` aparte.
+- [x] Primero, capturas: el job `screens` de la CI corre Godot con una pantalla virtual, saca 18
+      capturas (`tools/ci/screenshots.gd`: el menú de inicio, el HUD de día y de noche, las dos
+      pestañas de la barra, apuntando un poder, los modos del click, cada pestaña de la tienda, el
+      carnet, el árbol, el cartel de la choza, el historial y la pausa), saca las mismas en el commit
+      de antes y dice cuáles cambiaron y dónde (`tools/ci/compare_screens.py`). Para que dos
+      corridas salgan iguales hizo falta una semilla fija, que las animaciones que se dibujan usen
+      un reloj que avanza con cada cuadro (`World.anim_time`) en vez del de la compu, sacar un
+      `randomize()` que tenía cada aldeano y que las pruebas jueguen en la ranura 9 (que además ya
+      no pisan una partida de verdad si se corren en la compu). Cada paso de esta fase se comparó
+      así con el anterior: todos dieron 18 de 18 iguales. La comparación encontró un error al
+      partir el HUD que leyendo el código no se veía (las barras nuevas no ocupaban la pantalla y
+      el + de invocar, las monedas y la barra de poderes quedaban corridos) y se arregló antes de
+      seguir.
+- [x] `HudIcon` y `Painter` a su archivo (`ui/hud_icon.gd`, `ui/painter.gd`).
+- [x] `UiStyle` (`ui/ui_style.gd`) y no un `Theme`: de los ~215 overrides, la mayoría son la
+      separación de cada contenedor y colores que cambian según el estado (el color del poder, si
+      alcanza la devoción...), que un `Theme` no ahorra. Lo que se repetía era la paleta (vivía en
+      el HUD), las fábricas (`HUD.make_*`), el fondo de las ventanas (7 copias de la misma receta:
+      `UiStyle.window`) y el contorno de los textos (`UiStyle.outline`). Si algún día cambia la
+      tipografía, va ahí también, con un `Theme` en la raíz armado por código.
+- [x] `hud.gd` partido en tres: `TopBar` (el panel de la izquierda, el + de invocar y las
+      monedas), `PowerBar` (el modo del click y los poderes) y el HUD, que arma las dos, abre los
+      paneles y lleva los modos, la pista y los carteles. Pasó de 1.247 a 372 líneas.
+- [x] Las pistas ya salían del registro desde la fase 2 (`Power.hint_text()`, `tooltip`,
+      `locked_tooltip`); lo que quedaba de la escalera son las pistas de los modos del click, que
+      ahora son su propia función (`HUD._hint_text`).
+- [x] `Hut extends Decoration` (`world/hut.gd`): los que viven ahí y las camas, la puerta
+      iluminada, las zetas, los nacimientos, el cartel y romperse. Las decoraciones se crean con
+      `Decoration.make(kind)`, que para la choza devuelve una `Hut` (al colocarlas, su vista previa
+      y al cargar la partida). Los dibujos quedaron en `Decoration`, porque también los usan la
+      tienda, los carnets y los pedazos de la choza rota, con tres ganchos que `Hut` completa (cuánto
+      se ilumina, qué dice el cartel y lo que va encima). El guardado no cambió.
 
-### Fase 6 · Tests (cuando haya Godot en CI)
+### Fase 6 · Tests ✅
 
-- [ ] GUT o gdUnit4 para lo que no depende de la escena: `Relations`, `Genealogy`, `Names` y las
-      migraciones del guardado (más fácil después de la fase 4).
-- [ ] Prueba de humo en CI: abrir el proyecto headless con Godot 4.7, cargar una partida de
-      ejemplo y correr unos segundos sin errores.
+- [x] Godot en la CI (job `godot`): baja Godot 4.7.2, importa el proyecto y compila todos los
+      scripts (`tools/ci/check_scripts.gd`), que encuentra lo que gdlint no ve: un miembro que ya no
+      existe, un tipo que no va, una variable declarada dos veces.
+- [x] Tests con un corredor propio (`tools/ci/run_tests.gd`) en vez de GUT o gdUnit4, que son
+      addons y hay que activarlos en `project.godot`. Son 33 en `tests/`: los nombres, las ranuras
+      del guardado (con la copia `.bak` y las partidas dañadas), las relaciones, el árbol, `Game`, y
+      el guardado y el estado del cuerpo del aldeano.
+- [x] Prueba de humo (`tools/ci/smoke.gd`): arranca una partida nueva, la juega sola con de todo
+      (gripe, espora, zombi, hambre, sueño, vejez, fuego, cada poder, la noche, muertes), la guarda,
+      vuelve a cargar el mundo, se fija que cada aldeano vuelva como se guardó y sigue jugando, ahora
+      con el diluvio. La CI falla si Godot escribe un error de script.
 
-**Si querés seguir sumando cosas rápido**: las fases 0 y 1 son las que más rinden por lo que
-cuestan. La 2 conviene hacerla antes del próximo poder, y la 4 antes del próximo sistema del
-aldeano.
+## Cómo quedó
+
+| | Antes | Ahora |
+|---|---|---|
+| `villager.gd` | 4.001 líneas | 2.020, más 10 componentes (`VillagerFlu`, `VillagerMood`...) |
+| `hud.gd` | 1.704 | 372, más `TopBar`, `PowerBar`, `UiStyle`, `HudIcon` y `Painter` |
+| Agregar un poder | 14 archivos | su clase, una línea en `World._create_powers`, su ícono y sus textos |
+| Estado de la partida | en el HUD y en 35 `static var` sueltos | `Game`, y lo demás se borra en `Game.reset()` |
+| CI | nada | gdlint, traducciones, compilar todo, 33 tests, una partida sola y 18 capturas comparadas |
+
+Lo que queda, de los hallazgos: juntar las teclas en un solo lugar (punto 7), llevar la lista de
+aldeanos en `World` y sintetizar los sonidos al cargar (punto 8), partir el README (punto 9), y
+`shark.gd` y `villager_rig.gd`, que siguen pasando las 1.000 líneas. Desde el editor: los nombres
+de los nodos de `world.tscn` y `company_name` en `export_presets.cfg`.
 
 ## Reglas para que no vuelva a pasar
 
@@ -340,3 +400,8 @@ aldeano.
 - Un sistema nuevo del aldeano va en su propio archivo.
 - Un `static var` nuevo con estado de la partida se resetea en un solo lugar.
 - Todo texto visible nuevo va a `I18n.EN` (lo chequea `tools/check_i18n.py` en cada push).
+- Un color o un estilo de la interfaz que se repite va en `UiStyle`.
+- Si un cambio toca lo que se ve, la comparación de capturas de la CI tiene que dar todo igual, o
+  cambiar solo lo que se quería cambiar.
+- Lo que se anima al dibujarse usa `World.anim_time`, no el reloj de la compu (si no, las capturas
+  no se pueden comparar).
