@@ -204,40 +204,40 @@ leer o guardar.
 
 - [x] `CLAUDE.md` con la arquitectura y las reglas (junto con esta revisión).
 - [x] `gdlintrc` y `tools/check_i18n.py`. Al final `gdlintrc` no limita el largo de las líneas: 44
-      de las 73 de más de 140 son pares de traducción que no se pueden partir, y gdtoolkit no deja
-      apagar una regla en un solo archivo. También apaga los `return` tempranos y, hasta las fases
-      2 a 4, el tamaño de los archivos. El chequeo de traducciones mira todos los literales con
-      pinta de texto (no solo los `tr()`), y avisa tanto lo que falta traducir como las claves que
-      sobran.
+	  de las 73 de más de 140 son pares de traducción que no se pueden partir, y gdtoolkit no deja
+	  apagar una regla en un solo archivo. También apaga los `return` tempranos y, hasta las fases
+	  2 a 4, el tamaño de los archivos. El chequeo de traducciones mira todos los literales con
+	  pinta de texto (no solo los `tr()`), y avisa tanto lo que falta traducir como las claves que
+	  sobran.
 - [x] GitHub Actions (`.github/workflows/checks.yml`): `gdlint` y el chequeo de traducciones en
-      cada push. Corre en verde.
+	  cada push. Corre en verde.
 - [x] Las limpiezas del punto 10, menos dos: los nombres de los nodos de `world.tscn` (hay que
-      cambiarlos desde el editor y a la vez los `$isle`... del código) y `company_name` en
-      `export_presets.cfg` (lo tiene que decidir el usuario).
+	  cambiarlos desde el editor y a la vez los `$isle`... del código) y `company_name` en
+	  `export_presets.cfg` (lo tiene que decidir el usuario).
 
 ### Fase 1 · Arreglos chicos ✅
 
 - [x] `Villager.is_alive()`, en los 33 lugares donde "vivo" estaba escrito a mano. No hizo falta
-      `counts_as_population()`: con el que se ahoga contado como vivo, es lo mismo.
+	  `counts_as_population()`: con el que se ahoga contado como vivo, es lo mismo.
 - [x] Que el que se está ahogando cuente para la capacidad (punto 5). Apareció otro camino para
-      pasarse: resucitar con la isla llena. Ahora dice "¡La isla está llena!".
+	  pasarse: resucitar con la isla llena. Ahora dice "¡La isla está llena!".
 - [x] Claves explícitas en `_sync_weapon`.
 - [x] Guardado: `meta/version`, escritura a `.tmp`, copia `.bak` que se usa si la partida no se
-      puede leer, tarjeta "Dañada" que solo deja borrar, y aviso si no se pudo guardar.
+	  puede leer, tarjeta "Dañada" que solo deja borrar, y aviso si no se pudo guardar.
 
 ### Fase 2 · Un solo modelo de poder ✅ (falta probarla en el juego)
 
 - [x] Clase base `Power` (`weapons/power.gd`) y registro: cada poder entra solo al grupo `"power"`,
-      y `Power.all()`, `aiming()` y `threat()` reemplazan a `HUD.aiming()` y a `Feed.armed`. La
-      lista en el orden de la barra quedó en `World._create_powers`, así la base no conoce a sus
-      hijos.
+	  y `Power.all()`, `aiming()` y `threat()` reemplazan a `HUD.aiming()` y a `Feed.armed`. La
+	  lista en el orden de la barra quedó en `World._create_powers`, así la base no conoce a sus
+	  hijos.
 - [x] Todos los poderes de una vez, no de a uno: la cáscara era idéntica en los 11, así que pasar
-      solo la pistola habría dejado dos mecanismos conviviendo sin probar menos riesgo. `Charm` y
-      `Miracle` son `Power` con `Kind` (y `make`). `armed` y `unlocked` son de cada nodo: se terminó
-      lo de resetear estáticos en `_ready()` para los poderes.
+	  solo la pistola habría dejado dos mecanismos conviviendo sin probar menos riesgo. `Charm` y
+	  `Miracle` son `Power` con `Kind` (y `make`). `armed` y `unlocked` son de cada nodo: se terminó
+	  lo de resetear estáticos en `_ready()` para los poderes.
 - [x] `HUD`, `World`, `Shop`, el guardado y la consola recorren la lista: se fueron 11 señales, 11
-      `set_X_armed`, 10 `unlock_X` y `TOOLS`. Los desbloqueos se guardan como `{"gun": true, ...}`
-      (formato 2), leyendo también las claves de antes.
+	  `set_X_armed`, 10 `unlock_X` y `TOOLS`. Los desbloqueos se guardan como `{"gun": true, ...}`
+	  (formato 2), leyendo también las claves de antes.
 - Cambios que se ven: el slot de cualquier poder afuera se resalta con la misma intensidad (antes
   variaba entre 30 y 38 %), y al desatar el diluvio con D la barra pasa a su pestaña, como con los
   demás. Un poder nuevo ahora es un archivo, una línea en `World._create_powers`, su ícono y sus
@@ -246,66 +246,66 @@ leer o guardar.
 ### Fase 3 · El estado de la partida fuera del HUD ✅ (falta probarla en el juego)
 
 - [x] `Game` (`world/game.gd`) con las monedas, la devoción, la XP y los puntos, la Luna de Sangre
-      (ya no es un estático de `Moon`) y los tiburones, las compras y su guardado. Quedó como clase
-      con estáticos, como `Settings`, y no como autoload, así no hay que tocar `project.godot`; las
-      señales van en `Game.events` (`changed`, `loaded`, `offerings_gained`, `point_earned`,
-      `shark_changed`...). El HUD solo muestra. El guardado no cambió de formato (sigue en
-      `game/hud`).
+	  (ya no es un estático de `Moon`) y los tiburones, las compras y su guardado. Quedó como clase
+	  con estáticos, como `Settings`, y no como autoload, así no hay que tocar `project.godot`; las
+	  señales van en `Game.events` (`changed`, `loaded`, `offerings_gained`, `point_earned`,
+	  `shark_changed`...). El HUD solo muestra. El guardado no cambió de formato (sigue en
+	  `game/hud`).
 - [x] Un `Game.reset()` único, lo primero de `World._ready()`: la economía, los números de carnet,
-      el tiempo jugado, las relaciones, el árbol y el agua del diluvio (`Storm.clear`).
+	  el tiempo jugado, las relaciones, el árbol y el agua del diluvio (`Storm.clear`).
 - [x] Carteles flotantes por señal: `Game.say` y `Game.announce`. Las búsquedas del HUD bajaron de
-      28 a 10 y los `if hud` de 86 a 28; lo que queda es interfaz de verdad (el `overlay` donde
-      dibujan el rayo, el meteorito, el tornado y el altar, el destello, las etiquetas, los modos).
+	  28 a 10 y los `if hud` de 86 a 28; lo que queda es interfaz de verdad (el `overlay` donde
+	  dibujan el rayo, el meteorito, el tornado y el altar, el destello, las etiquetas, los modos).
 - Cambio que se ve: la devoción ya no se recarga mientras baja la cámara (son unos segundos).
 
 ### Fase 4 · Partir `Villager` ✅ (falta probarla en el juego)
 
 - [x] Lo mecánico: las clases de efectos (`BloodPool`, `ZapArcs`, `AshPile`, `Flames`) y los sonidos
-      (`VillagerSounds`) a sus archivos. Sin cambios en el juego.
+	  (`VillagerSounds`) a sus archivos. Sin cambios en el juego.
 - [x] Espora y zombis → `VillagerSpore`. Al medir el acoplamiento resultó que no era lo más suelto
-      (usa 47 cosas del resto del aldeano y 13 partes suyas se usan desde otros archivos), así que
-      quedó como componente: un `RefCounted` con `v` (el aldeano), y el aldeano reenvía la API de
-      afuera para que no cambien los que llaman. El pase se hizo con un script que prefija lo del
-      aldeano (`v.dir`, `Villager.VOICE_DB`, `self` → `v`) y otro que chequea que no quede nada
-      suelto; conviene repetir lo mismo con los que siguen.
+	  (usa 47 cosas del resto del aldeano y 13 partes suyas se usan desde otros archivos), así que
+	  quedó como componente: un `RefCounted` con `v` (el aldeano), y el aldeano reenvía la API de
+	  afuera para que no cambien los que llaman. El pase se hizo con un script que prefija lo del
+	  aldeano (`v.dir`, `Villager.VOICE_DB`, `self` → `v`) y otro que chequea que no quede nada
+	  suelto; conviene repetir lo mismo con los que siguen.
 - [x] Gripe → `VillagerFlu`, con los mismos dos scripts. Usa 26 cosas del aldeano (6 son del nodo)
-      y 11 partes suyas se usan desde 5 archivos. Las comparaciones repetidas pasaron a `has_flu()`
-      (la está incubando o está enfermo) y el carnet ya no lee un campo privado (`flu_look()`). El
-      hambre, que estaba metida entre las funciones de la gripe, quedó con la comida.
+	  y 11 partes suyas se usan desde 5 archivos. Las comparaciones repetidas pasaron a `has_flu()`
+	  (la está incubando o está enfermo) y el carnet ya no lee un campo privado (`flu_look()`). El
+	  hambre, que estaba metida entre las funciones de la gripe, quedó con la comida.
 - [x] Fuego y rayo → `VillagerBurn`, juntos: quemarse del todo termina igual que el rayo
-      (carbonizado, con el mismo humo, y hecho cenizas). Usa 35 cosas del aldeano (10 son del
-      nodo) y 7 partes suyas se usan desde 6 archivos. `HEAD_TOP` y `FEET` quedaron en el aldeano
-      (son medidas del cuerpo), igual que `body_center`, `body_distance` y `ground_point`, que se
-      juntaron con `_body_segment`.
+	  (carbonizado, con el mismo humo, y hecho cenizas). Usa 35 cosas del aldeano (10 son del
+	  nodo) y 7 partes suyas se usan desde 6 archivos. `HEAD_TOP` y `FEET` quedaron en el aldeano
+	  (son medidas del cuerpo), igual que `body_center`, `body_distance` y `ground_point`, que se
+	  juntaron con `_body_segment`.
 - [x] Necesidades → tres componentes en vez del `villager_needs.gd` que proponía arriba:
-      `VillagerMood` (el ánimo, con los pesos `MOOD_*` de su bloque), `VillagerSleep` y
-      `VillagerHunger`, un commit cada uno. Son sistemas distintos, cada uno con su estado y su
-      `update`, y entre ellos se hablan por lo que reenvía el aldeano (`add_mood`, `hunger`,
-      `tiredness`). El ánimo usa 19 cosas del aldeano y lo usan 10 archivos; el sueño, 38 y 7; el
-      hambre, 34 y unos 10. Para estos tres el script de los anteriores pasó a ser uno solo que
-      sirve para cualquier sistema, y el chequeo ahora también busca declaraciones repetidas (gdlint
-      no las ve: encontró una antes de commitear), accesos a campos que se mudaron y asignaciones a
-      propiedades de solo lectura. Lo que arrancaba al azar en `_ready` (el ánimo, el cansancio y
-      el hambre del principio) ahora arranca en el componente; las partidas y los bebés lo pisan
-      después, igual que antes.
+	  `VillagerMood` (el ánimo, con los pesos `MOOD_*` de su bloque), `VillagerSleep` y
+	  `VillagerHunger`, un commit cada uno. Son sistemas distintos, cada uno con su estado y su
+	  `update`, y entre ellos se hablan por lo que reenvía el aldeano (`add_mood`, `hunger`,
+	  `tiredness`). El ánimo usa 19 cosas del aldeano y lo usan 10 archivos; el sueño, 38 y 7; el
+	  hambre, 34 y unos 10. Para estos tres el script de los anteriores pasó a ser uno solo que
+	  sirve para cualquier sistema, y el chequeo ahora también busca declaraciones repetidas (gdlint
+	  no las ve: encontró una antes de commitear), accesos a campos que se mudaron y asignaciones a
+	  propiedades de solo lectura. Lo que arrancaba al azar en `_ready` (el ánimo, el cansancio y
+	  el hambre del principio) ahora arranca en el componente; las partidas y los bebés lo pisan
+	  después, igual que antes.
 - [x] Social → dos componentes: `VillagerChat` (las charlas) y `VillagerFaith` (la fe y el miedo),
-      un commit cada uno. Cada uno usa 29 cosas del aldeano; a las charlas las usan 7 archivos y a
-      la fe, 10. Charlar es de a dos: lo que hay que hacer del lado del otro (sumarlo a la charla,
-      cortársela) va por lo que reenvía su aldeano (`join_chat`, `leave_chat`) en vez de tocarle
-      los campos. Se quedaron en el aldeano, porque los usan todos: los globitos (`say`), el
-      duelo (`_mourn`), quedarse quieto y los empujones (`get_pushed_by`, ahora público porque lo
-      usa la Discordia), y salir corriendo (`_scram`, que también usan la espora y el altar).
-      `witness()` también es público ahora (lo usan el altar y la espora). El script ahora también
-      prefija los tipos de las firmas (`-> Bubble` → `-> Villager.Bubble`), que el chequeo
-      tampoco revisaba.
+	  un commit cada uno. Cada uno usa 29 cosas del aldeano; a las charlas las usan 7 archivos y a
+	  la fe, 10. Charlar es de a dos: lo que hay que hacer del lado del otro (sumarlo a la charla,
+	  cortársela) va por lo que reenvía su aldeano (`join_chat`, `leave_chat`) en vez de tocarle
+	  los campos. Se quedaron en el aldeano, porque los usan todos: los globitos (`say`), el
+	  duelo (`_mourn`), quedarse quieto y los empujones (`get_pushed_by`, ahora público porque lo
+	  usa la Discordia), y salir corriendo (`_scram`, que también usan la espora y el altar).
+	  `witness()` también es público ahora (lo usan el altar y la espora). El script ahora también
+	  prefija los tipos de las firmas (`-> Bubble` → `-> Villager.Bubble`), que el chequeo
+	  tampoco revisaba.
 - [x] Casa y familia → `VillagerHome` (la casa) y `VillagerAge` (la edad, con si puede tener un
-      bebé), un commit cada uno. Antes, `_update_family` se partió en dos (pasar los días y fijarse
-      dónde vivir), en el mismo orden y con los mismos casos. La casa usa 35 cosas del aldeano y la
-      usan 8 archivos; la edad, 23 y 10. Estar adentro de la choza (`inside`) se quedó en el aldeano
-      porque es un estado del cuerpo que miran todos, y los padres pasaron al carnet. El carnet, el
-      guardado y los otros componentes llaman ahora a `has_home()`, `can_go_home()`, `going_home`...
-      en vez de los nombres privados de antes. El script ahora busca al final nombres viejos que
-      hayan quedado en cualquier archivo (como `p._home_ok()` en la pareja).
+	  bebé), un commit cada uno. Antes, `_update_family` se partió en dos (pasar los días y fijarse
+	  dónde vivir), en el mismo orden y con los mismos casos. La casa usa 35 cosas del aldeano y la
+	  usan 8 archivos; la edad, 23 y 10. Estar adentro de la choza (`inside`) se quedó en el aldeano
+	  porque es un estado del cuerpo que miran todos, y los padres pasaron al carnet. El carnet, el
+	  guardado y los otros componentes llaman ahora a `has_home()`, `can_go_home()`, `going_home`...
+	  en vez de los nombres privados de antes. El script ahora busca al final nombres viejos que
+	  hayan quedado en cualquier archivo (como `p._home_ok()` en la pareja).
 
 Con esto todos los sistemas del aldeano son componentes. En `villager.gd` queda el cuerpo (sus
 estados y `_physics_process`), el paseo, cómo es y su carnet, los globitos y el duelo, y lo que le
@@ -313,91 +313,91 @@ hacen directo los poderes (escudo, vacuna, resurrección, meteorito, tornado, di
 de Sangre). Lo último de la fase:
 
 - [x] Que cada uno se guarde solo: `Villager.to_dict()` / `from_dict()` arman lo suyo (el carnet,
-      el nombre, cómo es, el escudo, la vacuna, los padres) y le piden a cada componente su parte,
-      con las mismas claves de siempre, así las partidas de antes cargan igual (la edad en segundos
-      de las muy viejas la pasa a días `VillagerAge`). `World` solo agrega dónde está parado y en
-      qué choza vive. Lo prueban `tests/test_villager_save.gd` y la prueba de humo, que guarda,
-      vuelve a cargar y compara cada aldeano.
+	  el nombre, cómo es, el escudo, la vacuna, los padres) y le piden a cada componente su parte,
+	  con las mismas claves de siempre, así las partidas de antes cargan igual (la edad en segundos
+	  de las muy viejas la pasa a días `VillagerAge`). `World` solo agrega dónde está parado y en
+	  qué choza vive. Lo prueban `tests/test_villager_save.gd` y la prueba de humo, que guarda,
+	  vuelve a cargar y compara cada aldeano.
 - [x] `enum Body`, pero sin sacar los flags: `body()` dice en cuál de los estados excluyentes está
-      el cuerpo (caminando, agarrado, adentro, en el tornado, flotando, ahogándose, cayendo, tirado,
-      dormido...), sacado de los flags en el mismo orden de prioridad que tenía el loop, y
-      `_physics_process` es un `match` que manda cada estado a su función (`_water_physics`,
-      `_fall_physics`, `_tornado_physics`, `_walk_ai`). Cambiar los flags por un estado que se
-      asigna habría tocado las decenas de lugares que los ponen y los leen, y eso no lo ve ninguna
-      prueba; así la estructura es la que se buscaba y el comportamiento es el mismo. Estar muerto
-      va aparte (`dead`): un cadáver también flota, se cae o lo llevás. Lo prueba
-      `tests/test_villager_body.gd`.
+	  el cuerpo (caminando, agarrado, adentro, en el tornado, flotando, ahogándose, cayendo, tirado,
+	  dormido...), sacado de los flags en el mismo orden de prioridad que tenía el loop, y
+	  `_physics_process` es un `match` que manda cada estado a su función (`_water_physics`,
+	  `_fall_physics`, `_tornado_physics`, `_walk_ai`). Cambiar los flags por un estado que se
+	  asigna habría tocado las decenas de lugares que los ponen y los leen, y eso no lo ve ninguna
+	  prueba; así la estructura es la que se buscaba y el comportamiento es el mismo. Estar muerto
+	  va aparte (`dead`): un cadáver también flota, se cae o lo llevás. Lo prueba
+	  `tests/test_villager_body.gd`.
 
 `villager.gd` va de 4.001 a 2.020 líneas (las funciones de cada estado del cuerpo sumaron unas 70).
 
 ### Fase 5 · Interfaz ✅ (falta probarla en el juego)
 
 - [x] Primero, capturas: el job `screens` de la CI corre Godot con una pantalla virtual, saca 18
-      capturas (`tools/ci/screenshots.gd`: el menú de inicio, el HUD de día y de noche, las dos
-      pestañas de la barra, apuntando un poder, los modos del click, cada pestaña de la tienda, el
-      carnet, el árbol, el cartel de la choza, el historial y la pausa), saca las mismas en el commit
-      de antes y dice cuáles cambiaron y dónde (`tools/ci/compare_screens.py`). Para que dos
-      corridas salgan iguales hizo falta una semilla fija, que las animaciones que se dibujan usen
-      un reloj que avanza con cada cuadro (`World.anim_time`) en vez del de la compu, sacar un
-      `randomize()` que tenía cada aldeano y que las pruebas jueguen en la ranura 9 (que además ya
-      no pisan una partida de verdad si se corren en la compu). Desde ahí, cada paso de esta fase se
-      comparó así con el anterior y dio 18 de 18 iguales (la mudanza de `HudIcon` y `Painter` fue
-      antes: esa la cubren la compilación y la prueba de humo). La comparación encontró un error al
-      partir el HUD que leyendo el código no se veía (las barras nuevas no ocupaban la pantalla y
-      el + de invocar, las monedas y la barra de poderes quedaban corridos) y se arregló antes de
-      seguir.
+	  capturas (`tools/ci/screenshots.gd`: el menú de inicio, el HUD de día y de noche, las dos
+	  pestañas de la barra, apuntando un poder, los modos del click, cada pestaña de la tienda, el
+	  carnet, el árbol, el cartel de la choza, el historial y la pausa), saca las mismas en el commit
+	  de antes y dice cuáles cambiaron y dónde (`tools/ci/compare_screens.py`). Para que dos
+	  corridas salgan iguales hizo falta una semilla fija, que las animaciones que se dibujan usen
+	  un reloj que avanza con cada cuadro (`World.anim_time`) en vez del de la compu, sacar un
+	  `randomize()` que tenía cada aldeano y que las pruebas jueguen en la ranura 9 (que además ya
+	  no pisan una partida de verdad si se corren en la compu). Desde ahí, cada paso de esta fase se
+	  comparó así con el anterior y dio 18 de 18 iguales (la mudanza de `HudIcon` y `Painter` fue
+	  antes: esa la cubren la compilación y la prueba de humo). La comparación encontró un error al
+	  partir el HUD que leyendo el código no se veía (las barras nuevas no ocupaban la pantalla y
+	  el + de invocar, las monedas y la barra de poderes quedaban corridos) y se arregló antes de
+	  seguir.
 - [x] `HudIcon` y `Painter` a su archivo (`ui/hud_icon.gd`, `ui/painter.gd`).
 - [x] `UiStyle` (`ui/ui_style.gd`) y no un `Theme`: de los ~215 overrides, la mayoría son la
-      separación de cada contenedor y colores que cambian según el estado (el color del poder, si
-      alcanza la devoción...), que un `Theme` no ahorra. Lo que se repetía era la paleta (vivía en
-      el HUD), las fábricas (`HUD.make_*`), el fondo de las ventanas (7 copias de la misma receta:
-      `UiStyle.window`) y el contorno de los textos (`UiStyle.outline`). Si algún día cambia la
-      tipografía, va ahí también, con un `Theme` en la raíz armado por código.
+	  separación de cada contenedor y colores que cambian según el estado (el color del poder, si
+	  alcanza la devoción...), que un `Theme` no ahorra. Lo que se repetía era la paleta (vivía en
+	  el HUD), las fábricas (`HUD.make_*`), el fondo de las ventanas (7 copias de la misma receta:
+	  `UiStyle.window`) y el contorno de los textos (`UiStyle.outline`). Si algún día cambia la
+	  tipografía, va ahí también, con un `Theme` en la raíz armado por código.
 - [x] `hud.gd` partido en tres: `TopBar` (el panel de la izquierda, el + de invocar y las
-      monedas), `PowerBar` (el modo del click y los poderes) y el HUD, que arma las dos, abre los
-      paneles y lleva los modos, la pista y los carteles. Pasó de 1.247 a 372 líneas.
+	  monedas), `PowerBar` (el modo del click y los poderes) y el HUD, que arma las dos, abre los
+	  paneles y lleva los modos, la pista y los carteles. Pasó de 1.247 a 372 líneas.
 - [x] Las pistas ya salían del registro desde la fase 2 (`Power.hint_text()`, `tooltip`,
-      `locked_tooltip`); lo que quedaba de la escalera son las pistas de los modos del click, que
-      ahora son su propia función (`HUD._hint_text`).
+	  `locked_tooltip`); lo que quedaba de la escalera son las pistas de los modos del click, que
+	  ahora son su propia función (`HUD._hint_text`).
 - [x] `Hut extends Decoration` (`world/hut.gd`): los que viven ahí y las camas, la puerta
-      iluminada, las zetas, los nacimientos, el cartel y romperse. Las decoraciones se crean con
-      `Decoration.make(kind)`, que para la choza devuelve una `Hut` (al colocarlas, su vista previa
-      y al cargar la partida). Los dibujos quedaron en `Decoration`, porque también los usan la
-      tienda, los carnets y los pedazos de la choza rota, con tres ganchos que `Hut` completa (cuánto
-      se ilumina, qué dice el cartel y lo que va encima). El guardado no cambió.
+	  iluminada, las zetas, los nacimientos, el cartel y romperse. Las decoraciones se crean con
+	  `Decoration.make(kind)`, que para la choza devuelve una `Hut` (al colocarlas, su vista previa
+	  y al cargar la partida). Los dibujos quedaron en `Decoration`, porque también los usan la
+	  tienda, los carnets y los pedazos de la choza rota, con tres ganchos que `Hut` completa (cuánto
+	  se ilumina, qué dice el cartel y lo que va encima). El guardado no cambió.
 
 ### Fase 6 · Tests ✅
 
 - [x] Godot en la CI (job `godot`): baja Godot 4.7.2, importa el proyecto y compila todos los
-      scripts (`tools/ci/check_scripts.gd`), que encuentra lo que gdlint no ve: un miembro que ya no
-      existe, un tipo que no va, una variable declarada dos veces.
+	  scripts (`tools/ci/check_scripts.gd`), que encuentra lo que gdlint no ve: un miembro que ya no
+	  existe, un tipo que no va, una variable declarada dos veces.
 - [x] Tests con un corredor propio (`tools/ci/run_tests.gd`) en vez de GUT o gdUnit4, que son
-      addons y hay que activarlos en `project.godot`. Son 33 en `tests/`: los nombres, las ranuras
-      del guardado (con la copia `.bak` y las partidas dañadas), las relaciones, el árbol, `Game`, y
-      el guardado y el estado del cuerpo del aldeano.
+	  addons y hay que activarlos en `project.godot`. Son 33 en `tests/`: los nombres, las ranuras
+	  del guardado (con la copia `.bak` y las partidas dañadas), las relaciones, el árbol, `Game`, y
+	  el guardado y el estado del cuerpo del aldeano.
 - [x] Prueba de humo (`tools/ci/smoke.gd`): arranca una partida nueva, la juega sola con de todo
-      (gripe, espora, zombi, hambre, sueño, vejez, fuego, cada poder, la noche, muertes), la guarda,
-      vuelve a cargar el mundo, se fija que cada aldeano vuelva como se guardó y sigue jugando, ahora
-      con el diluvio. La CI falla si Godot escribe un error de script.
+	  (gripe, espora, zombi, hambre, sueño, vejez, fuego, cada poder, la noche, muertes), la guarda,
+	  vuelve a cargar el mundo, se fija que cada aldeano vuelva como se guardó y sigue jugando, ahora
+	  con el diluvio. La CI falla si Godot escribe un error de script.
 
 ### Después del plan · Las teclas en un solo lugar ✅ (falta probarlo en el juego)
 
 - [x] `Controls` (`ui/controls.gd`): las 27 acciones con sus teclas, en una tabla (`KEYS`), que
-      registra en el `InputMap` por código (no en `project.godot`, que lo pisa el editor). El
-      poder, el HUD, el mundo, la pausa, la consola, el menú de inicio, colocar decoraciones y los
-      paneles preguntan por su acción en vez de por la tecla. Las flechas de la consola (los
-      comandos anteriores) quedaron como estaban: son del cuadro de texto, no del juego.
+	  registra en el `InputMap` por código (no en `project.godot`, que lo pisa el editor). El
+	  poder, el HUD, el mundo, la pausa, la consola, el menú de inicio, colocar decoraciones y los
+	  paneles preguntan por su acción en vez de por la tecla. Las flechas de la consola (los
+	  comandos anteriores) quedaron como estaban: son del cuadro de texto, no del juego.
 - [x] Los textos que nombraban una tecla la sacan de ahí: los tooltips (`Controls.tip`), las
-      pistas de los poderes y de los modos, los carteles de desbloqueado y la consola (con `%s`).
-      Eran 53 textos en los dos idiomas; ahora cambiar una tecla es cambiarla en `KEYS`. El
-      chequeo de traducciones ahora también se fija que cada traducción tenga los mismos `%d` /
-      `%s`, en orden.
+	  pistas de los poderes y de los modos, los carteles de desbloqueado y la consola (con `%s`).
+	  Eran 53 textos en los dos idiomas; ahora cambiar una tecla es cambiarla en `KEYS`. El
+	  chequeo de traducciones ahora también se fija que cada traducción tenga los mismos `%d` /
+	  `%s`, en orden.
 - [x] La tabla de teclas del README sale de `KEYS` (`tools/controls_doc.py`, con el comentario de
-      cada una) y la CI avisa si quedó vieja. Antes al README le faltaban E, A, B, F, H, I y la
-      consola.
+	  cada una) y la CI avisa si quedó vieja. Antes al README le faltaban E, A, B, F, H, I y la
+	  consola.
 - [x] `tests/test_controls.gd`: que no se pisen, que cada poder tenga la suya, que se registren
-      una sola vez y que los textos se armen bien en español y en inglés. La prueba de humo
-      aprieta las teclas como el jugador y se fija que hagan lo suyo.
+	  una sola vez y que los textos se armen bien en español y en inglés. La prueba de humo
+	  aprieta las teclas como el jugador y se fija que hagan lo suyo.
 
 ## Cómo quedó
 
