@@ -36,6 +36,15 @@ func test_asleep() -> void:
 	_v.falling = true
 	check_eq(_v.body(), Villager.Body.FALLING, "si se cae, no importa que esté dormido")
 
+func test_frozen() -> void:
+	_v._freeze.frozen = true   # (Se congela con freeze, que necesita estar en el árbol)
+	check_eq(_v.body(), Villager.Body.FROZEN, "congelado, quieto en la isla")
+	check(not _v.is_idle(), "y no está parado")
+	_v.in_water = true
+	check_eq(_v.body(), Villager.Body.FLOATING, "en el agua, el bloque flota")
+	_v.dragging = true
+	check_eq(_v.body(), Villager.Body.DRAGGED, "y se lo puede agarrar")
+
 func test_eaten_wins() -> void:
 	_v.dragging = true
 	_v.eaten = true

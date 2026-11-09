@@ -52,6 +52,7 @@ const MOOD_MANNA := 6.0            # Comió comida del cielo
 const MOOD_THROWN := -6.0
 const MOOD_BONKED := -5.0
 const MOOD_BURNED := -12.0         # Se prendió fuego y se salvó
+const MOOD_FROZEN := -8.0          # Lo congelaste (ver VillagerFreeze)
 ## Cuando cambia lo que es con alguien (ver Relations): [cuánto, por qué]
 const MOOD_EVENTS := {
 	Relations.Event.FRIENDS: [8.0, "Se hizo un amigo"],

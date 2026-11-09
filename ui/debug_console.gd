@@ -27,7 +27,7 @@ const COMMANDS := [
 	["miedo / fear [n]", "Pone el miedo de todos en n, de 0 a 100 (por defecto 100)"],
 	["hambre / hunger [n]", "Pone el hambre de todos en n, de 0 a 100 (por defecto 80)"],
 	["edad / age [n]", "Pone a todos en n días (por defecto 7, ya viejos; con 10 se mueren de viejos)"],
-	["desbloquear / unlock", "Pistola, rayo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y todos los tiburones"],
+	["desbloquear / unlock", "Pistola, rayo, fuego, hielo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
 	["limpiar / clear", "Borra la consola"],
 ]
@@ -236,4 +236,4 @@ func _unlock_all() -> void:
 		if not Game.shark_owned[i]:
 			Game.give_shark(i)
 	Game.events.changed.emit()
-	_ok(tr("Desbloqueado: pistola, rayo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y %d tiburones") % Shark.MAX)
+	_ok(tr("Desbloqueado: pistola, rayo, fuego, hielo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y %d tiburones") % Shark.MAX)

@@ -247,7 +247,7 @@ func _ready() -> void:
 ## Los poderes, en el orden de la barra (ver HUD): primero los malos y después los buenos. Uno
 ## nuevo va acá (ver Power).
 func _create_powers() -> Array[Power]:
-	var list: Array[Power] = [Gun.new(), Lightning.new(), Meteor.new(), Tornado.new(), Storm.new(),
+	var list: Array[Power] = [Gun.new(), Lightning.new(), Fireball.new(), Frost.new(), Meteor.new(), Tornado.new(), Storm.new(),
 			Plague.new(), Spore.new(), Charm.make(Charm.Kind.DISCORD), Feed.new(), Cure.new(),
 			Miracle.make(Miracle.Kind.VACCINE), Miracle.make(Miracle.Kind.SHIELD),
 			Miracle.make(Miracle.Kind.RESURRECT), Charm.make(Charm.Kind.CUPID),

@@ -70,9 +70,13 @@ func ashes() -> float:
 func has_burns() -> bool:
 	return on_fire or _soot > 0.0
 
-## Se prende fuego.
+## Se prende fuego (congelado, en cambio, se derrite).
 func ignite() -> void:
 	if on_fire or v.eaten or zap_state != Zap.NONE:
+		return
+	if v.is_frozen():
+		v.thaw()   # Congelado, el fuego primero lo derrite (ver VillagerFreeze)
+		_heat = 0.0
 		return
 	on_fire = true
 	_burn_t = 0.0

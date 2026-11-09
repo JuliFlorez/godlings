@@ -27,6 +27,8 @@ const PAN := [PAN_LEFT, PAN_RIGHT, PAN_UP, PAN_DOWN]   # Las que mueven la cáma
 const KEYS := {
 	&"power_gun": [KEY_G],                          # Sacar o guardar la pistola
 	&"power_lightning": [KEY_R],                    # Sacar o guardar el rayo
+	&"power_fire": [KEY_Q],                         # Sacar o guardar el fuego
+	&"power_ice": [KEY_N],                          # Sacar o guardar el hielo
 	&"power_meteor": [KEY_M],                       # Sacar o guardar el meteorito
 	&"power_tornado": [KEY_T],                      # Sacar o guardar el tornado
 	&"power_storm": [KEY_D],                        # Desatar o calmar el diluvio

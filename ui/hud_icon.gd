@@ -138,6 +138,13 @@ func _draw() -> void:
 			draw_arc(c + Vector2(0, 0.04) * s, s * 0.13, 0.15 * PI, 0.85 * PI, 8, Color(0.05, 0.01, 0.01), maxf(1.5, s * 0.05), true)
 		"lightning":
 			draw_colored_polygon(_pts([0.6, 0.0, 0.16, 0.56, 0.46, 0.56, 0.34, 1.0, 0.84, 0.4, 0.54, 0.4, 0.72, 0.0]), Color(1.0, 0.9, 0.3))
+		"fire":
+			# Una llama: afuera naranja y adentro amarilla
+			draw_colored_polygon(_pts([0.5, 0.04, 0.62, 0.3, 0.8, 0.42, 0.84, 0.66, 0.72, 0.88, 0.5, 0.96, 0.28, 0.88,
+					0.16, 0.66, 0.2, 0.44, 0.34, 0.52, 0.38, 0.3]), UiStyle.C_FIRE)
+			draw_colored_polygon(_pts([0.52, 0.42, 0.64, 0.62, 0.66, 0.78, 0.5, 0.9, 0.34, 0.78, 0.38, 0.6]), Color(1.0, 0.86, 0.4))
+		"ice":
+			Frost.paint_flake(self, c, s * 0.44, UiStyle.C_ICE, maxf(1.5, s * 0.08))
 		"meteor":
 			draw_colored_polygon(_pts([0.98, 0.02, 0.22, 0.48, 0.52, 0.78]), Color(1.0, 0.62, 0.2, 0.6))
 			draw_circle(Vector2(0.36, 0.64) * s, s * 0.26, Color(1.0, 0.45, 0.15), true, -1.0, true)

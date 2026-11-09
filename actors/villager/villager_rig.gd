@@ -442,7 +442,7 @@ func _process(dt: float) -> void:
 	_prev_pos = pos
 	_prev_vel = vel
 	_acc = _acc.lerp(acc.limit_length(MAX_ACC), 0.3)
-	if _zap_pose():
+	if _zap_pose() or _frozen_pose():
 		return
 
 	var ragdoll := villager.dragging or villager.falling or villager.in_water or villager.eaten or villager.dead \
@@ -651,6 +651,19 @@ func _zap_pose() -> bool:
 	rag = 1.0
 	_prev_rot = villager.global_rotation
 	_apply()
+	return true
+
+## Congelado (ver VillagerFreeze): se queda duro en la pose que tenía, con la boca a medio abrir,
+## aunque lo agarren o lo revoleen. true si ya se encargó de los huesos.
+func _frozen_pose() -> bool:
+	if not villager.is_frozen():
+		return false
+	_mouth.target = 0.35
+	if is_instance_valid(_blink):
+		_blink.stare = true   # Ni parpadea
+	for j in joints:
+		j.vel = 0.0
+	_prev_rot = villager.global_rotation
 	return true
 
 func _apply() -> void:

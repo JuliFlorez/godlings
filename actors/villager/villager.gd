@@ -98,6 +98,9 @@ var zap_state: VillagerBurn.Zap:
 	get:
 		return _burn.zap_state
 
+# --- Hielo (ver VillagerFreeze y Frost): queda adentro de un bloque de hielo, quieto, y se derrite solo ---
+var _freeze: VillagerFreeze
+
 # --- Meteorito (ver Meteor): lo mira venir con la boca abierta y la explosión lo hace volar ---
 var _scared := 0.0
 
@@ -373,6 +376,7 @@ func _init() -> void:
 	_sleep = VillagerSleep.new(self)
 	_mood = VillagerMood.new(self)
 	_burn = VillagerBurn.new(self)
+	_freeze = VillagerFreeze.new(self)
 	_flu = VillagerFlu.new(self)
 	_spore = VillagerSpore.new(self)
 
@@ -469,7 +473,7 @@ func exit_water() -> void:
 ## (ver body). Que esté muerto va aparte (dead): un cadáver también se arrastra, flota, se cae o gira
 ## en un tornado; tirado en el piso es LYING.
 enum Body { WALKING, EATEN, RISING, ALTAR, DRAGGED, INSIDE, TORNADO, PINNED, FLOATING, DROWNING, FALLING,
-		LYING, ASLEEP }
+		LYING, ASLEEP, FROZEN }
 
 ## El estado del cuerpo, según los flags (dragging, inside, in_water...), en orden de prioridad: si
 ## está agarrado no importa que esté dormido, si flota no importa que esté muerto, etcétera. Es lo
@@ -493,6 +497,8 @@ func body() -> Body:
 		return Body.DROWNING if drowning else Body.FLOATING
 	if falling:
 		return Body.FALLING
+	if _freeze.frozen:
+		return Body.FROZEN   # Congelado en la isla: quieto hasta que se derrita (en el agua, flota)
 	if dead:
 		return Body.LYING
 	if asleep:
@@ -510,6 +516,10 @@ func _physics_process(dt: float) -> void:
 			_rise(dt)   # Volviendo a la vida: lo mueve la luz
 		Body.DRAGGED, Body.PINNED:
 			velocity = Vector2.ZERO
+		Body.FROZEN:
+			velocity = Vector2.ZERO
+			if Storm.flooded_at(ground_point()):
+				_swept_by_flood()   # El bloque también flota
 		Body.INSIDE:
 			_home.inside_ai(dt)
 		Body.TORNADO:
@@ -547,8 +557,8 @@ func _water_physics(dt: float) -> void:
 		global_position += drift * dt
 		water_surface_y += drift.y * dt
 
-	# Temporizador de ahogo
-	if not drowning:
+	# Temporizador de ahogo (congelado no: el bloque de hielo flota)
+	if not drowning and not _freeze.frozen:
 		drown_elapsed += dt
 		if drown_elapsed >= DROWN_DELAY:
 			drowning = true
@@ -737,9 +747,10 @@ func is_alive() -> bool:
 	return not dead and not eaten and not is_queued_for_deletion()
 
 ## Parado o caminando en la isla (no agarrado, volando, en el agua, en un tornado, adentro de su
-## choza ni muerto). Es lo mismo que body() == Body.WALKING, escrito de una (se llama muchísimo).
+## choza, congelado ni muerto). Es lo mismo que body() == Body.WALKING, escrito de una (se llama
+## muchísimo).
 func is_idle() -> bool:
-	return not (dragging or falling or in_water or eaten or dead or tornado or inside or asleep or altar)
+	return not (dragging or falling or in_water or eaten or dead or tornado or inside or asleep or altar or _freeze.frozen)
 
 ## Qué tan de noche es (0 mediodía, 1 noche cerrada; ver Sky.night).
 func _night() -> float:
@@ -1124,6 +1135,7 @@ func _die() -> void:
 		corpse_timer = 0.0
 		modulate.a = 1.0
 		return
+	_freeze.shatter()   # Congelado, el hielo se hace pedazos con él
 	dead = true
 	corpse_grounded = false
 	corpse_timer = 0.0
@@ -1268,6 +1280,25 @@ func zap_pinned() -> bool:
 func ashes() -> float:
 	return _burn.ashes()
 
+## Se prende fuego (la bola de fuego, ver Fireball). Congelado, en cambio, se derrite.
+func ignite() -> void:
+	_burn.ignite()
+
+# --- HIELO (lo que el resto del juego le pregunta al aldeano; ver VillagerFreeze) ---
+func is_frozen() -> bool:
+	return _freeze.frozen
+
+func can_freeze() -> bool:
+	return _freeze.can_freeze()
+
+## Lo congela (ver Frost). Al que se está quemando, en cambio, lo apaga.
+func freeze() -> void:
+	_freeze.freeze()
+
+## Se derrite de golpe.
+func thaw() -> void:
+	_freeze.thaw()
+
 # --- METEORITO ---
 ## Si lo puede alcanzar una explosión (vivo o cadáver; no si se está friendo por un rayo ni si
 ## está volviendo a la vida).
@@ -1396,8 +1427,8 @@ func infect() -> void:
 
 # --- CURAR ---
 ## El poder de curar (ver Cure): se le va la gripe (queda inmune), la espora (si todavía no es
-## un zombi: ahí ya no tiene cura) y, si se estaba quemando, se apaga y se le va el tizne. true
-## si tenía algo que curar.
+## un zombi: ahí ya no tiene cura), si se estaba quemando se apaga y se le va el tizne, y si estaba
+## congelado se descongela. true si tenía algo que curar.
 func cure() -> bool:
 	if not is_alive() or inside or zap_state != VillagerBurn.Zap.NONE:
 		return false
@@ -1415,9 +1446,10 @@ func cure() -> bool:
 			said = true
 	elif zombie:
 		Game.say("Ya no tiene cura", get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_MUTED)
-	var burns := _burn.has_burns()
+	var burns := _burn.has_burns() or _freeze.frozen   # (Congelado también: lo descongela)
 	if burns:
 		_burn.heal()
+		_freeze.thaw()
 		if not said and not zombie:
 			Game.say("¡Se curó!", get_global_transform_with_canvas().origin + Vector2(0, -70), UiStyle.C_SHOP)
 	var cured := flu_cured or spore_cured or burns
@@ -1816,6 +1848,7 @@ func _process(dt: float) -> void:
 	if dragging:
 		_update_drag(dt)
 	_burn.update(dt)
+	_freeze.update(dt)
 	_flu.update(dt)
 	_spore.update(dt)
 	_hunger.update(dt)
@@ -1902,11 +1935,14 @@ func _start_drag() -> void:
 	_throw_vel = Vector2.ZERO
 	swing_vel = 0.0
 	fall_vx = 0.0
+	v_fall = 0.0   # (Si lo atrapaste cayendo: soltarlo despacio en la isla no es caer de alto, ver VillagerFreeze)
 	_burn.unpin()   # Carbonizado también se lo puede levantar: se deshace al volver a quedar tirado
 	set_physics_process(false)
 	z_index = 10
 	if is_zombie():
 		_spore.groan()   # No grita: gime
+	elif _freeze.frozen:
+		add_fear(VillagerFaith.FEAR_GRAB)   # Congelado no puede gritar
 	elif not dead:
 		_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
 		_voice.play()
@@ -1992,6 +2028,7 @@ func _launch(vel: Vector2, from_island: bool) -> void:
 	z_index = 10  # Volando pasa por delante de palmeras y aldeanos
 
 func _land_on_island() -> void:
+	_freeze.landed(v_fall)   # Congelado y desde alto, se hace pedazos (y queda como cadáver, abajo)
 	falling = false
 	z_index = 0
 	in_water = false
