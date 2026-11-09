@@ -1,7 +1,7 @@
 extends VBoxContainer
 class_name SettingsPanel
-## Las opciones (ver Settings): volumen general y de música, idioma, pantalla completa y
-## fotogramas por segundo.
+## Las opciones (ver Settings): volumen general y de música, idioma, pantalla completa,
+## fotogramas por segundo y cómo se dan vuelta los aldeanos.
 ## Va en el menú de pausa y en el de inicio; cada cambio se aplica y se guarda al toque.
 
 signal locale_changed
@@ -13,6 +13,7 @@ var _music_slider: HSlider
 var _lang_buttons := {}       # código -> Button
 var _window_buttons := {}     # pantalla completa (bool) -> Button
 var _fps_buttons := {}        # mostrar (bool) -> Button
+var _turn_buttons := {}       # de a poco (bool) -> Button
 
 func _ready() -> void:
 	add_theme_constant_override("separation", 8)
@@ -51,6 +52,14 @@ func _ready() -> void:
 			Settings.set_show_fps(on)
 			sync())
 		_fps_buttons[on] = b
+
+	var turn := _choice_row("Darse vuelta", true)
+	for smooth: bool in [false, true]:
+		var b := _choice(turn, "De a poco" if smooth else "De golpe")
+		b.pressed.connect(func():
+			Settings.set_smooth_turn(smooth)
+			sync())
+		_turn_buttons[smooth] = b
 	sync()
 
 ## Muestra los valores de ahora (al abrir el menú).
@@ -65,22 +74,26 @@ func sync() -> void:
 		_mark(_window_buttons[full], full == Settings.fullscreen)
 	for on: bool in _fps_buttons:
 		_mark(_fps_buttons[on], on == Settings.show_fps)
+	for smooth: bool in _turn_buttons:
+		_mark(_turn_buttons[smooth], smooth == Settings.smooth_turn)
 
 func _mark(b: Button, on: bool) -> void:
 	b.add_theme_stylebox_override("normal", UiStyle.box(Color(UiStyle.C_DEVOTION, 0.35) if on else Color(1, 1, 1, 0.08), 8, UiStyle.C_DEVOTION if on else Color(1, 1, 1, 0.12), 1))
 
 # ---- Construcción ----
+## Título, barra y valor en una sola línea (así el panel entra debajo del logo en el menú de inicio).
 func _slider_row(title: String, value: float, setter: Callable) -> Array:
-	var head := HBoxContainer.new()
-	add_child(head)
-	head.add_child(UiStyle.label(title, 14, UiStyle.C_TEXT))
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(spacer)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	add_child(row)
+	row.add_child(UiStyle.label(title, 14, UiStyle.C_TEXT))
 	var value_l := UiStyle.label("", 13, UiStyle.C_MUTED)
-	head.add_child(value_l)
+	value_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value_l.custom_minimum_size = Vector2(38, 0)
 
 	var s := HSlider.new()
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	s.min_value = 0.0
 	s.max_value = 100.0
 	s.step = 1.0
@@ -93,7 +106,8 @@ func _slider_row(title: String, value: float, setter: Callable) -> Array:
 	s.value_changed.connect(func(v: float):
 		setter.call(v / 100.0)
 		value_l.text = "%d%%" % roundi(v))
-	add_child(s)
+	row.add_child(s)
+	row.add_child(value_l)
 	return [s, value_l]
 
 ## Título y una fila de botones para elegir uno de ellos (devuelve la fila).

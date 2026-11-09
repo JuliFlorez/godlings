@@ -47,7 +47,7 @@ const BREATH := 4.0           # Parado: sube y baja al respirar
 const BREATH_RATE := 2.4      # rad/s
 const LOOK := 0.12            # Parado: inclina la cabeza para un lado y otro (rad)
 const LOOK_TIME := Vector2(1.5, 4.0)
-const TURN_TIME := 0.18       # Segundos en darse vuelta
+const TURN_TIME := 0.18       # Segundos en darse vuelta (con la opción Settings.smooth_turn)
 const STOOP_HEAD := 30.0      # Bien viejo (ver VillagerAge.oldness): la cabeza se le hunde entre los hombros...
 const STOOP_STEP := 0.5       # ...y arrastra los pies (levanta menos el pie y el cuerpo)
 
@@ -398,7 +398,8 @@ func hit(point: Vector2, dir: Vector2, strength := 1.0) -> void:
 		var spin := (tip - base).normalized().cross(dir.normalized()) * flip
 		j.vel += spin * (HIT_SPIN + HIT_SPIN_NEAR * near) * strength + randf_range(-3.0, 3.0)
 
-## Se da vuelta de a poco (ver _process): se achata hasta quedar de canto y se espeja.
+## Se da vuelta (ver _process): de golpe, o con Settings.smooth_turn de a poco, achatándose
+## hasta quedar de canto (como un papel) y espejándose.
 func set_facing_left(left: bool) -> void:
 	_facing = -1.0 if left else 1.0
 
@@ -426,7 +427,10 @@ func _process(dt: float) -> void:
 		return
 	dt = minf(dt, 1.0 / 30.0)
 	_t += dt
-	scale.x = move_toward(scale.x, _facing * base_scale, 2.0 * base_scale / TURN_TIME * dt)
+	if Settings.smooth_turn:
+		scale.x = move_toward(scale.x, _facing * base_scale, 2.0 * base_scale / TURN_TIME * dt)
+	else:
+		scale.x = _facing * base_scale
 	_fungus.amount = villager.spore_look()
 	_fungus.bloom = villager.bloom_amount()
 	_fungus.burst = villager.bloom_burst()
