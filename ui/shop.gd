@@ -6,7 +6,8 @@ class_name Shop
 ## tornado, diluvio, peste, espora y la manzana de la discordia), los buenos (curar, la vacuna, el
 ## escudo, la resurrección, el arco de Cupido y la pelota de la amistad), y el cielo y los tiburones
 ## (la Luna de Sangre y los tiburones).
-## Tiene el tamaño de la pestaña más grande, así no salta al cambiar. Se vuelve a abrir en la
+## Las filas de tarjetas muestran de a MAX_CARDS y, si hay más, se corren con flechas (ver
+## ArrowRow). Tiene el tamaño de la pestaña más grande, así no salta al cambiar. Se vuelve a abrir en la
 ## última que se miró, o en la del poder bloqueado que se tocó en la barra (ver HUD.open_shop).
 
 enum Tab { ISLAND, EVIL, GOOD, SKY }
@@ -23,6 +24,7 @@ const TAB_H := 34.0
 const TAB_ICON := 18
 const CARD_W := 96.0
 const CARD_GAP := 8
+const MAX_CARDS := 8           # Las que se ven a la vez en una fila; si hay más, flechas (ver ArrowRow)
 const PREVIEW_SIZE := Vector2(76, 60)
 
 ## La pestaña que se está mirando (queda para la próxima vez, aunque se rearme la tienda).
@@ -107,6 +109,8 @@ func _ready() -> void:
 	_build_island(_pages[Tab.ISLAND])
 	_build_powers(_pages[Tab.EVIL], _pages[Tab.GOOD])
 	_build_sky(_pages[Tab.SKY])
+	for t: Tab in [Tab.ISLAND, Tab.EVIL, Tab.GOOD]:
+		(_pages[t].get_child(0) as ArrowRow).set_items()   # Ya con sus tarjetas: muestra las primeras
 	# Del tamaño de la más grande (las escondidas no cuentan para el tamaño)
 	var most := Vector2.ZERO
 	for page: Control in _pages.values():
@@ -116,7 +120,7 @@ func _ready() -> void:
 
 ## Decoraciones para la isla.
 func _build_island(page: Control) -> void:
-	var row := _row(page)
+	var row := _arrow_row(page)
 	for kind: String in Decoration.KINDS:
 		var info: Dictionary = Decoration.KINDS[kind]
 		var preview := DecorPreview.new()
@@ -129,7 +133,7 @@ func _build_island(page: Control) -> void:
 
 ## Los poderes malos y los buenos (como las pestañas de la barra, ver HUD.powers).
 func _build_powers(evil_page: Control, good_page: Control) -> void:
-	var rows := {false: _row(evil_page), true: _row(good_page)}   # bueno -> fila
+	var rows := {false: _arrow_row(evil_page), true: _arrow_row(good_page)}   # bueno -> fila
 	for power in hud.powers:
 		if power.always:
 			continue   # La comida no se compra: está desde el principio
@@ -281,6 +285,14 @@ func _row(parent: Control) -> HBoxContainer:
 	row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	parent.add_child(row)
 	return row
+
+## Una fila de tarjetas que muestra de a MAX_CARDS, con flechas si hay más (ver ArrowRow); devuelve
+## donde van las tarjetas. Hay que llamar a set_items cuando ya estén todas (ver _ready).
+func _arrow_row(parent: Control) -> HBoxContainer:
+	var scroll := ArrowRow.new(MAX_CARDS, CARD_GAP)
+	scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	parent.add_child(scroll)
+	return scroll.row
 
 func _section(title: String) -> Label:
 	var l := UiStyle.label(title, 11, UiStyle.C_MUTED)

@@ -3,16 +3,19 @@ class_name PowerBar
 ## La barra de abajo al centro (ver HUD): el modo del click (arrastrar aldeanos, seleccionarlos o
 ## editar la isla) y los poderes, en dos pestañas (los malos y los buenos). Cada poder tiene su
 ## slot: lo saca o lo guarda; bloqueado, se ve apagado y lleva a la tienda; resaltado mientras
-## está afuera, y con una barrita abajo mientras se recarga. Ocupa toda la pantalla sin atajar el
+## está afuera, y con una barrita abajo mientras se recarga. Si en una pestaña hay más de MAX_SLOTS,
+## se corren con las flechas de los costados (ver ArrowRow). Ocupa toda la pantalla sin atajar el
 ## mouse: los clicks los atajan solo sus paneles.
 
 const TAB_SIZE := 38.0
 const SLOT_SIZE := Vector2(76, 62)
+const MAX_SLOTS := 8           # Los que se ven a la vez en una pestaña; si hay más, flechas (ver ArrowRow)
 
 var hud: HUD
 ## Los poderes de la barra (ver set_powers), en su orden, y el slot de cada uno.
 var powers: Array[Power] = []
 var _power_slots := {}        # Power -> Button
+var _power_scroll: ArrowRow   # La fila de los poderes, con flechas si no entran
 var _power_row: HBoxContainer
 ## Las pestañas: qué slots van en cada una y cuál se ve.
 var _good_tab := false
@@ -78,8 +81,10 @@ func _ready() -> void:
 	_tab_holy = _tab_button(tabs, "holy", "Poderes buenos")
 	_tab_holy.pressed.connect(_set_tab.bind(true))
 	var row := _toolbar_panel(tools_col)
+	_power_scroll = ArrowRow.new(MAX_SLOTS, row.get_theme_constant("separation"))
+	row.add_child(_power_scroll)
 
-	_power_row = row   # Los slots de los poderes van acá (ver set_powers)
+	_power_row = _power_scroll.row   # Los slots de los poderes van acá (ver set_powers)
 	_set_tab(false)
 
 ## Recargándose (el diluvio): la barrita de abajo del slot se va llenando y el ícono, apagado.
@@ -102,10 +107,11 @@ func set_powers(list: Array[Power]) -> void:
 	for power in powers:
 		_power_slots[power] = _power_slot(power)
 		power.armed_changed.connect(_on_power_armed.bind(power))
-	# Del ancho de la pestaña más llena: así la barra no salta al cambiar de pestaña
+	# Del ancho de la pestaña más llena (hasta MAX_SLOTS): así la barra no salta al cambiar de pestaña
 	var most := 0
 	for good: bool in [false, true]:
 		most = maxi(most, _tool_slots.values().count(good))
+	most = mini(most, MAX_SLOTS)
 	_power_row.custom_minimum_size.x = most * SLOT_SIZE.x + (most - 1) * _power_row.get_theme_constant("separation")
 	_set_tab(false)
 
@@ -150,8 +156,12 @@ func _sync_weapon(slot: Button, unlocked: bool, out: bool, active: StyleBoxFlat,
 ## Muestra los poderes malos o los buenos.
 func _set_tab(good: bool) -> void:
 	_good_tab = good
-	for slot: Button in _tool_slots:
-		slot.visible = _tool_slots[slot] == good
+	var shown: Array[Control] = []   # Los de la pestaña, en el orden de la barra
+	for power in powers:
+		var slot: Button = _power_slots[power]
+		if _tool_slots[slot] == good:
+			shown.append(slot)
+	_power_scroll.set_items(shown)
 	for tab: Button in [_tab_evil, _tab_holy]:
 		var on := (tab == _tab_holy) == good
 		var col := UiStyle.C_HOLY if tab == _tab_holy else UiStyle.C_EVIL
@@ -164,10 +174,12 @@ func _set_tab(good: bool) -> void:
 		tab.add_theme_stylebox_override("pressed", hover)
 		tab.get_meta("icon").modulate = Color.WHITE if on else Color(1, 1, 1, 0.55)
 
-## Al sacar un poder con su tecla, que se vea en la barra (pasa a su pestaña).
+## Al sacar un poder con su tecla, que se vea en la barra (pasa a su pestaña y, si hace falta, corre
+## la fila hasta él).
 func _show_tool(btn: Button) -> void:
 	if _tool_slots.has(btn) and _tool_slots[btn] != _good_tab:
 		_set_tab(_tool_slots[btn])
+	_power_scroll.show_item(btn)
 
 ## Pestaña redonda con un ícono (la carita con cuernos o con aureola).
 func _tab_button(parent: Control, kind: String, tip: String) -> Button:

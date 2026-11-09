@@ -108,6 +108,11 @@ func _draw() -> void:
 			draw_colored_polygon(cross, Color.WHITE)
 			cross.append(cross[0])
 			draw_polyline(cross, Color(0.45, 0.2, 0.05), maxf(2.0, s * 0.05), true)
+		"left", "right":
+			# Flechita para correr una fila (ver ArrowRow)
+			var d := -1.0 if kind == "left" else 1.0
+			draw_polyline(PackedVector2Array([c + Vector2(-d * 0.18, -0.36) * s, c + Vector2(d * 0.18, 0.0) * s,
+					c + Vector2(-d * 0.18, 0.36) * s]), UiStyle.C_TEXT, maxf(2.0, s * 0.16), true)
 		"coin":
 			draw_circle(c, s * 0.48, UiStyle.C_OFFERING.darkened(0.25), true, -1.0, true)
 			draw_circle(c, s * 0.38, UiStyle.C_OFFERING, true, -1.0, true)
