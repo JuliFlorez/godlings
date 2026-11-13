@@ -1,7 +1,7 @@
 extends VBoxContainer
 class_name SettingsPanel
 ## Las opciones (ver Settings): volumen general y de música, idioma, pantalla completa,
-## fotogramas por segundo y cómo se dan vuelta los aldeanos.
+## fotogramas por segundo, cómo se dan vuelta los aldeanos y si hay eventos al azar.
 ## Va en el menú de pausa y en el de inicio; cada cambio se aplica y se guarda al toque.
 
 signal locale_changed
@@ -14,6 +14,7 @@ var _lang_buttons := {}       # código -> Button
 var _window_buttons := {}     # pantalla completa (bool) -> Button
 var _fps_buttons := {}        # mostrar (bool) -> Button
 var _turn_buttons := {}       # de a poco (bool) -> Button
+var _event_buttons := {}      # eventos al azar (bool) -> Button
 
 func _ready() -> void:
 	add_theme_constant_override("separation", 8)
@@ -25,7 +26,9 @@ func _ready() -> void:
 	_music_slider = mu[0]
 	_music_value = mu[1]
 
-	var langs := _choice_row("Idioma")
+	# Todas las filas de botones van en una sola línea (el título a la izquierda), para que el
+	# panel entre debajo del logo en el menú de inicio
+	var langs := _choice_row("Idioma", true)
 	for l: Array in Settings.LOCALES:
 		var code: String = l[0]
 		var b := _choice(langs, l[1])
@@ -36,7 +39,7 @@ func _ready() -> void:
 			locale_changed.emit())
 		_lang_buttons[code] = b
 
-	var window := _choice_row("Pantalla")
+	var window := _choice_row("Pantalla", true)
 	for full: bool in [false, true]:
 		var b := _choice(window, "Pantalla completa" if full else "Ventana")
 		b.pressed.connect(func():
@@ -44,7 +47,6 @@ func _ready() -> void:
 			sync())
 		_window_buttons[full] = b
 
-	# En una sola línea, para que el panel siga entrando debajo del logo en el menú de inicio
 	var fps := _choice_row("Fotogramas (FPS)", true)
 	for on: bool in [false, true]:
 		var b := _choice(fps, "Mostrar" if on else "Ocultar")
@@ -60,6 +62,16 @@ func _ready() -> void:
 			Settings.set_smooth_turn(smooth)
 			sync())
 		_turn_buttons[smooth] = b
+
+	# Brotes de gripe, lluvias de meteoritos y terremotos que vienen solos (ver Calamities)
+	var events := _choice_row("Eventos al azar", true)
+	for on: bool in [false, true]:
+		var b := _choice(events, "Activados" if on else "Desactivados")
+		b.tooltip_text = "Cada tanto pasa algo solo: un brote de gripe, una lluvia de meteoritos o un terremoto"
+		b.pressed.connect(func():
+			Settings.set_random_events(on)
+			sync())
+		_event_buttons[on] = b
 	sync()
 
 ## Muestra los valores de ahora (al abrir el menú).
@@ -76,6 +88,8 @@ func sync() -> void:
 		_mark(_fps_buttons[on], on == Settings.show_fps)
 	for smooth: bool in _turn_buttons:
 		_mark(_turn_buttons[smooth], smooth == Settings.smooth_turn)
+	for on: bool in _event_buttons:
+		_mark(_event_buttons[on], on == Settings.random_events)
 
 func _mark(b: Button, on: bool) -> void:
 	b.add_theme_stylebox_override("normal", UiStyle.box(Color(UiStyle.C_DEVOTION, 0.35) if on else Color(1, 1, 1, 0.08), 8, UiStyle.C_DEVOTION if on else Color(1, 1, 1, 0.12), 1))

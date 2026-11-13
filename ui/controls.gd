@@ -32,6 +32,7 @@ const KEYS := {
 	&"power_meteor": [KEY_M],                       # Sacar o guardar el meteorito
 	&"power_tornado": [KEY_T],                      # Sacar o guardar el tornado
 	&"power_storm": [KEY_D],                        # Desatar o calmar el diluvio
+	&"power_quake": [KEY_K],                        # Desatar o calmar el terremoto
 	&"power_plague": [KEY_P],                       # Sacar o guardar la peste
 	&"power_spore": [KEY_Z],                        # Sacar o guardar la espora zombi
 	&"power_discord": [KEY_E],                      # Sacar o guardar la manzana de la discordia

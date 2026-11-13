@@ -1,7 +1,7 @@
 extends RefCounted
 class_name Settings
 ## Opciones del jugador: volumen (general y música), idioma, pantalla completa,
-## fotogramas por segundo y cómo se dan vuelta los aldeanos.
+## fotogramas por segundo, cómo se dan vuelta los aldeanos y si hay eventos al azar.
 ## Se guardan en user://settings.cfg y se aplican al arrancar.
 ## Los textos del juego están escritos en español y se usan como claves de traducción
 ## (ver I18n); los Label/Button se traducen solos, y los textos con formato usan tr().
@@ -19,6 +19,9 @@ static var show_fps := false
 ## Si los aldeanos se dan vuelta de a poco (se achatan hasta quedar de canto, como un papel) o de
 ## golpe. Viene apagado (ver VillagerRig._process).
 static var smooth_turn := false
+## Si cada tanto pasan cosas solas: brotes de gripe, lluvias de meteoritos y terremotos (ver
+## Calamities). Vienen prendidos.
+static var random_events := true
 static var _initialized := false
 
 ## Prepara buses, traducciones y opciones guardadas. Se puede llamar varias veces.
@@ -41,6 +44,7 @@ static func init() -> void:
 		fullscreen = cfg.get_value("display", "fullscreen", fullscreen)
 		show_fps = cfg.get_value("display", "show_fps", show_fps)
 		smooth_turn = cfg.get_value("display", "smooth_turn", smooth_turn)
+		random_events = cfg.get_value("game", "random_events", random_events)
 	_apply()
 	_apply_fps()
 	if fullscreen:   # En ventana no se toca: queda como la abra el sistema
@@ -75,6 +79,10 @@ static func set_smooth_turn(on: bool) -> void:
 	smooth_turn = on
 	save()
 
+static func set_random_events(on: bool) -> void:
+	random_events = on
+	save()
+
 static func save() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "master", master)
@@ -83,6 +91,7 @@ static func save() -> void:
 	cfg.set_value("display", "fullscreen", fullscreen)
 	cfg.set_value("display", "show_fps", show_fps)
 	cfg.set_value("display", "smooth_turn", smooth_turn)
+	cfg.set_value("game", "random_events", random_events)
 	cfg.save(PATH)
 
 static func _apply() -> void:

@@ -169,6 +169,16 @@ func _draw() -> void:
 			for i in 3:
 				var x := s * (0.3 + i * 0.2)
 				draw_line(Vector2(x, s * 0.72), Vector2(x - s * 0.08, s * 0.96), UiStyle.C_DEVOTION, 2.5, true)
+		"quake":
+			# El piso partido por una grieta, con las rayitas del temblor a los costados
+			var soil := UiStyle.C_QUAKE
+			draw_colored_polygon(_pts([0.06, 0.5, 0.42, 0.5, 0.52, 0.66, 0.4, 0.8, 0.5, 0.96, 0.06, 0.96]), soil)
+			draw_colored_polygon(_pts([0.58, 0.5, 0.94, 0.5, 0.94, 0.96, 0.66, 0.96, 0.56, 0.8, 0.68, 0.66]), soil.darkened(0.2))
+			for x: float in [0.14, 0.86]:
+				for i in 2:
+					var y := 0.14 + i * 0.16
+					var d := 0.1 if x < 0.5 else -0.1
+					draw_polyline(_pts([x, y, x + d, y + 0.06, x, y + 0.12]), Color(1.0, 0.9, 0.7), maxf(1.5, s * 0.07), true)
 		"plague":
 			# Calavera en una nube verde
 			var green := UiStyle.C_PLAGUE

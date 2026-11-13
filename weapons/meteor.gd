@@ -84,6 +84,13 @@ func _on_armed(on: bool) -> void:
 func _use(at: Vector2) -> void:
 	_drop(at)
 
+## Cae uno en at ya, aunque no esté comprado ni recargado: la lluvia de meteoritos de los eventos
+## al azar (ver Calamities).
+func fall(at: Vector2) -> void:
+	_make_sounds()
+	_cooldown = 0.0
+	_drop(at)
+
 func _process(dt: float) -> void:
 	_t += dt
 	_cooldown -= dt

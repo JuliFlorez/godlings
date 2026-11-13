@@ -73,6 +73,8 @@ var _tribute_show_t := 0.0
 const OUTBREAK_EVERY := Vector2(600.0, 1200.0)
 const OUTBREAK_MIN := 3
 var _outbreak_t := randf_range(OUTBREAK_EVERY.x, OUTBREAK_EVERY.y)
+## Los eventos al azar: brotes de gripe, lluvias de meteoritos y terremotos (ver Calamities).
+var calamities: Calamities
 
 var _base_poly_global: PackedVector2Array
 var _base_sprite_scale: Vector2
@@ -203,6 +205,9 @@ func _ready() -> void:
 	# Últimos hijos: reciben los clicks antes que el sol/luna y los aldeanos
 	for power in _create_powers():
 		add_child(power)
+	calamities = Calamities.new()
+	calamities.world = self
+	add_child(calamities)
 	placer = DecorPlacer.new()
 	placer.hud = hud
 	placer.props = props
@@ -249,7 +254,7 @@ func _ready() -> void:
 ## nuevo va acá (ver Power).
 func _create_powers() -> Array[Power]:
 	var list: Array[Power] = [Gun.new(), Lightning.new(), Fireball.new(), Frost.new(), Meteor.new(), Tornado.new(), Storm.new(),
-			Plague.new(), Spore.new(), Charm.make(Charm.Kind.DISCORD), Feed.new(), Cure.new(),
+			Quake.new(), Plague.new(), Spore.new(), Charm.make(Charm.Kind.DISCORD), Feed.new(), Cure.new(),
 			Miracle.make(Miracle.Kind.VACCINE), Miracle.make(Miracle.Kind.SHIELD),
 			Miracle.make(Miracle.Kind.RESURRECT), Charm.make(Charm.Kind.CUPID),
 			Charm.make(Charm.Kind.FRIENDSHIP)]
@@ -483,6 +488,8 @@ func sick_villagers() -> int:
 
 ## Cada tanto alguien se agarra la gripe solo (si no hay ya alguien con gripe dando vueltas).
 func _update_outbreak(dt: float) -> void:
+	if not Settings.random_events:
+		return   # Con los eventos al azar apagados, nadie se enferma solo
 	_outbreak_t -= dt
 	if _outbreak_t > 0.0:
 		return

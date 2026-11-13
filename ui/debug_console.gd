@@ -29,8 +29,9 @@ const COMMANDS := [
 	["lider / leader", "Elige ya al líder de la tribu y dice quién es"],
 	["hambre / hunger [n]", "Pone el hambre de todos en n, de 0 a 100 (por defecto 80)"],
 	["plegaria / prayer [n]", "Hace que n aldeanos te pidan algo ya, si tienen qué (por defecto 1)"],
+	["evento / event [n]", "Hace pasar ya un evento al azar: 1 un brote de gripe, 2 una lluvia de meteoritos, 3 un terremoto (por defecto, cualquiera)"],
 	["edad / age [n]", "Pone a todos en n días (por defecto 7, ya viejos; con 10 se mueren de viejos)"],
-	["desbloquear / unlock", "Pistola, rayo, fuego, hielo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y todos los tiburones"],
+	["desbloquear / unlock", "Pistola, rayo, fuego, hielo, meteorito, tornado, diluvio, terremoto, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
 	["limpiar / clear", "Borra la consola"],
 ]
@@ -184,6 +185,11 @@ func run(text: String) -> void:
 		"hambre", "hunger":
 			var n := clampi(arg if arg >= 0 else 80, 0, 100)
 			_ok(tr("%d aldeanos con hambre %d") % [_set_all("hunger", n), n])
+		"evento", "eventos", "event", "events":
+			var kinds := Calamities.Kind.values()
+			var kind: int = kinds[arg - 1] if arg >= 1 and arg <= kinds.size() else kinds.pick_random()
+			world.calamities.announce(kind)
+			_ok(tr("Se viene un evento"))
 		"plegaria", "plegarias", "prayer", "prayers":
 			var want := arg if arg > 0 else 1
 			var count := 0
@@ -258,4 +264,4 @@ func _unlock_all() -> void:
 		if not Game.shark_owned[i]:
 			Game.give_shark(i)
 	Game.events.changed.emit()
-	_ok(tr("Desbloqueado: pistola, rayo, fuego, hielo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y %d tiburones") % Shark.MAX)
+	_ok(tr("Desbloqueado: pistola, rayo, fuego, hielo, meteorito, tornado, diluvio, terremoto, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y %d tiburones") % Shark.MAX)
