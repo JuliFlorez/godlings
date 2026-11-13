@@ -29,7 +29,7 @@ NO_TRANSLATE = {
     " · %d h %02d min",
     " · %d min",
     "Español",                     # Cada idioma se nombra en su idioma (ver Settings.LOCALES)
-    "devoción", "días", "años",    # Lo que se puede escribir en la consola de trucos
+    "devoción", "días", "años", "líder",   # Lo que se puede escribir en la consola de trucos
     "coño",                        # Lo que no puede salir en un nombre (ver Names.BANNED)
 }
 ## Comandos de la consola de trucos ("ayuda / help", "fe / faith [n]"): ya van en los dos idiomas
