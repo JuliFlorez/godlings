@@ -34,6 +34,7 @@ mecánicas están en `README.md`; la revisión de estructura y el plan de refact
 | `actors/villager/villager_freeze.gd` (`VillagerFreeze`) | Un componente del aldeano: el hielo (queda en un bloque de hielo, quieto, y se derrite solo; si cae de alto o se muere, se hace pedazos). No se guarda, como el fuego. |
 | `actors/villager/villager_chat.gd` (`VillagerChat`) | Un componente del aldeano: las charlas (con quién, ir hasta el otro, hablar por turnos, cómo les fue, las peleas). |
 | `actors/villager/villager_faith.gd` (`VillagerFaith`) | Un componente del aldeano: la fe y el miedo (devoto, fanático, hereje o aterrado), los rezos y las ofrendas, y cómo reacciona a tu mano. |
+| `actors/villager/villager_prayer.gd` (`VillagerPrayer`) | Un componente del aldeano: las plegarias (cada tanto te pide comida, una cura, que cures a alguien que quiere, que castigues a un enemigo o una casa; si se lo cumplís a tiempo te cree más y deja ofrendas, y si no, te cree menos). El dibujito de arriba de la cabeza es `ui/prayer_mark.gd` (`PrayerMark`), que pone `NameTag`. |
 | `actors/villager/villager_flu.gd` (`VillagerFlu`) | Un componente del aldeano: la gripe (la incuba, se enferma, estornuda y contagia, y se cura o se muere). |
 | `actors/villager/villager_home.gd` (`VillagerHome`) | Un componente del aldeano: la casa (en qué choza vive, ir a dormir o a descansar, entrar y salir). |
 | `actors/villager/villager_hunger.gd` (`VillagerHunger`) | Un componente del aldeano: el hambre y la comida (busca qué comer, va, mastica, se muere de hambre). |

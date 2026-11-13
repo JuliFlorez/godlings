@@ -5,8 +5,8 @@ class_name NameTag
 ## el aldeano esté colgando, volando o tirado. Si tiene el carnet abierto, una flechita
 ## lo señala; si el carnet abierto es de otro, un dibujito dice qué es de él (su pareja,
 ## un amigo o un enemigo, ver Relations). El líder de la tribu lleva una coronita al lado del
-## nombre (ver Tribe). Arriba de todo, el globito de lo que está
-## diciendo (ver SpeechBubble). Sin nada de eso no se ve.
+## nombre (ver Tribe). Arriba, lo que te está pidiendo (ver PrayerMark) y, arriba de todo, el
+## globito de lo que está diciendo (ver SpeechBubble). Sin nada de eso no se ve.
 
 # Centro y radio de la cabeza, relativos al pivote del hueso Head (px de villager.png)
 const HEAD_CENTER := Vector2(-20, -259)
@@ -27,6 +27,7 @@ var villager: Villager
 var hud: HUD
 var _label: Label
 var _bubble: SpeechBubble
+var _prayer: PrayerMark          # Lo que te está pidiendo (ver VillagerPrayer)
 var _selected := false
 var _rel := Relations.Kind.NONE  # Qué es del aldeano que tiene el carnet abierto
 var _crowned := false            # Es el líder de la tribu (ver Tribe): lleva una coronita...
@@ -39,6 +40,8 @@ func _ready() -> void:
 	_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED  # Es un nombre: no se traduce
 	UiStyle.outline(_label, 5)
 	add_child(_label)
+	_prayer = PrayerMark.new()
+	add_child(_prayer)
 	_bubble = SpeechBubble.new()
 	add_child(_bubble)
 
@@ -56,7 +59,8 @@ func _process(dt: float) -> void:
 		_t += dt
 		queue_redraw()   # La flechita sube y baja (o se borra al deseleccionarlo)
 	var talking := villager.bubble != Villager.Bubble.NONE and villager.bubble_t > 0.0
-	visible = (full != "" or _selected or _rel != Relations.Kind.NONE or talking) \
+	var asking := villager.prayer != VillagerPrayer.Ask.NONE and villager.is_alive()
+	visible = (full != "" or _selected or _rel != Relations.Kind.NONE or talking or asking) \
 			and not villager.eaten and not villager.inside and villager.rig != null
 	if not visible:
 		return
@@ -86,8 +90,13 @@ func _process(dt: float) -> void:
 		_crowned = crowned
 		_crown_at = crown_at
 		queue_redraw()
-	# El globito, arriba del nombre (o de lo que haya)
+	# Lo que te pide, arriba del nombre (o de lo que haya), y más arriba el globito
 	var above := _label.position.y if _label.visible else -GAP - mark_h
+	var reach := PrayerMark.RADIUS + PrayerMark.RING_W + 1.0
+	_prayer.position = Vector2(0, above - 2.0 - reach)
+	_prayer.show_ask(villager.prayer if asking else VillagerPrayer.Ask.NONE, villager.prayer_left(), dt)
+	if asking:
+		above -= 2.0 + reach * 2.0
 	_bubble.position = Vector2(0, above - 1.0)
 	_bubble.show_bubble(villager.bubble if talking else Villager.Bubble.NONE, villager.bubble_t, dt)
 

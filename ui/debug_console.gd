@@ -28,6 +28,7 @@ const COMMANDS := [
 	["carisma / charisma [n]", "Pone el carisma de todos en n, de 0 a 100 (por defecto 100)"],
 	["lider / leader", "Elige ya al líder de la tribu y dice quién es"],
 	["hambre / hunger [n]", "Pone el hambre de todos en n, de 0 a 100 (por defecto 80)"],
+	["plegaria / prayer [n]", "Hace que n aldeanos te pidan algo ya, si tienen qué (por defecto 1)"],
 	["edad / age [n]", "Pone a todos en n días (por defecto 7, ya viejos; con 10 se mueren de viejos)"],
 	["desbloquear / unlock", "Pistola, rayo, fuego, hielo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y todos los tiburones"],
 	["todo / all", "Todo lo anterior junto"],
@@ -183,6 +184,16 @@ func run(text: String) -> void:
 		"hambre", "hunger":
 			var n := clampi(arg if arg >= 0 else 80, 0, 100)
 			_ok(tr("%d aldeanos con hambre %d") % [_set_all("hunger", n), n])
+		"plegaria", "plegarias", "prayer", "prayers":
+			var want := arg if arg > 0 else 1
+			var count := 0
+			var all := get_tree().get_nodes_in_group("villager")
+			all.shuffle()
+			for node in all:
+				var v := node as Villager
+				if count < want and v and v.pray_now():
+					count += 1
+			_ok(tr("%d aldeanos te piden algo") % count)
 		"edad", "age", "días", "años", "envejecer":
 			var n := arg if arg >= 0 else int(VillagerAge.ELDER_AGE)
 			var count := 0

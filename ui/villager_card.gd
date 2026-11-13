@@ -102,6 +102,8 @@ var _mood_label: Label           # Deprimido, triste, tranquilo, contento o feli
 var _mood_why: Label             # ...y por qué
 var _tribute_row: Control        # Lo que te deja cuando reza (o por qué no reza)
 var _tribute_coin: Control
+var _prayer_row: HBoxContainer   # Lo que te está pidiendo (ver VillagerPrayer)
+var _prayer: Label
 var _tribute: Label
 var _title: Label                # "Carnet de aldeano", o "Líder de la tribu" si lo es (ver Tribe)
 var _charisma_bar: ProgressBar
@@ -350,6 +352,10 @@ func _update_creed() -> void:
 		_tribute.text = tr("No reza: %s") % tr(block).to_lower()
 		_tribute.add_theme_color_override("font_color", UiStyle.C_MUTED)
 		_tribute_coin.modulate.a = 0.4
+	var asks := v.prayer_text()
+	_prayer_row.visible = asks != "" and not gone
+	if asks != "":
+		_prayer.text = "%s (%s)" % [asks, _time_left(v.prayer_time())]
 
 ## Su pareja, sus amigos y sus enemigos (los vivos), con el nombre de cada uno (o su número
 ## si no tiene) en el color de la relación.
@@ -531,6 +537,18 @@ func _build_creed(parent: Control) -> void:
 	_tribute.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_creed (lleva el número)
 	tribute_row.add_child(_tribute)
 	_tribute_row = tribute_row
+	# Lo que te está pidiendo y cuánto le queda de paciencia (ver VillagerPrayer); si nada, no se ve
+	_prayer_row = HBoxContainer.new()
+	_prayer_row.add_theme_constant_override("separation", 6)
+	box.add_child(_prayer_row)
+	var prayer_caption := UiStyle.label("Plegaria", 13, UiStyle.C_MUTED)
+	prayer_caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
+	_prayer_row.add_child(prayer_caption)
+	_prayer = UiStyle.label("", 13, UiStyle.C_DEVOTION)
+	_prayer.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce _update_creed (lleva un nombre)
+	_prayer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_prayer.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_prayer_row.add_child(_prayer)
 
 ## Su lugar en la tribu, en un renglón (el carnet ya es alto): el carisma y cuánto lo apoyan los
 ## demás (ver Tribe). Si es el líder lo dice el título del carnet (ver _update_creed).

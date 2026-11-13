@@ -298,6 +298,13 @@ var pose: VillagerFaith.Pose:
 	get:
 		return _faith.pose
 
+# --- Plegarias (ver VillagerPrayer): cada tanto te pide algo concreto y espera a que se lo cumplas ---
+var _prayer: VillagerPrayer
+## Lo que te está pidiendo (NONE si nada; ver VillagerPrayer).
+var prayer: VillagerPrayer.Ask:
+	get:
+		return _prayer.ask
+
 # --- Ánimo (ver VillagerMood): qué tan contento está, por cómo está su vida y por lo que le pasa ---
 var _mood: VillagerMood
 ## Qué tan contento está: 0 deprimido .. 100 feliz (ver VillagerMood).
@@ -381,6 +388,7 @@ func _init() -> void:
 	_age = VillagerAge.new(self)
 	_home = VillagerHome.new(self)
 	_faith = VillagerFaith.new(self)
+	_prayer = VillagerPrayer.new(self)
 	_chat = VillagerChat.new(self)
 	_hunger = VillagerHunger.new(self)
 	_sleep = VillagerSleep.new(self)
@@ -654,6 +662,12 @@ func _walk_ai(dt: float) -> void:
 	_hunger.cool_down(dt)
 	if on_fire and food != null:
 		food.release_eater()   # Prendido fuego no se queda comiendo
+	if pose != VillagerFaith.Pose.NONE and not on_fire and _flee <= 0.0 and _scram <= 0.0:
+		# De rodillas (rezando o agachado de miedo) se queda clavado donde está: ni sigue yendo
+		# a comer o a su casa, ni lo corren los que tiene encima. Cuando se levanta, sigue con lo suyo
+		_heading = Vector2.ZERO
+		_hold_still()
+		return
 	if is_zombie():
 		# El hongo lo domina: ni come, ni charla, ni duerme, ni va a su casa; persigue a los sanos
 		if _spore.zombie_ai(dt):
@@ -671,10 +685,10 @@ func _walk_ai(dt: float) -> void:
 		_hunger.seek_food(dt)
 		_home.seek_home(dt)
 		_chat.seek_chat(dt)
-	# Asustado (ve venir un meteorito) se queda quieto mirándolo, y rezando o agachado de miedo
-	# también; prendido fuego (o escapándose del agua o de tu mano) corre sin parar
+	# Asustado (ve venir un meteorito) se queda quieto mirándolo; prendido fuego (o escapándose
+	# del agua o de tu mano) corre sin parar
 	var hurry := on_fire or _flee > 0.0 or _scram > 0.0
-	var stop := (_resting or is_scared() or pose != VillagerFaith.Pose.NONE) and not hurry
+	var stop := (_resting or is_scared()) and not hurry
 	_walk = move_toward(_walk, 0.0 if stop else 1.0, WALK_ACCEL * dt * (4.0 if hurry else 1.0))
 	# Al doblar va más despacio (y si vuelve para atrás, frena y arranca de nuevo)
 	_heading = _heading.lerp(dir, 1.0 - exp(-TURN_RATE * (2.0 if hurry else 1.0) * dt))
@@ -963,6 +977,33 @@ func prays() -> bool:
 
 func prayer_block() -> String:
 	return _faith.prayer_block()
+
+## Lo que te pide, en palabras ("" si nada; ver VillagerPrayer).
+func prayer_text() -> String:
+	return _prayer.text()
+
+## Lo que le queda de paciencia con lo que te pidió: 1 recién pidió .. 0 se cansó.
+func prayer_left() -> float:
+	return _prayer.left()
+
+## Los segundos que le quedan de paciencia.
+func prayer_time() -> float:
+	return _prayer.time_left
+
+## Te pide algo ya, si tiene qué (la consola de trucos). true si pidió.
+func pray_now() -> bool:
+	return _prayer.pray_now(true)
+
+## Le hiciste a él lo que what pide (le diste de comer del cielo, lo curaste): se le cumple al
+## que lo estuviera pidiendo, él o alguien que lo quiere.
+func answer_prayers(what: VillagerPrayer.Ask) -> void:
+	_prayer.answer(what, id_number)
+	if what != VillagerPrayer.Ask.CURE:
+		return
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o and o != self:
+			o._prayer.answer(VillagerPrayer.Ask.HEAL, id_number)
 
 func witness(at: Vector2) -> float:
 	return _faith.witness(at)
@@ -1508,6 +1549,8 @@ func cure() -> bool:
 	var cured := flu_cured or spore_cured or burns
 	if cured and not zombie:
 		_faith.thank(VillagerFaith.FAITH_CURED, true)
+	if flu_cured or spore_cured:
+		answer_prayers(VillagerPrayer.Ask.CURE)   # Si lo pedía él, o alguien que lo quiere
 	return cured
 
 # --- ESPORA (lo que el resto del juego le pregunta al aldeano; ver VillagerSpore) ---
@@ -1865,6 +1908,7 @@ func to_dict() -> Dictionary:
 	d.merge(_spore.to_dict())
 	d.merge({"shield": shield_t, "vaccine": vaccine_t})
 	d.merge(_faith.to_dict())
+	d.merge(_prayer.to_dict())
 	d.merge(_hunger.to_dict())
 	d.merge(_mood.to_dict())
 	d.merge(_stats.to_dict())
@@ -1888,6 +1932,7 @@ func from_dict(d: Dictionary) -> void:
 	if d.get("vaccine", 0.0) > 0.0:
 		vaccinate(d.vaccine, false)
 	_faith.from_dict(d)
+	_prayer.from_dict(d)
 	_hunger.from_dict(d)
 	_mood.from_dict(d)
 	_stats.from_dict(d)
@@ -1911,6 +1956,7 @@ func _process(dt: float) -> void:
 	_home.update(dt)
 	_scram = maxf(0.0, _scram - dt)
 	_faith.update(dt)
+	_prayer.update(dt)
 	_mood.update(dt)
 	_sleep.update(dt)
 	_update_wards(dt)
