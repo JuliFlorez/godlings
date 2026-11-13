@@ -2,10 +2,10 @@ extends Node2D
 class_name VillagerRig
 
 ## Rig esqueletal del aldeano (Skeleton2D + Bone2D).
-## - En la isla: animación procedural de caminado. El dibujo es de frente, así que el paso
-##   se ve de frente: el pie que da el paso sube y la pierna se acorta (la rodilla viene
-##   hacia adelante), el cuerpo baja al apoyar y sube al pasar la pierna, el peso se corre
-##   sobre la pierna apoyada y los brazos van al revés que las piernas, un poco atrasados.
+## - En la isla: animación procedural de caminado. Las piernas van y vienen para los costados
+##   como una tijera (una para adelante y la otra para atrás, sin levantar casi los pies), el
+##   cuerpo baja con las piernas abiertas y sube al juntarlas, y los brazos van al revés que
+##   las piernas, un poco atrasados.
 ##   Parado respira y mira para los costados. Al darse vuelta se achata y se espeja. De viejo
 ##   hunde la cabeza entre los hombros y arrastra los pies.
 ## - Agarrado / cayendo / en el agua / en un tornado: ragdoll. Cada articulación es un péndulo
@@ -30,18 +30,15 @@ const BODY_SPIN_INERTIA := 0.6  # Los miembros se resisten a que el cuerpo gire
 # Caminado (px de la imagen: en pantalla es más o menos un 8%)
 const STEP_RATE := 8.5        # rad/s de fase a velocidad de referencia
 const REF_SPEED := 40.0
-const BOB := 20.0             # Cuánto sube el cuerpo al pasar la pierna (los pies no se despegan)
-const SHIFT := 8.0            # El peso se corre sobre la pierna apoyada
-const SWAY := 0.07            # Y el cuerpo se inclina hacia ese lado (rad)
-const LIFT := 40.0            # Cuánto sube el pie que da el paso
+const STRIDE := 0.5          # Cuánto se abre cada pierna al dar el paso, para adelante y para atrás (rad)
+const BOB := 10.0             # Cuánto baja el cuerpo con las piernas abiertas (sube al juntarlas)
+const SWAY := 0.04            # Y el cuerpo se inclina apenas con cada paso (rad)
+const LIFT := 40.0            # Cuánto sube un pie levantado del todo (la piña; caminando, casi nada)
+const STEP_LIFT := 0.15       # Caminando, lo que se despega el pie que viene para adelante (veces LIFT)
 const KNEE := 0.14            # Y cuánto se acorta esa pierna (la rodilla viene hacia adelante)
-const LEG_SPLAY := 0.05       # Y cuánto se abre (rad)
 const HEAD_DIP := 12.0        # La cabeza se hunde un poco al apoyar el pie
 const ARM_DOWN := 1.25        # Brazos caídos al caminar (el arte está en pose T)
-const ARM_FWD := 0.4          # El brazo que va adelante se cierra sobre el cuerpo (rad)...
-const ARM_SHORT := 0.18       # ...se acorta (apunta hacia la cámara)...
-const ARM_NEAR := 0.06        # ...y se ve un poco más grueso (está más cerca)
-const ARM_BACK := 0.16        # El que va atrás se abre un poco
+const ARM_SWING := 0.25      # Cuánto va y viene cada brazo, al revés que la pierna de su lado (rad)
 const ARM_WALK_K := 90.0      # Los brazos son más flojos que el resto: van un poco atrasados
 const BREATH := 4.0           # Parado: sube y baja al respirar
 const BREATH_RATE := 2.4      # rad/s
@@ -52,12 +49,13 @@ const STOOP_HEAD := 30.0      # Bien viejo (ver VillagerAge.oldness): la cabeza 
 const STOOP_STEP := 0.5       # ...y arrastra los pies (levanta menos el pie y el cuerpo)
 
 # Manos: el dibujo las tiene abiertas con la palma al frente (pose T). Con los brazos
-# caídos eso se ve raro, así que se angostan hacia los dedos y parecen giradas de costado.
-const HAND_SQUASH := 0.4      # Ancho que queda en la punta de los dedos (1 = como el dibujo)
+# caídos eso se ve raro (la palma a la cámara y el pulgar para afuera), así que la mano gira
+# sobre el eje del brazo a medida que baja: se pone de canto y queda del otro lado, con el
+# pulgar hacia el cuerpo. Con el brazo levantado o estirado sigue con la palma al frente.
+const HAND_TURN := Vector2(0.65, 1.0)   # Cuánto baja el brazo (rad desde la pose T) cuando empieza y termina de girar
+const HAND_BACK := 0.75       # Ancho de la mano ya girada (1 = como el dibujo)
 const HAND_L := Rect2(-239, -65, 114, 115)  # Zona de la mano en el hueso (px de villager.png)
 const HAND_R := Rect2(133, -68, 105, 118)
-const WRIST_L := -138.0       # Donde la pulsera tapa la unión con el brazo
-const WRIST_R := 158.0
 
 # Resortes: modo caminar (rígido) vs ragdoll (flojo)
 const WALK_K := 320.0
@@ -200,6 +198,8 @@ var _punch_power := 1.0       # ...y con cuánta fuerza
 var _recoil := 0.0            # Le acaban de pegar: echado para atrás
 var _kneel := 0.0            # 0 = parado, 1 = de rodillas (rezando, agachado de miedo o brotando)
 var _fungus: Fungus           # Los hongos de la cabeza (espora zombi)
+var _hand_l: Polygon2D       # Las manos, aparte del brazo para poder girarlas (ver _turn_hands)
+var _hand_r: Polygon2D
 var _twitch_t := 0.0
 var _pose := VillagerFaith.Pose.NONE   # La última (para seguir con ella mientras se levanta)
 
@@ -259,39 +259,48 @@ func _ready() -> void:
 	_fungus.visible = false
 	head.add_child(_fungus)
 
-	_turn_hand(arm_l, HAND_L, WRIST_L)
-	_turn_hand(arm_r, HAND_R, WRIST_R)
+	# El dibujo tiene los pies de frente, cada uno apuntando para su lado. Acá los dos apuntan
+	# siempre para donde mira (el rig se espeja al darse vuelta, así que +x es adelante): la
+	# pierna izquierda va espejada, fija, y nunca se da vuelta sola
+	(leg_l.get_node("Sprite") as Polygon2D).scale.x = -1.0
+
+	_hand_l = _make_hand(arm_l, HAND_L)
+	_hand_r = _make_hand(arm_r, HAND_R)
+	_turn_hands()
 
 	_share_material(self)
 
-## Arma la mano como una malla aparte (el Sprite del brazo termina en la pulsera) y la
-## angosta desde la muñeca hasta la punta de los dedos.
-func _turn_hand(arm: Bone2D, area: Rect2, wrist_x: float) -> void:
-	const COLS := 6
+## Arma la mano como un recorte aparte (el Sprite del brazo termina en la pulsera), así puede
+## girar sobre el eje del brazo (ver _turn_hands).
+func _make_hand(arm: Bone2D, area: Rect2) -> Polygon2D:
 	var sprite: Polygon2D = arm.get_node("Sprite")
 	var to_uv := sprite.uv[0] - sprite.polygon[0]
-	var tip_x := area.position.x if wrist_x < 0.0 else area.end.x
-	var pts := PackedVector2Array()
+	var pts := PackedVector2Array([area.position, Vector2(area.end.x, area.position.y), area.end,
+			Vector2(area.position.x, area.end.y)])
 	var uvs := PackedVector2Array()
-	for i in COLS + 1:
-		var x := lerpf(area.position.x, area.end.x, float(i) / COLS)
-		var squash := lerpf(1.0, HAND_SQUASH, clampf((x - wrist_x) / (tip_x - wrist_x), 0.0, 1.0))
-		for y: float in [area.position.y, 0.0, area.end.y]:
-			pts.append(Vector2(x, y * squash))
-			uvs.append(Vector2(x, y) + to_uv)
-	var quads := []
-	for i in COLS:
-		for row in 2:
-			var a := i * 3 + row
-			quads.append(PackedInt32Array([a, a + 3, a + 4, a + 1]))
+	for p in pts:
+		uvs.append(p + to_uv)
 	var hand := Polygon2D.new()
 	hand.name = "Hand"
 	hand.texture = sprite.texture
 	hand.polygon = pts
 	hand.uv = uvs
-	hand.polygons = quads
 	arm.add_child(hand)
 	arm.move_child(hand, 0)  # Detrás del brazo, así la pulsera tapa la unión
+	return hand
+
+## Gira cada mano según cuánto bajó su brazo: achatarla sobre el eje del brazo hasta darla
+## vuelta es lo que se ve de una mano que gira (pasa por estar de canto).
+func _turn_hands() -> void:
+	if _hand_l == null:
+		return
+	_hand_l.scale.y = _hand_turn(-j_arm_l.angle)
+	_hand_r.scale.y = _hand_turn(j_arm_r.angle)
+
+## down: cuánto bajó el brazo desde la pose T (rad). 1 = la palma al frente, como el dibujo;
+## negativo = dada vuelta, con el pulgar hacia el cuerpo.
+static func _hand_turn(down: float) -> float:
+	return lerpf(1.0, -HAND_BACK, smoothstep(HAND_TURN.x, HAND_TURN.y, down))
 
 ## Varón o aldeana: cambia las texturas (sirve antes o después de _ready).
 func set_female(on: bool) -> void:
@@ -552,11 +561,15 @@ func _process(dt: float) -> void:
 	var zombie := villager.zombie_look() * (1.0 - rag)   # Arrastra los pies, bamboleándose
 	var step := amt * (1.0 - STOOP_STEP * old) * (1.0 - ZOMBIE_SHUFFLE * zombie)
 	var s := sin(phase)
-	var lift_l := maxf(0.0, s) * step        # Pie izquierdo en el aire (0..1)
-	var lift_r := maxf(0.0, -s) * step
-	var contact := pow(1.0 - absf(s), 3.0) * amt   # Recién apoyó: el peso cae
+	# Las piernas van y vienen para los costados, una para cada lado (el rig se espeja: +x es
+	# para donde va). stride: 1 = la izquierda adelante, -1 = la derecha
+	var stride := s * step
+	var coming := cos(phase)
+	var lift_l := maxf(0.0, coming) * step * STEP_LIFT    # El pie que viene para adelante apenas se despega
+	var lift_r := maxf(0.0, -coming) * step * STEP_LIFT
+	var contact := pow(absf(s), 3.0) * amt   # Con las piernas abiertas apoya el pie de adelante: el peso cae
 	var hip_rot := SWAY * s * amt * (1.0 + ZOMBIE_LURCH * zombie)
-	var rise := absf(s) * BOB * step + sin(_t * BREATH_RATE) * BREATH * still
+	var rise := -absf(s) * BOB * step + sin(_t * BREATH_RATE) * BREATH * still
 
 	# De rodillas: el cuerpo baja y las piernas se quedan donde están (el cuerpo las tapa)
 	# (Brotando también: duro y temblando)
@@ -588,23 +601,24 @@ func _process(dt: float) -> void:
 	var jump := PUNCH_JUMP * jab - RECOIL_SLIDE * recoil
 
 	hip.rotation = hip_rot
-	hip.position = hip_rest + Vector2(SHIFT * s * amt + jump + PUNCH_STEP * jab - RECOIL_STEP * recoil, -rise)
-	_place_leg(leg_l, leg_l_rest, lift_l + 0.5 * minf(1.0, jab), jump)
-	_place_leg(leg_r, leg_r_rest, lift_r, jump)
+	hip.position = hip_rest + Vector2(jump + PUNCH_STEP * jab - RECOIL_STEP * recoil, -rise)
+	_place_leg(leg_l, leg_l_rest, lift_l + 0.5 * minf(1.0, jab), jump, j_leg_l.angle)
+	_place_leg(leg_r, leg_r_rest, lift_r, jump, j_leg_r.angle)
 	head.position = head_rest + Vector2(0.0, HEAD_DIP * contact + STOOP_HEAD * old * (1.0 - rag) + ZOMBIE_SLOUCH * zombie)
-	# El brazo de un lado va adelante cuando sube la pierna del otro (el zombi los estira hacia
-	# la cámara: más cortos)
+	# (El zombi estira los brazos hacia la cámara: más cortos)
 	var reach := 1.0 - ZOMBIE_ARM_SHORT * zombie
-	arm_l.scale = Vector2((1.0 - ARM_SHORT * lift_r) * reach, 1.0 + ARM_NEAR * lift_r)
-	arm_r.scale = Vector2((1.0 - ARM_SHORT * lift_l) * reach, 1.0 + ARM_NEAR * lift_l)
+	arm_l.scale = Vector2(reach, 1.0)
+	arm_r.scale = Vector2(reach, 1.0)
 	_update_look(dt, still)
 
-	# Con amt = 0 (ragdoll total) esto queda en la pose de reposo: brazos abajo, resto recto
+	# Con amt = 0 (ragdoll total) esto queda en la pose de reposo: brazos abajo, resto recto.
+	# Girar en + lleva la punta del miembro para atrás (-x): la pierna izquierda va adelante con
+	# stride > 0, y cada brazo va al revés que la pierna de su lado
 	j_head.target  = -hip_rot * 0.6 + _look
-	j_arm_l.target = -ARM_DOWN - ARM_FWD * lift_r + ARM_BACK * lift_l - hip_rot
-	j_arm_r.target =  ARM_DOWN + ARM_FWD * lift_l - ARM_BACK * lift_r - hip_rot
-	j_leg_l.target =  LEG_SPLAY * lift_l - hip_rot
-	j_leg_r.target = -LEG_SPLAY * lift_r - hip_rot
+	j_arm_l.target = -ARM_DOWN + ARM_SWING * stride - hip_rot
+	j_arm_r.target =  ARM_DOWN - ARM_SWING * stride - hip_rot
+	j_leg_l.target = -STRIDE * stride - hip_rot
+	j_leg_r.target =  STRIDE * stride - hip_rot
 	if zombie > 0.0:
 		# Zombi: los brazos estirados, meciéndose cada uno a su ritmo, y la cabeza caída
 		j_arm_l.target = lerpf(j_arm_l.target, -ZOMBIE_ARM + sin(_t * 2.1) * ZOMBIE_ARM_SWAY, zombie)
@@ -678,8 +692,11 @@ func _twitch(dt: float, blooming: bool) -> void:
 
 ## Pone la pierna para que el pie quede apoyado (o levantado, lift de 0 a 1) donde va,
 ## aunque la cadera suba, se corra o se incline.
-func _place_leg(leg: Bone2D, rest: Vector2, lift: float, shift_x := 0.0) -> void:
-	var pivot := hip_rest + rest + Vector2(shift_x, -LIFT * lift)   # En el esqueleto
+func _place_leg(leg: Bone2D, rest: Vector2, lift: float, shift_x := 0.0, swing := 0.0) -> void:
+	# Inclinada (swing: su ángulo) llega menos abajo: baja lo que le falta para seguir pisando
+	# (En ragdoll no: las piernas cuelgan de la cadera)
+	var drop := leg.get_length() * (1.0 - cos(swing + hip.rotation)) * (1.0 - rag)
+	var pivot := hip_rest + rest + Vector2(shift_x, drop - LIFT * lift)   # En el esqueleto
 	leg.position = (pivot - hip.position).rotated(-hip.rotation)
 	leg.scale = Vector2(1.0, 1.0 - KNEE * lift)
 
@@ -738,6 +755,7 @@ func _frozen_pose() -> bool:
 func _apply() -> void:
 	for j in joints:
 		j.bone.rotation = j.angle
+	_turn_hands()
 
 ## El ceño fruncido de cuando pelea: dos cejas gruesas, caídas hacia la nariz, que le tapan un
 ## poco los ojos por arriba.
@@ -963,7 +981,7 @@ class XRay extends Node2D:
 			"torso": _torso()
 			"arm_l": _arm(-1.0, 138.0, 228.0)
 			"arm_r": _arm(1.0, 152.0, 232.0)
-			"leg_l": _leg(-1.0)
+			"leg_l": _leg(1.0)   # (Los dos pies apuntan para adelante, ver VillagerRig._ready)
 			"leg_r": _leg(1.0)
 
 	func _draw() -> void:
@@ -1024,7 +1042,7 @@ class XRay extends Node2D:
 		_blobs.append(PackedVector2Array([Vector2(-26, -12), Vector2(26, -12), Vector2(0, 42)]))   # Sacro
 
 	## side: -1 el brazo izquierdo (va hacia -x), 1 el derecho. wrist / tip: x de la muñeca y
-	## de la punta de los dedos (la mano se angosta hacia los dedos, ver HAND_SQUASH).
+	## de la punta de los dedos.
 	func _arm(side: float, wrist: float, tip: float) -> void:
 		var elbow := wrist * 0.52
 		_line([Vector2(side * 8, 0), Vector2(side * elbow, 2)])   # Húmero
