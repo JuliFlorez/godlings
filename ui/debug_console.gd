@@ -25,6 +25,8 @@ const COMMANDS := [
 	["charlas / chats [n]", "Simula n charlas al azar (por defecto 30) y les da ganas de charlar a todos"],
 	["fe / faith [n]", "Pone la fe de todos en n, de 0 a 100 (por defecto 100)"],
 	["miedo / fear [n]", "Pone el miedo de todos en n, de 0 a 100 (por defecto 100)"],
+	["carisma / charisma [n]", "Pone el carisma de todos en n, de 0 a 100 (por defecto 100)"],
+	["lider / leader", "Elige ya al líder de la tribu y dice quién es"],
 	["hambre / hunger [n]", "Pone el hambre de todos en n, de 0 a 100 (por defecto 80)"],
 	["edad / age [n]", "Pone a todos en n días (por defecto 7, ya viejos; con 10 se mueren de viejos)"],
 	["desbloquear / unlock", "Pistola, rayo, fuego, hielo, meteorito, tornado, diluvio, peste, espora, discordia, curar, vacuna, escudo, resurrección, Cupido, amistad, Luna de Sangre y todos los tiburones"],
@@ -169,6 +171,15 @@ func run(text: String) -> void:
 		"miedo", "fear":
 			var n := clampi(arg if arg >= 0 else 100, 0, 100)
 			_ok(tr("%d aldeanos con miedo %d") % [_set_all("fear", n), n])
+		"carisma", "charisma":
+			var n := clampi(arg if arg >= 0 else 100, 0, 100)
+			_ok(tr("%d aldeanos con carisma %d") % [_set_all("charisma", n), n])
+		"lider", "líder", "leader":
+			var boss := Tribe.elect(get_tree())
+			if boss:
+				_ok(tr("Líder: %s (carisma %d)") % [VillagerCard.listed_name(boss), roundi(boss.charisma)])
+			else:
+				_ok(tr("No hay líder"))
 		"hambre", "hunger":
 			var n := clampi(arg if arg >= 0 else 80, 0, 100)
 			_ok(tr("%d aldeanos con hambre %d") % [_set_all("hunger", n), n])

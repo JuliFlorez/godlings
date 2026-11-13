@@ -90,6 +90,7 @@ var _save_failed := false   # El último guardado falló (el aviso sale una vez,
 var slot := 0
 ## Ya llegó la cámara a la isla: corren los rezos, el tiempo de juego y el guardado.
 var playing := false
+var _elect_t := 0.0               # Hasta que se fijen quién es el líder de la tribu (ver Tribe)
 ## Segundos jugados en esta partida (se guarda con ella; ver Relations.history).
 static var play_time := 0.0
 ## El reloj de lo que se anima al dibujarse (la palmera que se mece, la antorcha, las llamas, las
@@ -316,6 +317,10 @@ func _process(dt: float) -> void:
 		if n > 0:
 			Game.add_offerings(n)
 	_update_outbreak(dt)
+	_elect_t += dt
+	if _elect_t >= Tribe.ELECT_EVERY:
+		_elect_t = 0.0
+		Tribe.elect(get_tree())   # Quién es el líder de la tribu
 	if hud:
 		hud.set_population(alive_villagers(), capacity())
 		_tribute_show_t -= dt
@@ -728,6 +733,7 @@ func save_game() -> void:
 	cfg.set_value("island", "next_id", Villager.ids_issued)
 	cfg.set_value("island", "relations", Relations.save_state(ids))
 	cfg.set_value("island", "history", Relations.history)
+	cfg.set_value("island", "leader", Tribe.leader_id if ids.has(Tribe.leader_id) else 0)   # El líder de la tribu
 	cfg.set_value("island", "family", Genealogy.save_state())   # Los que ya no están, para el árbol genealógico
 	cfg.set_value("island", "decorations", decorations)
 	cfg.set_value("sky", "night", sky.is_night)
@@ -784,6 +790,7 @@ func _load_game() -> bool:
 	Villager.ids_issued = cfg.get_value("island", "next_id", Villager.ids_issued)
 	Relations.load_state(cfg.get_value("island", "relations", []))
 	Relations.load_history(cfg.get_value("island", "history", []))
+	Tribe.load_leader(cfg.get_value("island", "leader", 0), get_tree())
 	Genealogy.load_state(cfg.get_value("island", "family", []))
 	# Los que no tenían nombre (de antes de que salieran al azar, ver Names): uno nuevo, y el
 	# apellido de sus padres si alguno lo tiene (de los más viejos a los más nuevos, así los padres

@@ -76,6 +76,7 @@ static func reset() -> void:
 	Villager.ids_issued = 0
 	World.play_time = 0.0
 	Relations.clear()
+	Tribe.clear()
 	Genealogy.clear()
 	Storm.clear()
 	events.changed.emit()

@@ -4,7 +4,7 @@ extends "res://tests/test_case.gd"
 ## vida.
 
 const FIELDS := ["id_number", "first_name", "last_name", "gender", "hunger", "mood", "tiredness",
-		"faith", "fear", "flu", "flu_t", "spore", "age", "lifespan", "grey_age"]
+		"faith", "fear", "charisma", "flu", "flu_t", "spore", "age", "lifespan", "grey_age"]
 
 func test_round_trip() -> void:
 	var a := Villager.new()
@@ -17,6 +17,7 @@ func test_round_trip() -> void:
 	a.tiredness = 71.0
 	a.faith = 12.0
 	a.fear = 80.0
+	a.charisma = 91.0
 	a.set_flu(VillagerFlu.Stage.SICK, 20.0)
 	a.set_age(5.5)
 	a.parents.assign([3, 4])

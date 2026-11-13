@@ -3,8 +3,9 @@ class_name VillagerChat
 ## Las charlas: cada tanto, dos que andan cerca y con ganas se juntan a charlar un rato. El que la
 ## empieza va hasta el lado del otro, se miran y hablan por turnos (con un globito arriba de la
 ## cabeza y un bla-bla con su voz, ver Villager.say). Según cómo les fue se quieren más o menos (ver
-## Relations): así se hacen amigos, enemigos o pareja, y los enemigos a veces terminan a los
-## empujones. Se ve en el carnet.
+## Relations): así se hacen amigos, enemigos o pareja, y los enemigos a veces terminan a las
+## piñas: se ponen en guardia, se pegan por turnos en una polvareda (ver FightCloud) y el que gana
+## termina con un empujón. Se ve en el carnet.
 ## Charlar es de a dos: lo que hace falta del lado del otro va por lo que reenvía su aldeano
 ## (join_chat, leave_chat, can_chat...).
 ## Es una parte del aldeano (Villager la crea en _init): v es él. Desde afuera se usa lo que el
@@ -20,8 +21,19 @@ const CHAT_TURNS := Vector2i(3, 6)
 const CHAT_TURN := Vector2(0.8, 1.2)    # Lo que dura el globito de cada uno
 const CHAT_PAUSE := 0.3                 # Entre un turno y otro
 const CHAT_MOOD := 3.0                  # Ganando o perdiendo más que esto, se les nota
-const FIGHT_CHANCE := 0.5               # Enemigos que se pelearon: alguno empuja al otro
+const FIGHT_CHANCE := 0.5               # Enemigos que se pelearon: terminan a las piñas
+const FIGHT_WINDUP := 0.45              # Se ponen en guardia antes de la primera piña
+const FIGHT_HITS := Vector2i(3, 5)      # Piñas antes del empujón final
+const FIGHT_BEAT := Vector2(0.3, 0.45)  # Entre una piña y otra
+const FIGHT_SWAP := 0.8                 # Probabilidad de que la próxima la tire el otro
+const FIGHT_END := 0.6                  # Después del empujón, hasta que cada uno sigue con lo suyo
 var chat_with: Villager
+var fighting := false                   # A las piñas con chat_with (ver _start_fight; lo ve el rig)
+var _fight_t := 0.0                     # Hasta la próxima piña
+var _fight_left := 0                    # Piñas que faltan (0: toca el empujón; -1: ya está)
+var _fight_turn := false                # La próxima la tira él (si no, el otro)
+var _fight_winner: Villager
+var _fight_cloud: FightCloud
 var _chat_lead := false                 # La empezó él: la lleva él
 var _chat_talking := false              # Ya están uno al lado del otro (si no, va yendo)
 var _chat_t := 0.0
@@ -53,11 +65,13 @@ func join_chat(o: Villager) -> void:
 
 ## El otro cortó la charla (ver end_chat): un rato sin ganas de otra.
 func leave_chat() -> void:
+	_stop_fight()
 	chat_with = null
 	_chat_cool = randf_range(CHAT_EVERY.x, CHAT_EVERY.y)
 
 ## Se terminó (o se cortó) la charla: un rato sin ganas de otra, los dos.
 func end_chat() -> void:
+	_stop_fight()
 	var o := chat_with
 	chat_with = null
 	_chat_cool = randf_range(CHAT_EVERY.x, CHAT_EVERY.y)
@@ -116,6 +130,9 @@ func chat_ai(dt: float) -> bool:
 		return false
 	if not _chat_lead:
 		v._stand_facing(o)   # Espera (o charla) parado, mirándolo
+		return true
+	if fighting:
+		_fight_ai(o, dt)
 		return true
 	if not _chat_talking:
 		_chat_t += dt
@@ -196,6 +213,10 @@ func _finish_chat(o: Villager) -> void:
 		var why := "Charló lindo" if _chat_delta > 0.0 else "Discutió"
 		v.add_mood(_chat_delta * VillagerMood.MOOD_CHAT, why)
 		o.add_mood(_chat_delta * VillagerMood.MOOD_CHAT, why)
+	if _chat_delta > 0.0:
+		# Charlando bien, cada uno le contagia al otro lo que cree en vos: convence más el que
+		# tiene más carisma, y el líder de la tribu, mucho más (ver VillagerStats.exchange)
+		VillagerStats.exchange(v, o)
 	var face := Villager.Bubble.NONE
 	if ev == Relations.Event.BROKE_UP:
 		face = Villager.Bubble.TEAR
@@ -209,19 +230,75 @@ func _finish_chat(o: Villager) -> void:
 	var n := Relations.news(ev)
 	var news: String = n[0]
 	var color: Color = n[1]
-	# Los enemigos que se pelearon a veces terminan a los empujones
-	# (más si andan tristes)
-	if k == Relations.Kind.ENEMY and _chat_delta < 0.0 and randf() < FIGHT_CHANCE * lerpf(1.6, 0.6, (v.mood + o.mood) / 200.0):
-		var pusher: Villager = v if randf() < 0.5 else o
-		var pushed: Villager = o if pusher == v else v
-		pushed.get_pushed_by(pusher)
-		pushed.add_mood(VillagerMood.MOOD_SHOVED, "Se peleó a los empujones")
-		if news == "":
-			news = "¡Pelea!"
-			color = UiStyle.C_WARN
+	# Los enemigos que se pelearon a veces terminan a las piñas (más si andan tristes)
+	var fight := k == Relations.Kind.ENEMY and _chat_delta < 0.0 \
+			and randf() < FIGHT_CHANCE * lerpf(1.6, 0.6, (v.mood + o.mood) / 200.0)
+	if fight and news == "":
+		news = "¡Pelea!"
+		color = UiStyle.C_WARN
 	if news != "":
 		var mid := (v.get_global_transform_with_canvas().origin + o.get_global_transform_with_canvas().origin) * 0.5
 		Game.say(news, mid + Vector2(0, -100), color)
+	if fight:
+		_start_fight(o)   # Siguen juntos hasta que termine (ver _fight_ai)
+		return
 	end_chat()
 	v._wander_off()
 	o._wander_off()
+
+## Se van a las piñas: se ponen en guardia, con una polvareda entre los dos (ver FightCloud), y
+## se pegan por turnos; el que gana termina la pelea con un empujón (ver _fight_ai).
+func _start_fight(o: Villager) -> void:
+	fighting = true
+	o.set_fighting(true)
+	v.square_up(o)
+	o.square_up(v)
+	_fight_t = FIGHT_WINDUP
+	_fight_left = randi_range(FIGHT_HITS.x, FIGHT_HITS.y)
+	_fight_turn = randf() < 0.5
+	_fight_winner = v if randf() < 0.5 else o
+	_fight_cloud = FightCloud.new()
+	v.get_parent().add_child(_fight_cloud)
+	_fight_cloud.global_position = (v.body_center() + o.body_center()) * 0.5
+	var time := FIGHT_WINDUP + _fight_left * FIGHT_BEAT.y + FIGHT_END
+	v.say(Villager.Bubble.ANGER, time, false)
+	o.say(Villager.Bubble.ANGER, time, false)
+
+## Peleando con chat_with (lo lleva el que empezó la charla): cada tanto uno le tira una piña al
+## otro, y al final el que gana lo empuja con todo (capaz que lo tira al agua); al que pierde le
+## queda el mal humor. Después cada uno sigue con lo suyo.
+func _fight_ai(o: Villager, dt: float) -> void:
+	v._stand_facing(o)
+	if is_instance_valid(_fight_cloud):
+		_fight_cloud.global_position = (v.body_center() + o.body_center()) * 0.5
+	_fight_t -= dt
+	if _fight_t > 0.0:
+		return
+	if _fight_left > 0:
+		_fight_left -= 1
+		var hitter: Villager = v if _fight_turn else o
+		var at := hitter.throw_punch(o if _fight_turn else v)
+		if is_instance_valid(_fight_cloud):
+			_fight_cloud.hit(at)
+		if randf() < FIGHT_SWAP:
+			_fight_turn = not _fight_turn   # Casi siempre contesta el otro
+		_fight_t = randf_range(FIGHT_BEAT.x, FIGHT_BEAT.y)
+	elif _fight_left == 0:
+		_fight_left = -1
+		var loser: Villager = o if _fight_winner == v else v
+		loser.get_pushed_by(_fight_winner)
+		loser.add_mood(VillagerMood.MOOD_SHOVED, "Se peleó a los empujones")
+		if is_instance_valid(_fight_cloud):
+			_fight_cloud.hit(loser.body_center(), true)
+		_fight_t = FIGHT_END
+	else:
+		end_chat()
+		v._wander_off()
+		o._wander_off()
+
+## Se terminó (o se cortó) la pelea: la polvareda se va.
+func _stop_fight() -> void:
+	fighting = false
+	if is_instance_valid(_fight_cloud):
+		_fight_cloud.finish()
+	_fight_cloud = null

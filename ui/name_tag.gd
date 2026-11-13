@@ -4,7 +4,8 @@ class_name NameTag
 ## (así la noche no lo oscurece y queda por encima de todo) y sigue a la cabeza aunque
 ## el aldeano esté colgando, volando o tirado. Si tiene el carnet abierto, una flechita
 ## lo señala; si el carnet abierto es de otro, un dibujito dice qué es de él (su pareja,
-## un amigo o un enemigo, ver Relations). Arriba de todo, el globito de lo que está
+## un amigo o un enemigo, ver Relations). El líder de la tribu lleva una coronita al lado del
+## nombre (ver Tribe). Arriba de todo, el globito de lo que está
 ## diciendo (ver SpeechBubble). Sin nada de eso no se ve.
 
 # Centro y radio de la cabeza, relativos al pivote del hueso Head (px de villager.png)
@@ -19,6 +20,7 @@ const MARK_ICONS := {
 	Relations.Kind.FRIEND: Villager.Bubble.SMILE,
 	Relations.Kind.ENEMY: Villager.Bubble.ANGER,
 }
+const CROWN := Vector2(7, 5)     # Medio ancho y medio alto de la coronita del líder
 const C_OUTLINE := UiStyle.C_INK
 
 var villager: Villager
@@ -27,6 +29,8 @@ var _label: Label
 var _bubble: SpeechBubble
 var _selected := false
 var _rel := Relations.Kind.NONE  # Qué es del aldeano que tiene el carnet abierto
+var _crowned := false            # Es el líder de la tribu (ver Tribe): lleva una coronita...
+var _crown_at := Vector2.ZERO    # ...acá
 var _t := 0.0
 
 func _ready() -> void:
@@ -75,12 +79,29 @@ func _process(dt: float) -> void:
 	elif _rel != Relations.Kind.NONE:
 		mark_h = MARK * 2.0 + GAP
 	_label.position = Vector2(-_label.size.x * 0.5, -_label.size.y - GAP - mark_h).round()
+	# La coronita del líder de la tribu, a la izquierda del nombre
+	var crowned := villager.is_leader()
+	var crown_at := _label.position + Vector2(-CROWN.x - 4.0, _label.size.y * 0.5)
+	if crowned != _crowned or (crowned and crown_at != _crown_at):
+		_crowned = crowned
+		_crown_at = crown_at
+		queue_redraw()
 	# El globito, arriba del nombre (o de lo que haya)
 	var above := _label.position.y if _label.visible else -GAP - mark_h
 	_bubble.position = Vector2(0, above - 1.0)
 	_bubble.show_bubble(villager.bubble if talking else Villager.Bubble.NONE, villager.bubble_t, dt)
 
 func _draw() -> void:
+	if _crowned:
+		var w := CROWN.x
+		var h := CROWN.y
+		var crown := PackedVector2Array([Vector2(-w, h), Vector2(-w, -h), Vector2(-w * 0.5, 0), Vector2(0, -h),
+				Vector2(w * 0.5, 0), Vector2(w, -h), Vector2(w, h)])
+		for i in crown.size():
+			crown[i] += _crown_at
+		draw_colored_polygon(crown, Tribe.C_LEADER)
+		crown.append(crown[0])
+		draw_polyline(crown, C_OUTLINE, 1.5, true)
 	if _selected:
 		var y := -GAP - (0.5 + 0.5 * sin(_t * 6.0)) * ARROW_BOB
 		var tri := PackedVector2Array([Vector2(-ARROW.x, y - ARROW.y), Vector2(ARROW.x, y - ARROW.y), Vector2(0, y)])

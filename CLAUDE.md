@@ -40,7 +40,9 @@ mecánicas están en `README.md`; la revisión de estructura y el plan de refact
 | `actors/villager/villager_mood.gd` (`VillagerMood`) | Un componente del aldeano: el ánimo (lo que le toca por cómo está su vida, lo que le pasa, por qué está así) y los pesos `MOOD_*`. |
 | `actors/villager/villager_sleep.gd` (`VillagerSleep`) | Un componente del aldeano: el sueño (el cansancio, dormir de noche y la siesta, acostarse y despertarse). |
 | `actors/villager/villager_spore.gd` (`VillagerSpore`) | Un componente del aldeano: la espora zombi (contagio, hongos, el zombi que persigue y muerde, el brote) y el miedo de los sanos a los zombis. |
-| `actors/villager/villager_sounds.gd`, `blood_pool.gd`, `zap_arcs.gd`, `ash_pile.gd`, `flames.gd` | Los sonidos sintetizados del aldeano y sus efectos (el charco de sangre, los chispazos del rayo, las cenizas, las llamas). |
+| `actors/villager/villager_stats.gd` (`VillagerStats`) | Un componente del aldeano: las estadísticas (por ahora el carisma: cae mejor charlando y contagia su fe). Una estadística nueva va acá. |
+| `actors/villager/tribe.gd` (`Tribe`) | Estático: el líder de la tribu (el más aceptado, por carisma y afinidad; `elect` lo llama `World`), y cuánto lo sigue cada uno en la fe (`follow`). |
+| `actors/villager/villager_sounds.gd`, `blood_pool.gd`, `zap_arcs.gd`, `ash_pile.gd`, `flames.gd`, `fight_cloud.gd` | Los sonidos sintetizados del aldeano y sus efectos (el charco de sangre, los chispazos del rayo, las cenizas, las llamas, la polvareda de las peleas). |
 | `actors/villager/villager_rig.gd` | El esqueleto 2D y lo que se dibuja encima (cara, pelo, ojos, hongos, rayos X). |
 | `actors/villager/relations.gd`, `genealogy.gd`, `names.gd` | Estáticos: afinidad y vínculos por número de carnet, con el historial; los que ya no están, para el árbol; nombres al azar. |
 | `actors/shark.gd` | El tiburón (en `World` se duplica hasta `Shark.MAX`). |
@@ -64,7 +66,7 @@ mecánicas están en `README.md`; la revisión de estructura y el plan de refact
   `button`, `box`, `window`, `outline`). Un color o un estilo que se repite va ahí, no suelto en
   cada panel.
 - **No hay autoloads: el estado global son `static var`.** De la partida: todo `Game`, y además
-  `Villager.ids_issued`, `World.play_time`, `Relations`, `Genealogy` y el agua del diluvio
+  `Villager.ids_issued`, `World.play_time`, `Relations`, `Tribe`, `Genealogy` y el agua del diluvio
   (`Storm.rain`...). "Menú principal" recarga la escena y los estáticos **sobreviven**: los borra
   `Game.reset()`, lo primero de `World._ready()`. Un `static var` nuevo con algo de la partida se
   borra ahí, o pasa de una partida a otra. Las opciones (`Settings`) persisten a propósito, y

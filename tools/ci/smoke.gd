@@ -13,7 +13,7 @@ const FPS := 60                 # Cuadros por segundo (ver --fixed-fps)
 const LAND_TIMEOUT := 1200      # Cuadros para llegar a la isla
 const ROUND_TIME := 40          # Segundos que juega cada vuelta
 ## Lo que se compara de cada aldeano entre lo guardado y lo cargado (además del nombre y demás)
-const SAVED_FLOATS := ["hunger", "mood", "tiredness", "faith", "fear", "spore", "flu_t", "shield_t",
+const SAVED_FLOATS := ["hunger", "mood", "tiredness", "faith", "fear", "charisma", "spore", "flu_t", "shield_t",
 		"vaccine_t", "age", "lifespan", "grey_age"]
 
 var _world: World

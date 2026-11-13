@@ -11,7 +11,8 @@ class_name VillagerCard
 ## Después, cuánto cree en vos y cuánto te teme (ver Villager.faith y fear), y qué es por eso:
 ## devoto, fanático, hereje o aterrado; su ánimo (ver Villager.mood): qué tan contento está y
 ## por qué; y cuántas ofrendas te deja cada vez que reza (ver VillagerFaith.tribute), o por qué no
-## reza ahora.
+## reza ahora. Después, su lugar en la tribu: su carisma y cuánto lo apoyan los demás; si es el
+## líder, el título del carnet dice "Líder de la tribu" (ver VillagerStats y Tribe).
 ## Abajo, sus relaciones (ver Relations): su pareja, sus amigos y sus enemigos; su familia (sus
 ## padres y sus hijos, y "Ver árbol" para el árbol genealógico, ver FamilyTree) y su casa (la
 ## choza donde vive y con quién). Un click en un nombre abre el carnet de ese aldeano, y uno en la
@@ -55,6 +56,7 @@ const RELATIONS := [
 	[Relations.Kind.ENEMY, "Enemigos", Villager.Bubble.ANGER],
 ]
 const REL_CAPTION_W := 66.0
+const REL_MIN_H := 60.0          # Lo menos que se ve de las relaciones cuando el carnet no entra
 ## Lo que es según su fe y su miedo: [varón, aldeana, color]
 const CREEDS := {
 	VillagerFaith.Creed.DEVOUT: ["Devoto", "Devota", UiStyle.C_HOLY],
@@ -101,6 +103,11 @@ var _mood_why: Label             # ...y por qué
 var _tribute_row: Control        # Lo que te deja cuando reza (o por qué no reza)
 var _tribute_coin: Control
 var _tribute: Label
+var _title: Label                # "Carnet de aldeano", o "Líder de la tribu" si lo es (ver Tribe)
+var _charisma_bar: ProgressBar
+var _support_bar: ProgressBar    # Cuánto lo aceptan los demás (ver Tribe.acceptance)
+var _rel_scroll: ScrollContainer # Las relaciones, que se deslizan si el carnet no entra (ver _place)
+var _rel_box: Control
 var _relations: Array[HFlowContainer] = []   # Una fila por cada tipo de relación (RELATIONS)
 var _family: HFlowContainer     # Sus padres y sus hijos
 var _home: HFlowContainer       # Su choza y los que viven con él
@@ -116,7 +123,8 @@ func _ready() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	col.add_child(head)
-	head.add_child(UiStyle.label("Carnet de aldeano", 17, UiStyle.C_TEXT))
+	_title = UiStyle.label("Carnet de aldeano", 17, UiStyle.C_TEXT)
+	head.add_child(_title)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(spacer)
@@ -181,6 +189,7 @@ func _ready() -> void:
 	_sleep_bar = _bar(fields, "Sueño", C_SLEEP)
 	_spore_bar = _bar(fields, "Espora", C_SPORE)
 	_build_creed(col)
+	_build_tribe(col)
 	_build_relations(col)
 	_first.text_changed.connect(func(t: String):
 		if villager:
@@ -208,8 +217,15 @@ func open(v: Villager) -> void:
 
 ## Arriba a la derecha (con la altura que tenga ahora: cambia con la lista de relaciones).
 func _place() -> void:
-	reset_size()
 	var view := get_viewport_rect().size
+	# Nunca más alto que la pantalla: lo que sobra se lo saca a las relaciones, que se deslizan
+	var want := _rel_box.get_combined_minimum_size().y
+	_rel_scroll.custom_minimum_size.y = want
+	reset_size()
+	var over := size.y - (view.y - MARGIN * 2.0)
+	if over > 0.0:
+		_rel_scroll.custom_minimum_size.y = maxf(REL_MIN_H, want - over)
+		reset_size()
 	position = Vector2(view.x - size.x - MARGIN, clampf(view.y - BOTTOM - size.y, MARGIN, TOP))
 
 func close() -> void:
@@ -316,7 +332,12 @@ func _update_creed() -> void:
 	_creed.text = c[1] if v.gender == Villager.Gender.FEMALE else c[0]
 	_creed.add_theme_color_override("font_color", c[2])
 	_creed.visible = not gone
-	for bar: ProgressBar in [_faith_bar, _fear_bar, _hunger_bar, _sleep_bar, _mood_bar]:
+	_charisma_bar.value = v.charisma
+	_support_bar.value = 0.0 if gone else Tribe.acceptance(v, Tribe.members(v.get_tree()))
+	var leads := v.is_leader()   # El líder de la tribu: lo dice el título, en dorado
+	_title.text = "Líder de la tribu" if leads else "Carnet de aldeano"
+	_title.add_theme_color_override("font_color", Tribe.C_LEADER if leads else UiStyle.C_TEXT)
+	for bar: ProgressBar in [_faith_bar, _fear_bar, _hunger_bar, _sleep_bar, _mood_bar, _charisma_bar, _support_bar]:
 		bar.modulate.a = 0.4 if gone else 1.0
 	# Lo que te deja cuando reza, o por qué no reza ahora (muerto, nada)
 	var block := v.prayer_block()
@@ -511,13 +532,26 @@ func _build_creed(parent: Control) -> void:
 	tribute_row.add_child(_tribute)
 	_tribute_row = tribute_row
 
-## Una barrita de 0 a 100 con su nombre adelante.
-func _bar(parent: Control, title: String, col: Color) -> ProgressBar:
+## Su lugar en la tribu, en un renglón (el carnet ya es alto): el carisma y cuánto lo apoyan los
+## demás (ver Tribe). Si es el líder lo dice el título del carnet (ver _update_creed).
+func _build_tribe(parent: Control) -> void:
+	_separator(parent)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	parent.add_child(row)
+	_charisma_bar = _bar(row, "Carisma", Tribe.C_LEADER)
+	_support_bar = _bar(row, "Apoyo", UiStyle.C_DEVOTION, 0.0)
+	for bar: ProgressBar in [_charisma_bar, _support_bar]:
+		bar.get_parent().size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+## Una barrita de 0 a 100 con su nombre adelante (caption_w: el ancho del nombre, así quedan
+## todas alineadas).
+func _bar(parent: Control, title: String, col: Color, caption_w := REL_CAPTION_W) -> ProgressBar:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	parent.add_child(row)
 	var caption := UiStyle.label(title, 13, UiStyle.C_MUTED)
-	caption.custom_minimum_size = Vector2(REL_CAPTION_W, 0)
+	caption.custom_minimum_size = Vector2(caption_w, 0)
 	row.add_child(caption)
 	var bar := ProgressBar.new()
 	bar.show_percentage = false
@@ -540,10 +574,16 @@ func _separator(parent: Control) -> void:
 
 func _build_relations(parent: Control) -> void:
 	_separator(parent)
+	parent.add_child(caption("Relaciones"))
+	# Las listas crecen con los amigos: si el carnet no entra en la pantalla, se ven con la ruedita (ver _place)
+	_rel_scroll = ScrollContainer.new()
+	_rel_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	parent.add_child(_rel_scroll)
 	var box := VBoxContainer.new()   # Más apretado que el resto del carnet
 	box.add_theme_constant_override("separation", 3)
-	parent.add_child(box)
-	box.add_child(caption("Relaciones"))
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_rel_scroll.add_child(box)
+	_rel_box = box
 	for r: Array in RELATIONS:
 		_relations.append(_relation_row(box, r[1], r[2]))
 	_family = _relation_row(box, "Familia", Villager.Bubble.SUN)

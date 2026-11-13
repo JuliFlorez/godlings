@@ -3,7 +3,8 @@ class_name VillagerFaith
 ## La fe y el miedo: cuánto creen en vos (el dios de la isla) y cuánto te temen, de 0 a 100. Con eso
 ## son devotos, fanáticos, herejes o aterrados (ver creed). La fe sube con los milagros (curarlos,
 ## rescatarlos del agua, o ver que curaste a otro) y baja de a poco si no hacés nada por ellos, y de
-## golpe si se les muere la pareja o un amigo. El miedo sube con lo que ven: alguien que se muere
+## golpe si se les muere la pareja o un amigo. Además se la contagian charlando (ver
+## VillagerStats.exchange) y todos van siguiendo al líder de la tribu (ver Tribe.follow). El miedo sube con lo que ven: alguien que se muere
 ## cerca (más si lo querían), que los agarres o los revolees, el sol o la luna perturbados; y se les
 ## va pasando (charlando, más rápido). Si pasás el mouse cerca, el devoto se arrodilla y te reza, el
 ## fanático también pero temblando, el aterrado sale corriendo y el hereje ni te mira; con un arma
@@ -133,6 +134,7 @@ func update(dt: float) -> void:
 	if not v.is_alive() or v.is_zombie():
 		return   # (El zombi ya no cree en nada ni le tiene miedo a nada)
 	add_faith(-(FAITH_DRIFT + (VillagerHunger.FAITH_DRIFT_STARVING if v.starving() else 0.0)) * dt)
+	add_faith(Tribe.follow(v) * dt)   # Sigue al líder de la tribu: cree más o menos, como él
 	add_fear(-FEAR_FADE * (FEAR_FADE_CHAT if v.chat_with else 1.0) * dt)
 	if _creepy_sky():
 		add_fear(FEAR_CREEPY * dt)

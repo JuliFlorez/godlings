@@ -191,7 +191,8 @@ const BODY_BOTTOM := 31.0
 const SHOVE_TIME := 0.4          # Tras un empujón, salir de la isla = caerse
 const SHOVE_FRICTION := 1500.0   # Frenado del empujón (px/s²)
 const MAX_SHOVE := 600.0
-const FIGHT_SHOVE := 170.0
+const FIGHT_SHOVE := 330.0       # El empujón que termina una pelea (px/s: lo corre unos 35 px)...
+const FIGHT_APART := 190.0       # ...y lo que se separan al ponerse en guardia (unos 12 px cada uno)
 var shove_vel := Vector2.ZERO
 var shove_timer := 0.0
 
@@ -306,6 +307,15 @@ var mood: float:
 	set(value):
 		_mood.mood = value
 
+# --- Estadísticas (ver VillagerStats): por ahora el carisma, que hace que caiga bien y convenza; el más aceptado es el líder (ver Tribe) ---
+var _stats: VillagerStats
+## Qué tan bien cae y cuánto convence: 0 .. 100 (ver VillagerStats).
+var charisma: float:
+	get:
+		return _stats.charisma
+	set(value):
+		_stats.charisma = clampf(value, 0.0, 100.0)
+
 # --- Cómo es: cada uno tiene la piel un poco más clara u oscura (y más amarilla o rojiza), el
 # pelo de otro color y es un poco más alto o más bajo (ver set_looks y waterline.gdshader). Los
 # bebés salen parecidos a sus padres (ver inherit_looks). Se guarda con la partida.
@@ -375,6 +385,7 @@ func _init() -> void:
 	_hunger = VillagerHunger.new(self)
 	_sleep = VillagerSleep.new(self)
 	_mood = VillagerMood.new(self)
+	_stats = VillagerStats.new(self)
 	_burn = VillagerBurn.new(self)
 	_freeze = VillagerFreeze.new(self)
 	_flu = VillagerFlu.new(self)
@@ -833,6 +844,18 @@ func add_mood(amount: float, why := "") -> void:
 func relation_mood(ev: Relations.Event) -> void:
 	_mood.relation_mood(ev)
 
+# --- ESTADÍSTICAS (lo que el resto del juego le pregunta al aldeano; ver VillagerStats y Tribe) ---
+## Bebé de a y b: su carisma sale parecido al de ellos.
+func inherit_stats(a: Villager, b: Villager) -> void:
+	_stats.inherit(a, b)
+
+## Cuánta fe le cambiaría a o por charlar con él (ver VillagerStats.exchange).
+func persuasion(o: Villager) -> float:
+	return _stats.persuasion(o)
+
+func is_leader() -> bool:
+	return Tribe.is_leader(self)
+
 # --- SUEÑO (lo que el resto del juego le pregunta al aldeano; ver VillagerSleep) ---
 func is_sleeping() -> bool:
 	return _sleep.is_sleeping()
@@ -1019,14 +1042,44 @@ func get_shoved(offset: Vector2, vel: Vector2) -> void:
 		shove_vel = vel
 	shove_timer = SHOVE_TIME
 
-## Un enemigo lo empujó (y capaz que lo tira de la isla).
+## Un enemigo lo empujó con todo (y capaz que lo tira de la isla): el otro se le va encima y él
+## sale para atrás, sacudido.
 func get_pushed_by(o: Villager) -> void:
 	var push := Vector2(1.0 if global_position.x >= o.global_position.x else -1.0, 0.0)
 	get_shoved(Vector2.ZERO, push * FIGHT_SHOVE)
+	if o.rig:
+		o.rig.set_facing_left(push.x < 0.0)
+		o.rig.punch(1.5)
 	if rig:
-		rig.hit(body_center(), push, 0.8)
+		rig.hit(body_center(), push, 1.2)
+		rig.flinch(1.5)
+	_play_sfx(VillagerSounds.punch(), VOICE_DB - 3.0, randf_range(0.7, 0.85))
 	_voice.pitch_scale = _voice_pitch * randf_range(0.96, 1.04)
 	_voice.play()
+
+## Se pone en guardia frente a o: se aleja un paso, así hay lugar para las piñas.
+func square_up(o: Villager) -> void:
+	get_shoved(Vector2.ZERO, Vector2(1.0 if global_position.x >= o.global_position.x else -1.0, 0.0) * FIGHT_APART)
+
+## Peleando (ver VillagerChat): le tira una piña a o, que se sacude y se va para atrás. Devuelve
+## dónde le pegó (coords del mundo).
+func throw_punch(o: Villager) -> Vector2:
+	var push := Vector2(1.0 if o.global_position.x >= global_position.x else -1.0, 0.0)
+	var at := o.body_center() + Vector2(-push.x * BODY_HALF_W * 0.5, randf_range(-22.0, -6.0))
+	if rig:
+		rig.punch()
+	if o.rig:
+		o.rig.hit(at, push, 0.7)
+		o.rig.flinch()
+	_play_sfx(VillagerSounds.punch(), VOICE_DB - 6.0, randf_range(0.9, 1.25))
+	return at
+
+## Si está a las piñas con alguien (ver VillagerChat).
+func is_fighting() -> bool:
+	return _chat.fighting
+
+func set_fighting(on: bool) -> void:
+	_chat.fighting = on
 
 func _fall_from_shove() -> void:
 	var push := shove_vel
@@ -1803,7 +1856,7 @@ func _wander_off() -> void:
 	wander_timer = randf_range(1.5, 3.0)
 
 # --- PARTIDA GUARDADA ---
-## Lo que se guarda de él con la partida (ver World.save_game): su carnet, cómo es, el escudo y la
+## Lo que se guarda de él con la partida (ver World.save_game): su carnet, cómo es, su carisma, el escudo y la
 ## vacuna, y lo de cada sistema (cada componente con sus claves, las mismas de siempre, así se siguen
 ## cargando las partidas de antes). Dónde está parado y en qué choza vive los pone World.
 func to_dict() -> Dictionary:
@@ -1814,6 +1867,7 @@ func to_dict() -> Dictionary:
 	d.merge(_faith.to_dict())
 	d.merge(_hunger.to_dict())
 	d.merge(_mood.to_dict())
+	d.merge(_stats.to_dict())
 	d.merge(_sleep.to_dict())
 	d["looks"] = [skin_tone, skin_warm, hair_color, height]
 	d.merge(_age.to_dict())
@@ -1836,6 +1890,7 @@ func from_dict(d: Dictionary) -> void:
 	_faith.from_dict(d)
 	_hunger.from_dict(d)
 	_mood.from_dict(d)
+	_stats.from_dict(d)
 	_sleep.from_dict(d)
 	var looks: Array = d.get("looks", [])
 	if looks.size() == 4:

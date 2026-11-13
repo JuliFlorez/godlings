@@ -9,6 +9,7 @@ static var _groan: AudioStreamWAV
 static var _bite: AudioStreamWAV
 static var _cough: AudioStreamWAV
 static var _burst: AudioStreamWAV
+static var _punch: AudioStreamWAV
 
 ## Un bla-bla al azar de los que hay (son varios, así no suenan todos iguales).
 static func babble() -> AudioStreamWAV:
@@ -42,7 +43,28 @@ static func burst() -> AudioStreamWAV:
 		_burst = _make_burst()
 	return _burst
 
+static func punch() -> AudioStreamWAV:
+	if _punch == null:
+		_punch = _make_punch()
+	return _punch
+
 # ---- Cómo suenan ----
+## Una piña: un golpe seco y grave, con un chasquido al principio.
+static func _make_punch() -> AudioStreamWAV:
+	var rate := 22050
+	var n := int(rate * 0.13)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var ph := 0.0
+	var lp := 0.0
+	for i in n:
+		var k := float(i) / n
+		ph += TAU * lerpf(210.0, 65.0, sqrt(k)) / rate
+		lp = lerpf(lp, randf_range(-1.0, 1.0), 0.5)
+		var env := minf(1.0, k * 90.0)
+		buf[i] = (sin(ph) * pow(1.0 - k, 2.5) + lp * 0.8 * pow(1.0 - k, 9.0)) * env
+	return Synth.wav(buf, rate, 0.9)
+
 ## "Bla-bla-bla": unas sílabas cortitas con la vocal que sube y baja de tono.
 static func _make_babble() -> AudioStreamWAV:
 	var rate := 22050

@@ -87,7 +87,29 @@ const COWER_ARMS := -1.8      # Agachado, abrazándose (los brazos cruzados por 
 const TREMBLE := 6.0          # Temblor de la cadera si te teme (px de la imagen)
 
 # Espora zombi (ver Villager.spore)
-const TWITCH_FROM := 0.05     # Con la espora así de avanzada empiezan los tics...
+# Peleando (ver VillagerChat)
+const FIGHT_SPEED := 6.0      # Por segundo: de normal a en guardia
+const FIGHT_GUARD := 0.55     # Los brazos a medio levantar (rad desde la pose T, para abajo)...
+const FIGHT_TUCK := 0.72      # ...y encogidos
+const FIGHT_HOP := 16.0       # Saltando en el lugar (px de la imagen)
+const FIGHT_HOP_RATE := 11.0
+const PUNCH_TIME := 0.26      # Lo que dura la piña (ida y vuelta)
+const PUNCH_K := 700.0        # Rigidez de los brazos peleando
+const PUNCH_ARM := -0.12      # El brazo de la piña: estirado hacia el otro, apenas para arriba...
+const PUNCH_REACH := 1.22     # ...y más largo
+const PUNCH_BACK := 0.35      # El otro brazo se va para atrás
+const PUNCH_LEAN := 0.2       # El cuerpo se inclina con la piña (rad)...
+const PUNCH_STEP := 70.0      # ...y se va para adelante (px de la imagen)
+const PUNCH_JUMP := 190.0     # Y se le va encima de un salto, con los pies y todo...
+const PUNCH_HOP := 30.0       # ...(lo que sube)
+const PUNCH_HEAD := 0.12
+const RECOIL_SLIDE := 110.0   # El golpe lo corre para atrás, con los pies y todo (px de la imagen)
+const RECOIL_TIME := 0.3      # Lo que tarda en reponerse de un golpe
+const RECOIL_LEAN := 0.22     # Se va para atrás (rad)...
+const RECOIL_STEP := 55.0     # ...(px de la imagen)...
+const RECOIL_HEAD := 0.3      # ...y la cabeza más todavía
+
+const TWITCH_FROM := 0.05    # Con la espora así de avanzada empiezan los tics...
 const TWITCH_EVERY := Vector2(6.0, 0.9)   # ...cada tantos segundos (de recién contagiado a zombi)...
 const TWITCH_KICK := Vector2(2.0, 7.0)    # ...y así de fuertes (rad/s)
 const ZOMBIE_SHUFFLE := 0.65  # Zombi: levanta mucho menos los pies...
@@ -160,6 +182,7 @@ var _prev_rot := 0.0
 var _dead_eyes: DeadEyes
 var _blink: Blink
 var _mouth: Mouth
+var _brows: Brows             # El ceño fruncido, peleando
 var _marks := 0
 var _xray: Array[XRay] = []
 var _facing := 1.0            # 1 = mira a la derecha, -1 = a la izquierda (se da vuelta de a poco)
@@ -171,7 +194,11 @@ var _female := false
 var _male_head_poly := PackedVector2Array()
 var _male_head_uv := PackedVector2Array()
 var _sneeze := 0.0            # Estornudando: la boca abierta un ratito
-var _kneel := 0.0             # 0 = parado, 1 = de rodillas (rezando, agachado de miedo o brotando)
+var _fight := 0.0             # 0 = normal, 1 = en guardia, peleando (ver VillagerChat)
+var _punch := 0.0             # Lo que le queda a la piña que está tirando...
+var _punch_power := 1.0       # ...y con cuánta fuerza
+var _recoil := 0.0            # Le acaban de pegar: echado para atrás
+var _kneel := 0.0            # 0 = parado, 1 = de rodillas (rezando, agachado de miedo o brotando)
 var _fungus: Fungus           # Los hongos de la cabeza (espora zombi)
 var _twitch_t := 0.0
 var _pose := VillagerFaith.Pose.NONE   # La última (para seguir con ella mientras se levanta)
@@ -223,6 +250,9 @@ func _ready() -> void:
 
 	_mouth = Mouth.new()
 	head.add_child(_mouth)
+
+	_brows = Brows.new()
+	head.add_child(_brows)
 
 	_fungus = Fungus.new()
 	_fungus.layout_seed = randi()   # Cada uno los tiene en otro lugar
@@ -418,6 +448,17 @@ func lunge() -> void:
 	j_arm_r.vel -= 7.0
 	j_head.vel += randf_range(-4.0, 4.0)
 
+## Tira una piña con el brazo de adelante (ver _process). power: más de 1, un empujón con todo
+## el cuerpo.
+func punch(power := 1.0) -> void:
+	_punch = PUNCH_TIME
+	_punch_power = power
+
+## Le pegaron: se va para atrás, con la boca abierta (los miembros los sacude hit).
+func flinch(strength := 1.0) -> void:
+	_recoil = minf(1.5, strength)
+	_sneeze = 0.25
+
 ## La punta del tallo que le brota de la cabeza (coords globales, ver Fungus).
 func bloom_tip() -> Vector2:
 	return head.to_global(_fungus.stalk_tip())
@@ -532,10 +573,24 @@ func _process(dt: float) -> void:
 		elif villager.fear >= VillagerFaith.FEARS_AT:
 			rise += randf_range(-1.0, 1.0) * TREMBLE * kneel
 
+	# Peleando (ver VillagerChat): en guardia y saltando en el lugar. La piña lo tira para adelante
+	# (ver punch) y al que le pegan se va para atrás (ver flinch)
+	_fight = move_toward(_fight, 1.0 if villager.is_fighting() else 0.0, FIGHT_SPEED * dt)
+	_punch = maxf(0.0, _punch - dt)
+	_recoil = move_toward(_recoil, 0.0, dt / RECOIL_TIME)
+	var fight := smoothstep(0.0, 1.0, _fight) * (1.0 - rag)
+	var jab := sin(clampf(_punch / PUNCH_TIME, 0.0, 1.0) * PI) * _punch_power * (1.0 - rag)
+	var recoil := _recoil * (1.0 - rag)
+	rise += absf(sin(_t * FIGHT_HOP_RATE)) * FIGHT_HOP * fight + PUNCH_HOP * jab
+	hip_rot += PUNCH_LEAN * jab - RECOIL_LEAN * recoil
+	_brows.amount = fight if not villager.dead else 0.0
+	# Con la piña se le va encima de un salto, con los pies y todo; y el golpe lo corre para atrás
+	var jump := PUNCH_JUMP * jab - RECOIL_SLIDE * recoil
+
 	hip.rotation = hip_rot
-	hip.position = hip_rest + Vector2(SHIFT * s * amt, -rise)
-	_place_leg(leg_l, leg_l_rest, lift_l)
-	_place_leg(leg_r, leg_r_rest, lift_r)
+	hip.position = hip_rest + Vector2(SHIFT * s * amt + jump + PUNCH_STEP * jab - RECOIL_STEP * recoil, -rise)
+	_place_leg(leg_l, leg_l_rest, lift_l + 0.5 * minf(1.0, jab), jump)
+	_place_leg(leg_r, leg_r_rest, lift_r, jump)
 	head.position = head_rest + Vector2(0.0, HEAD_DIP * contact + STOOP_HEAD * old * (1.0 - rag) + ZOMBIE_SLOUCH * zombie)
 	# El brazo de un lado va adelante cuando sube la pierna del otro (el zombi los estira hacia
 	# la cámara: más cortos)
@@ -555,6 +610,20 @@ func _process(dt: float) -> void:
 		j_arm_l.target = lerpf(j_arm_l.target, -ZOMBIE_ARM + sin(_t * 2.1) * ZOMBIE_ARM_SWAY, zombie)
 		j_arm_r.target = lerpf(j_arm_r.target, ZOMBIE_ARM + sin(_t * 2.1 + 1.3) * ZOMBIE_ARM_SWAY, zombie)
 		j_head.target += ZOMBIE_HEAD * zombie
+	var tense := maxf(fight, minf(1.0, jab))
+	j_arm_l.walk_k = lerpf(ARM_WALK_K, PUNCH_K, tense)   # Peleando, los brazos van duros
+	j_arm_r.walk_k = j_arm_l.walk_k
+	if tense > 0.0:
+		# En guardia: los brazos a medio levantar y encogidos (los puños hacia la cámara). La piña
+		# estira de golpe el de adelante (el rig se espeja, así que siempre es el derecho) y el
+		# otro se va para atrás
+		var punch := minf(1.0, jab)
+		j_arm_l.target = lerpf(j_arm_l.target, -FIGHT_GUARD, fight) + PUNCH_BACK * punch
+		j_arm_r.target = lerpf(lerpf(j_arm_r.target, FIGHT_GUARD, fight), PUNCH_ARM, punch)
+		arm_l.scale.x *= lerpf(1.0, FIGHT_TUCK, fight)
+		arm_r.scale.x *= lerpf(lerpf(1.0, FIGHT_TUCK, fight), PUNCH_REACH, punch)
+		j_head.target += PUNCH_HEAD * punch - RECOIL_HEAD * recoil
+		_mouth.target = maxf(_mouth.target, 0.3 * fight + 0.45 * punch)
 	if kneel > 0.0:
 		var arms := COWER_ARMS if cower else PRAY_ARMS + sin(_t * PRAY_SWAY_RATE) * PRAY_SWAY
 		if blooming:
@@ -609,8 +678,8 @@ func _twitch(dt: float, blooming: bool) -> void:
 
 ## Pone la pierna para que el pie quede apoyado (o levantado, lift de 0 a 1) donde va,
 ## aunque la cadera suba, se corra o se incline.
-func _place_leg(leg: Bone2D, rest: Vector2, lift: float) -> void:
-	var pivot := hip_rest + rest - Vector2(0.0, LIFT * lift)   # En el esqueleto
+func _place_leg(leg: Bone2D, rest: Vector2, lift: float, shift_x := 0.0) -> void:
+	var pivot := hip_rest + rest + Vector2(shift_x, -LIFT * lift)   # En el esqueleto
 	leg.position = (pivot - hip.position).rotated(-hip.rotation)
 	leg.scale = Vector2(1.0, 1.0 - KNEE * lift)
 
@@ -669,6 +738,30 @@ func _frozen_pose() -> bool:
 func _apply() -> void:
 	for j in joints:
 		j.bone.rotation = j.angle
+
+## El ceño fruncido de cuando pelea: dos cejas gruesas, caídas hacia la nariz, que le tapan un
+## poco los ojos por arriba.
+class Brows extends Node2D:
+	# De la punta de afuera a la de adentro de cada ceja, relativo al pivote del hueso Head (px de villager.png)
+	const BROWS := [[Vector2(-222, -268), Vector2(-58, -196)], [Vector2(228, -270), Vector2(72, -198)]]
+	const INK := Color(0.13, 0.07, 0.05)
+	const WIDTH := 34.0
+	var amount := 0.0:            # 0 = sin ceño, 1 = bien fruncido
+		set(a):
+			if not is_equal_approx(a, amount):
+				amount = a
+				queue_redraw()
+
+	func _draw() -> void:
+		if amount <= 0.01:
+			return
+		for b: Array in BROWS:
+			var outer: Vector2 = b[0]
+			var inner: Vector2 = b[1]
+			inner.y = lerpf(outer.y, inner.y, amount)   # Se le van cayendo
+			draw_line(outer, inner, Color(INK, minf(1.0, amount * 2.0)), WIDTH, true)
+			draw_circle(outer, WIDTH * 0.5, Color(INK, minf(1.0, amount * 2.0)), true, -1.0, true)
+			draw_circle(inner, WIDTH * 0.5, Color(INK, minf(1.0, amount * 2.0)), true, -1.0, true)
 
 ## Ojos en X que tapan los ojos del dibujo cuando el aldeano muere.
 class DeadEyes extends Node2D:

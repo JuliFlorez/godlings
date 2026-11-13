@@ -6,7 +6,8 @@ class_name Relations
 ## pasando COUPLE_AT, se ponen de novios. Para dejar de ser amigos o enemigos tiene que
 ## cambiar bastante (FRIEND_KEEP, ENEMY_KEEP): así no van y vienen con cada charla.
 ## Cada dos aldeanos tienen además su química (si se caen bien de entrada) y su atracción,
-## fijas: salen de sus números de carnet, así no hace falta guardarlas.
+## fijas: salen de sus números de carnet, así no hace falta guardarlas. Y los que tienen carisma
+## (ver VillagerStats) le caen mejor a todos; al que más quieren lo hacen líder (ver Tribe).
 ## Se guarda con la partida (ver World.save_game) y se ve en el carnet (ver VillagerCard).
 ## Cada cambio queda anotado en el historial (ver HistoryPanel). Los poderes de Cupido, la
 ## Discordia y la Amistad los cambian de una, sin charlar (ver make y Charm).
@@ -28,6 +29,7 @@ const LUCK := Vector2(-8.0, 12.0)
 const BAD_DAY := 0.1             # A veces discuten (hasta los amigos y las parejas; tristes, más)
 const BAD_DAY_COST := Vector2(12.0, 22.0)
 const MOOD_TALK := 0.08          # Contentos charlan mejor y tristes, peor (por punto de ánimo de los dos, de 50 para arriba o abajo; ver Villager.mood)
+const CHARISMA_TALK := 0.08      # Los carismáticos caen mejor (por punto de carisma de los dos, de 50 para arriba o abajo; ver VillagerStats)
 const COLORS := {
 	Kind.FRIEND: Color(0.46, 0.84, 0.52),
 	Kind.ENEMY: Color(1.0, 0.45, 0.4),
@@ -104,6 +106,7 @@ static func attraction(a: Villager, b: Villager) -> float:
 static func chat_delta(a: Villager, b: Villager) -> float:
 	var d := chemistry(a, b) * CHEMISTRY + affinity(a, b) * MOMENTUM + randf_range(LUCK.x, LUCK.y)
 	d += (a.mood + b.mood - 100.0) * MOOD_TALK
+	d += (a.charisma + b.charisma - 100.0) * CHARISMA_TALK
 	if randf() < BAD_DAY * lerpf(2.0, 0.5, (a.mood + b.mood) / 200.0):
 		d -= randf_range(BAD_DAY_COST.x, BAD_DAY_COST.y)
 	return d
