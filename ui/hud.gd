@@ -44,6 +44,7 @@ var _placing := false
 var _decor_edit := DecorPlacer.Edit.NONE
 var _pause: PauseMenu
 var _tags: Control
+var _world_labels: Control   # Ver add_world_label
 var _card: VillagerCard
 var _hut_card: HutCard
 var _family_tree: FamilyTree
@@ -117,6 +118,11 @@ func reveal(duration: float) -> void:
 	visible = true
 	_root.modulate.a = 0.0
 	create_tween().tween_property(_root, "modulate:a", 1.0, duration)
+
+## Un cartel que flota sobre el mundo (como el de lo que da el altar, ver Altar.Preview): arriba
+## de los nombres de los aldeanos y debajo de los paneles. Quien lo agrega lo mueve y lo borra.
+func add_world_label(c: Control) -> void:
+	_world_labels.add_child(c)
 
 ## Destello blanco sobre el mundo (no sobre la interfaz): el rayo. amount: 0..1.
 func flash_screen(amount: float) -> void:
@@ -355,6 +361,10 @@ func _build_ui() -> void:
 	_tags.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_tags.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_tags)
+	_world_labels = Control.new()   # Carteles sobre el mundo (lo que da el altar): arriba de los nombres
+	_world_labels.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_world_labels.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_world_labels)
 
 	_top = TopBar.new()   # Arriba: el panel de la izquierda, el + de invocar y las monedas
 	_top.hud = self

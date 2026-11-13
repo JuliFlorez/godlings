@@ -11,6 +11,10 @@ class_name Altar
 ## se asustan, los devotos te creen más ("aceptó la ofrenda") y su pareja y su familia, mucho
 ## menos. Entre un ritual y otro los braseros tardan en volver a prenderse. Si lo agarrás antes
 ## de que termine, lo salvás. Los chicos no: son muy chicos para eso.
+## Sacrificar al líder de la tribu da un sacrificio de más, pero toda la tribu (menos sus
+## enemigos) te cree menos.
+## Mientras tenés agarrado a un aldeano, arriba del altar se ve lo que te daría sacrificarlo y lo
+## que te costaría (ver Preview, reward y toll).
 
 const RITUAL_TIME := 4.0
 const COOLDOWN := 20.0              # Lo que tardan los braseros en volver a prenderse
@@ -22,12 +26,15 @@ const FEAR := 15.0                  # Miedo de más para los que lo vieron (de c
 const FAITH_DEVOUT := 8.0           # Los devotos que lo vieron: el dios aceptó la ofrenda
 const FAITH_LOVED := 25.0           # Su pareja y su familia te creen mucho menos...
 const MOOD_LOVED := -10.0           # ...y se ponen todavía más tristes
+const LEADER_SACRIFICES := 1        # Sacrificar al líder: un sacrificio de más...
+const LEADER_FAITH := 10.0          # ...pero toda la tribu (menos sus enemigos) te cree esto menos
 const STRUGGLE_EVERY := Vector2(0.2, 0.45)
 const FLARE := 0.8                  # Lo que se avivan los braseros al final del ritual (veces lit)
 const BEAM_TIME := 0.8
 const BEAM_W := Vector2(48.0, 14.0) # Ancho del rayo de luz: arriba y abajo (px de pantalla)
 const C_BEAM := Color(0.95, 0.08, 0.05)
 const C_SACRIFICE := Color(1.0, 0.36, 0.3)
+const PREVIEW_LIFT := 125.0        # Lo que queda el cartel de lo que da por arriba de la piedra (que no lo tape el que tenés agarrado)
 
 var deco: Decoration
 var victim: Villager
@@ -37,6 +44,11 @@ var _drum := 0
 var _struggle := 0.0
 var _drum_player: AudioStreamPlayer
 var _boom_player: AudioStreamPlayer
+var _preview: Preview   # El cartel de lo que da (en el HUD; se crea la primera vez)
+
+func _exit_tree() -> void:
+	if is_instance_valid(_preview):
+		_preview.queue_free()
 
 func _ready() -> void:
 	deco = get_parent() as Decoration
@@ -89,8 +101,46 @@ func _start(v: Villager) -> void:
 func release() -> void:
 	victim = null
 
+## Lo que da sacrificar a v ahora: "offerings" (más cuanto más cree en vos), "sacrifices" (de
+## noche, con la Luna de Sangre y si es el líder, más), "xp", y "time": 0 de día, 1 de noche, 2
+## Luna de Sangre.
+func reward(v: Villager) -> Dictionary:
+	var sky := get_tree().get_first_node_in_group("sky")
+	var time := 0
+	if sky != null and sky.blood_moon:
+		time = 2
+	elif sky != null and sky.is_night:
+		time = 1
+	return {"offerings": roundi(lerpf(OFFERING.x, OFFERING.y, v.faith / 100.0)),
+			"sacrifices": SACRIFICES[time] + (LEADER_SACRIFICES if v.is_leader() else 0), "xp": 1, "time": time}
+
+## Lo que cuesta sacrificar a v ahora: "mourners" (su pareja, sus amigos y su familia, que lo van
+## a llorar y te van a creer menos), "glad" (sus enemigos, que se alegran), "witnesses" (los que
+## están cerca y lo van a ver), "prayers" (las ofrendas que te deja cuando reza, que se pierden;
+## 0 si ahora no reza) y "leader" (si es el líder de la tribu).
+func toll(v: Villager) -> Dictionary:
+	var at := deco.altar_top()
+	var mourners := 0
+	var glad := 0
+	var witnesses := 0
+	for node in get_tree().get_nodes_in_group("villager"):
+		var o := node as Villager
+		if o == null or o == v or not o.is_alive() or o.is_zombie():
+			continue   # (El zombi ya no siente nada, ver Villager._mourn)
+		var k := Relations.kind(v, o)
+		if k == Relations.Kind.COUPLE or k == Relations.Kind.FRIEND or o.id_number in v.parents \
+				or v.id_number in o.parents:
+			mourners += 1
+		elif k == Relations.Kind.ENEMY:
+			glad += 1
+		if o.witness(at) > 0.0:
+			witnesses += 1
+	return {"mourners": mourners, "glad": glad, "witnesses": witnesses,
+			"prayers": v.tribute() if v.prays() else 0.0, "leader": v.is_leader()}
+
 func _process(dt: float) -> void:
 	_cooldown = maxf(0.0, _cooldown - dt)
+	_update_preview()
 	if victim == null:
 		return
 	if not is_instance_valid(victim) or victim.altar != self or not victim.is_alive() \
@@ -115,6 +165,36 @@ func _process(dt: float) -> void:
 	if _t >= RITUAL_TIME:
 		_finish()
 
+## El cartel de lo que da: solo mientras tenés agarrado a un aldeano vivo y el altar está libre
+## (si no se puede, dice por qué). Va en la pantalla, así de noche no se apaga.
+func _update_preview() -> void:
+	var held: Villager = null
+	if victim == null and deco.is_in_group("altar") and not deco.moving and deco.is_visible_in_tree():
+		for node in get_tree().get_nodes_in_group("villager"):
+			var o := node as Villager
+			if o and o.dragging and not o.dead:
+				held = o
+				break
+	if held == null:
+		if _preview:
+			_preview.visible = false
+		return
+	if _preview == null:
+		var hud := get_tree().get_first_node_in_group("hud") as HUD
+		if hud == null:
+			return
+		_preview = Preview.new()
+		hud.add_world_label(_preview)
+	var why := ""
+	if held.is_child():
+		why = "Es muy chico para eso"
+	elif _cooldown > 0.0:
+		why = "Los braseros todavía no se prendieron"
+	_preview.show_reward(held, reward(held), toll(held), why, deco.hit_test(held.get_global_mouse_position()))
+	_preview.visible = true
+	var at := get_viewport().get_canvas_transform() * (deco.altar_top() + Vector2(0, -PREVIEW_LIFT))
+	_preview.position = (at - Vector2(_preview.size.x * 0.5, _preview.size.y)).round()
+
 ## El final: baja el rayo de luz roja, el aldeano se deshace y su alma sube. Lo que da y lo que
 ## les pasa a los que lo vieron (antes de que se muera: después ya no cuenta para nadie).
 func _finish() -> void:
@@ -123,14 +203,17 @@ func _finish() -> void:
 	_cooldown = COOLDOWN
 	var at := deco.altar_top()
 	var sky := get_tree().get_first_node_in_group("sky")
-	var blood: bool = sky != null and sky.blood_moon
-	var night: bool = sky != null and sky.is_night
-	var gained: int = SACRIFICES[2 if blood else (1 if night else 0)]
-	var offering := roundi(lerpf(OFFERING.x, OFFERING.y, v.faith / 100.0))
+	var got := reward(v)
+	var blood: bool = got.time == 2
+	var gained: int = got.sacrifices
+	var offering: int = got.offerings
+	var leader := v.is_leader()
 	for node in get_tree().get_nodes_in_group("villager"):
 		var o := node as Villager
 		if o == null or o == v or not o.is_alive():
 			continue
+		if leader and not o.is_zombie() and Relations.kind(v, o) != Relations.Kind.ENEMY:
+			o.add_faith(-LEADER_FAITH)   # Era el líder: la tribu te cree menos (sus enemigos, no)
 		var seen := o.witness(at)
 		if seen > 0.0:
 			o.add_fear(FEAR * seen)
@@ -139,6 +222,10 @@ func _finish() -> void:
 		if Relations.kind(v, o) == Relations.Kind.COUPLE or o.id_number in v.parents or v.id_number in o.parents:
 			o.add_faith(-FAITH_LOVED)
 			o.add_mood(MOOD_LOVED, "Sacrificaste a alguien que quería")
+	if leader:
+		var female := v.gender == Villager.Gender.FEMALE
+		Game.announce(tr("Sacrificaste a la líder de la tribu" if female else "Sacrificaste al líder de la tribu"),
+				Tribe.C_LEADER)
 	if blood:
 		var moon := get_tree().get_first_node_in_group("moon") as Moon
 		if moon:
@@ -217,6 +304,123 @@ static func _make_drum() -> AudioStreamWAV:
 		ph += TAU * lerpf(150.0, 55.0, minf(1.0, k * 3.0)) / rate
 		buf.append(sin(ph) * exp(-k * 7.0) + randf_range(-1.0, 1.0) * 0.3 * exp(-k * 60.0))
 	return Synth.wav(buf, rate, 0.9)
+
+## El cartel que flota arriba del altar mientras tenés agarrado a un aldeano: las ofrendas, los
+## sacrificios y la XP que te daría sacrificarlo ahora (o por qué no se puede), y abajo lo que te
+## costaría (ver Altar.toll): si es el líder, cuántos lo van a llorar, cuántos se van a alegrar,
+## cuántos lo van a ver y las ofrendas de sus rezos que se pierden. El borde se pone rojo cuando
+## lo tenés encima del altar: si lo soltás ahí, empieza el ritual.
+class Preview extends PanelContainer:
+	const CAPTIONS: Array[String] = ["Sacrificio de día", "Sacrificio de noche", "Sacrificio con Luna de Sangre"]
+	const ICON_PX := 16
+	const C_GLAD := Color(0.62, 0.86, 0.5)
+	var _caption: Label
+	var _row: HBoxContainer
+	var _offerings: Label
+	var _sacrifices: Label
+	var _xp: Label
+	var _line: ColorRect          # La raya entre lo que da y lo que cuesta
+	var _costs: VBoxContainer     # Lo que cuesta: una línea por cosa
+	var _shown := []   # Lo que muestra ahora (para no rearmarlo cada cuadro)
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var box := VBoxContainer.new()
+		box.add_theme_constant_override("separation", 2)
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(box)
+		_build_reward(box)
+		_line = ColorRect.new()
+		_line.color = UiStyle.C_PANEL_BORDER
+		_line.custom_minimum_size = Vector2(0, 1)
+		_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(_line)
+		_costs = VBoxContainer.new()
+		_costs.add_theme_constant_override("separation", 0)
+		_costs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(_costs)
+
+	## Arriba: de qué es el sacrificio (de día, de noche...) y lo que da, con sus íconos.
+	func _build_reward(box: VBoxContainer) -> void:
+		_caption = UiStyle.label("", 11, UiStyle.C_MUTED)
+		_caption.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Lo traduce show_reward
+		_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		box.add_child(_caption)
+		_row = HBoxContainer.new()
+		_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		_row.add_theme_constant_override("separation", 4)
+		_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(_row)
+		_offerings = _amount(HudIcon.make("coin", ICON_PX), UiStyle.C_OFFERING)
+		_sacrifices = _amount(HudIcon.sacrifice(ICON_PX), Altar.C_SACRIFICE)
+		_xp = _amount(HudIcon.make("xp", ICON_PX), UiStyle.C_XP)
+
+	## Un ícono y su número, en la fila (separado del anterior).
+	func _amount(icon: Control, color: Color) -> Label:
+		if _row.get_child_count() > 0:
+			var gap := Control.new()
+			gap.custom_minimum_size = Vector2(8, 0)
+			gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_row.add_child(gap)
+		_row.add_child(icon)
+		var l := UiStyle.label("", 15, color)
+		l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Es un número
+		_row.add_child(l)
+		return l
+
+	## Lo que da sacrificar a v (got, ver Altar.reward) y lo que cuesta (cost, ver Altar.toll); why,
+	## por qué no se puede (o ""); over, si está encima del altar.
+	func show_reward(v: Villager, got: Dictionary, cost: Dictionary, why: String, over: bool) -> void:
+		var hud := get_tree().get_first_node_in_group("hud") as HUD
+		var prayers := ""   # Como texto: así solo cambia cuando cambia lo que se ve
+		if cost.prayers > 0.0:
+			prayers = tr("Rezos perdidos: −%s cada %d s") % [HUD.decimal(cost.prayers), int(hud.tribute_interval if hud else 10.0)]
+		var female := v.gender == Villager.Gender.FEMALE
+		var shown := [got.offerings, got.sacrifices, got.xp, got.time, why, over, cost.mourners, cost.glad,
+				cost.witnesses, prayers, cost.leader, female]
+		if shown == _shown:
+			return
+		_shown = shown
+		_show_costs(cost, prayers, female, v.is_child())
+		var time: int = got.time
+		_caption.text = tr(why) if why != "" else tr(CAPTIONS[time])
+		_caption.add_theme_color_override("font_color",
+				UiStyle.C_WARN if why != "" else (Altar.C_SACRIFICE if time > 0 else UiStyle.C_MUTED))
+		_offerings.text = "+%d" % got.offerings
+		_sacrifices.text = "+%d" % got.sacrifices
+		_xp.text = "+%d" % got.xp
+		_row.modulate.a = 0.4 if why != "" else 1.0
+		_costs.modulate.a = _row.modulate.a
+		var hot := over and why == ""
+		add_theme_stylebox_override("panel", UiStyle.box(Color(UiStyle.C_PANEL, 0.9), 10,
+				Altar.C_SACRIFICE if hot else UiStyle.C_PANEL_BORDER, 2 if hot else 1, Vector4(10, 4, 10, 6)))
+		reset_size()
+
+	## Abajo, lo que cuesta: una línea por cosa (las que no pasan, no van). Un chico no se puede
+	## sacrificar: ahí no va nada.
+	func _show_costs(cost: Dictionary, prayers: String, female: bool, child: bool) -> void:
+		for c in _costs.get_children():
+			c.free()
+		if not child:
+			if cost.leader:
+				_cost_line(tr("Es la líder: la tribu te va a creer menos" if female
+						else "Es el líder: la tribu te va a creer menos"), Tribe.C_LEADER)
+			if cost.mourners > 0:
+				_cost_line(tr("La van a llorar: %d" if female else "Lo van a llorar: %d") % cost.mourners, UiStyle.C_WARN)
+			if cost.glad > 0:
+				_cost_line(tr("Se van a alegrar: %d") % cost.glad, C_GLAD)
+			if cost.witnesses > 0:
+				_cost_line(tr("La van a ver: %d" if female else "Lo van a ver: %d") % cost.witnesses, UiStyle.C_MUTED)
+			if prayers != "":
+				_cost_line(prayers, UiStyle.C_OFFERING.darkened(0.15))
+		_line.visible = _costs.get_child_count() > 0
+		_costs.visible = _line.visible
+
+	func _cost_line(text: String, color: Color) -> void:
+		var l := UiStyle.label(text, 12, color)
+		l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Ya viene traducido (lleva el número)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_costs.add_child(l)
 
 ## El alma del sacrificado: un fantasmita blanco que sube al cielo meciéndose y se desvanece.
 class Soul extends Node2D:
