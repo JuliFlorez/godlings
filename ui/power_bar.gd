@@ -87,12 +87,18 @@ func _ready() -> void:
 	_power_row = _power_scroll.row   # Los slots de los poderes van acá (ver set_powers)
 	_set_tab(false)
 
-## Recargándose (el diluvio): la barrita de abajo del slot se va llenando y el ícono, apagado.
+## Recargándose (el diluvio): la barrita de abajo del slot se va llenando y el ícono, apagado. Y lo
+## que gasta de devoción, en rojo si no te alcanza.
 func _process(_delta: float) -> void:
 	for power in powers:
 		var fill := power.recharge()
 		var charging := power.unlocked and fill < 1.0 and not power.armed
 		var slot: Button = _power_slots[power]
+		if slot.has_meta("cost"):
+			var short := Game.devotion < power.cost
+			if short != slot.get_meta("short", false):   # (Solo cuando cambia: cambiar el color rearma el texto)
+				slot.set_meta("short", short)
+				(slot.get_meta("cost") as Label).add_theme_color_override("font_color", UiStyle.C_WARN if short else UiStyle.C_TEXT)
 		var bar: ColorRect = slot.get_meta("charge")
 		bar.visible = charging
 		if charging:
@@ -128,6 +134,9 @@ func refresh() -> void:
 		var slot: Button = _power_slots[power]
 		_sync_weapon(slot, power.unlocked, power.armed, slot.get_meta("active"), power.slot_tooltip(), power.locked_tooltip,
 				power.price, power.sacrifices)
+		if slot.has_meta("cost"):   # Lo que gasta de devoción: en el tooltip, y la gotita si ya lo compraste
+			slot.tooltip_text += "\n" + tr("Gasta %d de devoción cada vez") % int(power.cost)
+			(slot.get_meta("cost_badge") as Control).visible = power.unlocked
 	var dragging := not hud.select_mode and not hud.edit_mode
 	for b: Array in [[_drag_btn, dragging], [_select_btn, hud.select_mode], [_edit_btn, hud.edit_mode]]:
 		b[0].add_theme_stylebox_override("normal", _slot_mode if b[1] else _slot_idle)
@@ -212,6 +221,8 @@ func _power_slot(power: Power) -> Button:
 	bar.visible = false
 	slot.add_child(bar)
 	slot.set_meta("charge", bar)
+	if power.cost > 0.0:
+		_cost_badge(slot, int(power.cost))
 	slot.pressed.connect(func():
 		if power.unlocked:
 			power.set_armed(not power.armed)
@@ -266,6 +277,30 @@ func _tool_slot(parent: Control, kind: String, title: String, key: String, avail
 		name_l.modulate = Color(1, 1, 1, 0.55)
 		_slot_badge(b, "PRÓXIMAMENTE", UiStyle.C_SOON)
 	return b
+
+## Lo que gasta de devoción cada vez que se usa (una gotita y el número, como el + de invocar),
+## pegado sobre el borde de arriba, a la derecha (sin tapar el ícono). Queda en el slot: "cost_badge"
+## y su número, "cost" (se pone rojo si no alcanza, ver _process). Bloqueado no se ve: ahí va "En la
+## tienda" (ver refresh).
+func _cost_badge(slot: Control, cost: int) -> void:
+	var badge := PanelContainer.new()
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_theme_stylebox_override("panel", UiStyle.box(Color(0.06, 0.09, 0.16, 0.92), 7,
+			UiStyle.C_DEVOTION.darkened(0.2), 1, Vector4(3, 0, 5, 0)))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 1)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_child(row)
+	row.add_child(HudIcon.make("devotion", 10))
+	var l := UiStyle.label(str(cost), 10, UiStyle.C_TEXT)
+	l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED   # Es un número
+	row.add_child(l)
+	slot.add_child(badge)
+	var sz := badge.get_combined_minimum_size()
+	badge.size = sz
+	badge.position = Vector2(SLOT_SIZE.x - sz.x + 3.0, -sz.y * 0.45)
+	slot.set_meta("cost_badge", badge)
+	slot.set_meta("cost", l)
 
 ## Cartelito ("Próximamente", "En la tienda") pegado sobre el borde superior del slot.
 func _slot_badge(slot: Control, text: String, color: Color) -> Control:

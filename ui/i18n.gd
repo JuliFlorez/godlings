@@ -249,6 +249,7 @@ const EN := {
 	"Tirarles comida": "Throw them food",
 	"Click en la isla para tirarles comida, o sobre un aldeano para dársela a él (−%d devoción) · click derecho, %s o %s para guardarla.": "Click on the island to throw them food, or on a villager to give it to them (−%d devotion) · right click, %s or %s to put it away.",
 	"Devoción insuficiente": "Not enough devotion",
+	"Gasta %d de devoción cada vez": "Uses %d devotion each time",
 	"Fe": "Faith",
 	"Miedo": "Fear",
 	"Ánimo": "Mood",
